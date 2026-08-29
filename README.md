@@ -22,6 +22,10 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License" />
 </p>
 
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">中文</a> · <a href="README.ja-JP.md">日本語</a>
+</p>
+
 ---
 
 > **7 AI experts walk into a courtroom.** They debate, challenge each other, cite evidence, run tools, catch contradictions — and converge on a verdict. All streamed live to your browser.
@@ -210,98 +214,3 @@ This system is for **research and demonstration purposes only**. AI-generated ve
 <p align="center">
   <sub>Built with LangGraph • FastAPI • WebSocket</sub>
 </p>
-
----
-
-<p align="center">
-  <strong>English</strong> · <a href="#中文">中文</a> · <a href="#日本語">日本語</a>
-</p>
-
----
-
-<a id="中文"></a>
-
-## ⚖️ VerdictAI — 中文
-
-> **7 位 AI 专家走进法庭。** 他们辩论、质疑、引用证据、调用工具、发现矛盾——最终收敛出裁决。全程实时流式传输到你的浏览器。
-
-### 为什么选择 VerdictAI？
-
-| 传统 AI 问答 | **VerdictAI** |
-|---|---|
-| 单模型、单次回答 | **7 位专家**多轮辩论、相互质疑 |
-| 输出一次性文本 | **多轮审议** + 矛盾检测 |
-| 黑盒 | **完整事件流** — 每 token、工具调用、Agent 状态 |
-| 静态 | **实时 WebSocket** — 看辩论实时展开 |
-| "AI 说的" | **结构化裁决** — 证据链、存疑点、建议 |
-
-### 核心能力
-
-- **7 位领域专家**：现场勘查 / 法医 / 物证 / 心理 / 证据法 / 检察官 / 辩护人
-- **多轮辩论**：可配置 2–5 轮，专家互相审视论点
-- **矛盾检测**：AI 纠错官每轮扫描矛盾
-- **工具增强**：证据检索 / 时间线核对 / 法条查询 / 标注
-- **PDF 案件提取**：拖入 PDF → 自动结构化
-- **双模式审判**：AI 审判长 / 人类法官（HITL）
-- **案例库 + 复盘**：多案件存储 + 历史辩论回放
-- **零配置演示**：Mock 模式无需 API Key
-
-### 快速开始
-
-```bash
-git clone https://github.com/Morningstar202604/VerdictAI.git
-cd VerdictAI/backend
-python -m venv .venv && .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8787
-```
-
-打开 `http://localhost:8787` 即可使用。
-
-### 免责声明
-
-本系统仅用于技术研究与演示。AI 生成的裁决不构成任何法律意见或判决。最终法律责任由人类法官承担。
-
----
-
-<a id="日本語"></a>
-
-## ⚖️ VerdictAI — 日本語
-
-> **7人のAI専門家が法廷に入ります。** 彼らは議論し、疑義を呈し、証拠を引用し、ツールを使用し、矛盾を発見し、判決に到達します。すべてリアルタイムでブラウザにストリーミング。
-
-### VerdictAI の特徴
-
-| 従来の AI Q&A | **VerdictAI** |
-|---|---|
-| 単一モデル、単一回答 | **7人のエージェント**が議論・挑戦 |
-| 1回限りのテキスト | **マルチラウンド審議** + 矛盾検出 |
-| ブラックボックス | **完全なイベントストリーム** |
-| 静的 | **リアルタイム WebSocket** |
-| "AI が言った" | **構造化された判決** |
-
-### 主な機能
-
-- **7人の専門家**: 現場捜査 / 法医学 / 物証 / 心理学 / 証拠法 / 検察 / 弁護
-- **マルチラウンド**: 2〜5ラウンドの設定が可能
-- **矛盾検出**: AI批評官が各ラウンドの矛盾を検出
-- **ツール拡張**: 証拠検索 / タイムライン確認 / 法令検索
-- **PDF事件処理**: PDFをドロップ → 自動構造化
-- **デュアル審判**: AI裁判長 / 人間裁判官（HITL）
-- **ゼロコンフィグデモ**: MockモードでAPI Keyなしで動作
-
-### クイックスタート
-
-```bash
-git clone https://github.com/Morningstar202604/VerdictAI.git
-cd VerdictAI/backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8787
-```
-
-`http://localhost:8787` にアクセスしてご利用ください。
-
-### 免責事項
-
-本システムは技術研究・デモ用です。AIが生成した判決は法的助言や裁判の効力を持ちません。最終的な法的責任は人間の裁判官にあります。
