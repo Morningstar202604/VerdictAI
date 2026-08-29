@@ -537,6 +537,7 @@
 
     <script>
       const $ = (id) => document.getElementById(id);
+      function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
       let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = [];
       const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", cite_source:"要求举证", run_code:"Python 沙箱" };
       const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","cite_source"];
@@ -580,7 +581,7 @@
         sortedAgents().filter(a=>isDebatable(a.key)).forEach(a=>{
           const on=enabledAgents.has(a.key);
           const el=document.createElement("div"); el.className="roster-pick"+(on?"":" off");
-          el.innerHTML=`<span class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</span><span>${a.name}</span>`;
+          el.innerHTML=`<span class="ainit" style="background:${escapeHtml(a.color)}">${escapeHtml(a.name.slice(0,1))}</span><span>${escapeHtml(a.name)}</span>`;
           el.title="点击切换出庭 / 不出庭";
           el.onclick=()=>{ if(enabledAgents.has(a.key)) enabledAgents.delete(a.key); else enabledAgents.add(a.key); a.enabled=enabledAgents.has(a.key); el.classList.toggle("off",!enabledAgents.has(a.key)); };
           box.appendChild(el);
@@ -682,7 +683,7 @@
         setPpStep(1,"done",`意图识别完成 · ${elapsed}s · "${(b.intent||"").slice(0,30)}"`);
         await sleep(200);
 
-        setPpStep(2,"done",`强度: $({low:"低",medium:"中",high:"高"}[b.reasoning_intensity]||b.reasoning_intensity||"—")}`);
+        setPpStep(2,"done",`强度: ${({low:"低",medium:"中",high:"高"}[b.reasoning_intensity]||b.reasoning_intensity||"—")}`);
         await sleep(150);
 
         setPpStep(3,"done",`提示词已生成 · ${(b.global_guidance||"").length} 字`);
@@ -772,11 +773,12 @@
 
       function renderCase() {
         const d=caseDetail; if(!d){ $("casePanel").innerHTML='<div class="muted">加载案件中…</div>'; return; }
-        let h=`<div class="card"><div class="case-head"><div class="case-no">案号 ${d.id?("〔2026〕"+d.id.toUpperCase()):"—"}</div><div class="case-title">${d.title}</div><div class="muted">${d.summary||""}</div></div>`;
-        if(d.persons&&d.persons.length){ h+='<div class="sec-title">涉案人员</div>'; d.persons.forEach(p=>{ h+=`<div class="person"><div><div><span class="pname">${p.name}</span> <span class="prole">${p.role}</span></div><div class="pdesc">${p.desc||""}</div></div></div>`; }); }
-        if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单</div>'; d.evidence.forEach(e=>{ const col=e.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e.id}</span><span class="evi-type">${e.type}</span></div><div class="evi-desc">${e.desc}</div><div class="bar"><div style="width:${(e.reliability||0)*100}%"></div></div><span class="chain ${e.chain_intact?'ok':'no'}">${e.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((e.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
-        if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${s.topic}</div><div class="st-text">${s.text}</div></div>`; }); }
-        if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${t.time}</div><div class="tl-ev">${t.event}</div><div class="tl-src">来源：${t.source||"—"}</div></div>`; }); h+='</div>'; }
+        const e=escapeHtml;
+        let h=`<div class="card"><div class="case-head"><div class="case-no">案号 ${d.id?("〔2026〕"+e(d.id.toUpperCase())):"—"}</div><div class="case-title">${e(d.title)}</div><div class="muted">${e(d.summary||"")}</div></div>`;
+        if(d.persons&&d.persons.length){ h+='<div class="sec-title">涉案人员</div>'; d.persons.forEach(p=>{ h+=`<div class="person"><div><div><span class="pname">${e(p.name)}</span> <span class="prole">${e(p.role)}</span></div><div class="pdesc">${e(p.desc||"")}</div></div></div>`; }); }
+        if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单</div>'; d.evidence.forEach(ev=>{ const col=ev.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e(ev.id)}</span><span class="evi-type">${e(ev.type)}</span></div><div class="evi-desc">${e(ev.desc)}</div><div class="bar"><div style="width:${(ev.reliability||0)*100}%"></div></div><span class="chain ${ev.chain_intact?'ok':'no'}">${ev.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((ev.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
+        if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${e(s.topic)}</div><div class="st-text">${e(s.text)}</div></div>`; }); }
+        if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${e(t.time)}</div><div class="tl-ev">${e(t.event)}</div><div class="tl-src">来源：${e(t.source||"—")}</div></div>`; }); h+='</div>'; }
         h+='<div class="sec-title">现场勘验图表</div>';
         [["timeline","关键时间线"],["evidence","证据可靠性"],["scene","现场平面图"],["motive","资金/动机流向"],["dna","DNA 比对"],["communication","通讯关系网"],["bloodstain","血迹分布与刺入方向"]].forEach((k)=>{ const [fn,label]=k; h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${label}</div><img class="chart" src="/static/data/cases/assets/${fn}.png" alt="${label}" onerror="this.style.display='none'">`; });
         h+='</div>'; $("casePanel").innerHTML=h; renderRoster(); renderIntake();
@@ -803,7 +805,7 @@
           const stTxt = st==="speaking"?"举证中":st==="done"?"已陈述":"待席";
           const tools=(a.tools||[]).map(t=>`<span class="tchip">${TOOL_LABELS[t]||t}</span>`).join("");
           const el=document.createElement("div"); el.className="agent-row"; el.style.borderLeftColor=a.color;
-          el.innerHTML=`<div class="ar-top"><div class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</div><div style="flex:1;min-width:0"><div class="an">${a.name}</div><div class="ad">${a.duty}</div></div><span class="astatus ${st}">${stTxt}</span></div><div class="tools">${tools}</div><details class="strategy"><summary>查看策略</summary><pre>${escape(a.system_prompt||a.default_prompt||a.stance)}</pre></details>`;
+          el.innerHTML=`<div class="ar-top"><div class="ainit" style="background:${escapeHtml(a.color)}">${escapeHtml(a.name.slice(0,1))}</div><div style="flex:1;min-width:0"><div class="an">${escapeHtml(a.name)}</div><div class="ad">${escapeHtml(a.duty)}</div></div><span class="astatus ${st}">${stTxt}</span></div><div class="tools">${tools}</div><details class="strategy"><summary>查看策略</summary><pre>${escapeHtml(a.system_prompt||a.default_prompt||a.stance)}</pre></details>`;
           box.appendChild(el);
         });
       }
@@ -842,11 +844,12 @@
       function hideBanner(){ const b=$("connBanner"); if(b) b.style.display="none"; }
       function doConnect(){
         reset(); running=true; wsRetries++; $("landStart").disabled=true; session=Math.random().toString(36).slice(2);
-        ws=new WebSocket(`ws://${location.host}/ws/${session}`);
+        const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+        ws=new WebSocket(`${wsProto}//${location.host}/ws/${session}`);
         ws.onopen=()=>{ setConn("on"); hideBanner(); ws.send(JSON.stringify(Object.assign({type:"start",case_id:selectedCase}, intakePayload()))); };
-        ws.onclose=()=>{ setConn("off"); if(!manualClose && wsRetries<6){ showBanner("连接断开，正在重连…（第 "+wsRetries+" 次）"); setTimeout(doConnect, 2500); return; } running=false; $("landStart").disabled=false; if(!manualClose) showBanner("连接失败，请刷新页面重试。"); };
-        ws.onerror=()=>setConn("off");
-        ws.onmessage=(e)=>handle(JSON.parse(e.data));
+        ws.onclose=()=>{ setConn("off"); if(!manualClose && wsRetries<6){ showBanner("连接断开，正在重连…（第 "+wsRetries+" 次）"); setTimeout(doConnect, Math.min(2500*wsRetries,30000)); return; } running=false; $("landStart").disabled=false; if(!manualClose) showBanner("连接失败，请刷新页面重试。"); };
+        ws.onerror=()=>{ setConn("off"); console.error("WebSocket error"); };
+        ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
       function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(); }
       function reset(){ messages=[]; activeRole=null; currentId=null; round=0; serverBrief=null; lastVerdict=null; contraList=[]; recNotes=[]; $("debate").innerHTML='<div class="empty">已重置。</div>'; $("contra").innerHTML='<div class="muted">尚未记录矛盾点。</div>'; $("recording").innerHTML='<div class="muted">辩论开始后，各专家主张将实时记录于此。</div>'; $("verdictBox").innerHTML=""; $("hitl").innerHTML=""; $("prog").style.width="0%"; $("speak").textContent=""; $("intervene").classList.add("hidden"); $("dlReport").classList.add("hidden"); setPhase("idle"); renderRoster(); }
@@ -952,7 +955,7 @@
         const parts = raw.split(/(\[stderr\]|\[exit code \d+\])/g);
         return parts.map(p => {
           if (p === "[stderr]") return '<div class="sb-err-h">⚠ 标准错误（stderr）</div>';
-          if (/^\[exit code \d+\]$/.test(p)) return '<div class="sb-err-h">'+escape(p)+'</div>';
+          if (/^\[exit code \d+\]$/.test(p)) return '<div class="sb-err-h">'+escapeHtml(p)+'</div>';
           if (!p) return "";
           const isErr = /Traceback \(|Error:|Exception|exit code/.test(p);
           return '<div class="'+(isErr?"sb-err":"")+'">'+renderMarkdown(p)+"</div>";
@@ -960,9 +963,9 @@
       }
       function renderDebate(){ const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
         messages.forEach(m=>{ const rk=parseInt(m.id.split("-")[1]); if(rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
-           const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escape(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
+           const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escapeHtml(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
           const el=document.createElement("div"); el.className="rec";
-           el.innerHTML=`<div class="ava" style="background:${m.color}">${m.name.slice(0,1)}</div><div class="body"><div class="rname">${m.name}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span></div>${m.stance?`<div class="rstance">${m.stance}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
+           el.innerHTML=`<div class="ava" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span></div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
           wrap.appendChild(el);
         });
         box.innerHTML=""; box.appendChild(wrap); box.scrollTop=box.scrollHeight;

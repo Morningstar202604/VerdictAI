@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import uuid
 
@@ -12,18 +13,20 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.data import generate_case
-from app.data.store import list_cases, load_case
+from app.data.store import list_cases, load_case, validate_id
 from app.agents.roles import role_list
 from app.agents import agent_config
 from app.graph.runner import run_debate
 from app.runtime import current as current_settings, update as update_settings
 from app.ws.manager import manager
 
-app = FastAPI(title="多智能体法律探案审判系统", version="0.1.0")
+log = logging.getLogger("verdictai")
+
+app = FastAPI(title="VerdictAI", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8787", "http://127.0.0.1:8787"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,7 +79,12 @@ def cases():
 
 @app.get("/api/cases/{case_id}")
 def get_case(case_id: str):
-    return load_case(case_id)
+    if not validate_id(case_id):
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+    c = load_case(case_id)
+    if c is None:
+        return JSONResponse({"error": "案件不存在"}, status_code=404)
+    return c
 
 
 @app.get("/api/debates")
@@ -90,7 +98,8 @@ def list_debates():
         if not fn.endswith(".json"):
             continue
         try:
-            rec = json.load(open(os.path.join(d, fn), encoding="utf-8"))
+            with open(os.path.join(d, fn), encoding="utf-8") as fh:
+                rec = json.load(fh)
         except Exception:
             continue
         out.append(
@@ -108,10 +117,13 @@ def list_debates():
 
 @app.get("/api/debates/{session_id}")
 def get_debate(session_id: str):
+    if not validate_id(session_id):
+        return JSONResponse({"error": "无效的会话 ID"}, status_code=400)
     p = os.path.join(settings.data_dir, "debates", f"{session_id}.json")
     if not os.path.exists(p):
         return JSONResponse({"error": "未找到该辩论记录"}, status_code=404)
-    return JSONResponse(json.load(open(p, encoding="utf-8")))
+    with open(p, encoding="utf-8") as fh:
+        return JSONResponse(json.load(fh))
 
 
 @app.post("/api/cases/generate")
@@ -271,13 +283,13 @@ async def upload_case(payload: dict):
 @app.delete("/api/cases/{case_id}")
 async def delete_case(case_id: str):
     """删除案件（案例库管理）。"""
+    if not validate_id(case_id):
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
     cases_dir = os.path.join(data_dir, "cases")
     path = os.path.join(cases_dir, f"{case_id}.json")
-    assets_dir = os.path.join(cases_dir, "assets")
     if not os.path.exists(path):
         return JSONResponse({"error": "案件不存在"}, status_code=404)
     os.remove(path)
-    # 可选：清理关联图表（简单起见保留，避免误删共享资源）
     return {"deleted": case_id}
 
 

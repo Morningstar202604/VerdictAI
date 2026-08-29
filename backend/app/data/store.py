@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 
 from app.config import settings
+
+_SAFE_ID = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 
 def cases_dir() -> str:
     d = os.path.join(settings.data_dir, "cases")
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def validate_id(case_id: str) -> bool:
+    return bool(_SAFE_ID.match(case_id))
 
 
 def list_cases() -> List[Dict]:
@@ -33,13 +40,11 @@ def list_cases() -> List[Dict]:
     return out
 
 
-def load_case(case_id: str) -> Dict:
+def load_case(case_id: str) -> Optional[Dict]:
+    if not validate_id(case_id):
+        return None
     path = os.path.join(cases_dir(), f"{case_id}.json")
     if not os.path.exists(path):
-        # 回退到第一个可用案件
-        for fn in os.listdir(cases_dir()):
-            if fn.endswith(".json"):
-                path = os.path.join(cases_dir(), fn)
-                break
+        return None
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)

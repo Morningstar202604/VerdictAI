@@ -41,7 +41,10 @@ async def run_debate(
         if changed:
             brief["reasoning_intensity"] = brief.get("reasoning_intensity", "medium")
             brief["per_role_material"] = build_role_material(
-                case, brief.get("intent", "未指定"), brief.get("global_guidance", "")
+                case,
+                brief.get("intent", "未指定"),
+                brief.get("global_guidance", ""),
+                brief.get("contradictions"),
             )
     case = dict(case)
     case["brief"] = brief
