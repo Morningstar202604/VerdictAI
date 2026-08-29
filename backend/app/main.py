@@ -276,6 +276,13 @@ async def upload_case(payload: dict):
     except Exception as ex:
         log.warning("preprocess failed for %s: %s", cid, ex)
         data["brief"] = {"intake_done": False, "error": str(ex)[:300]}
+    try:
+        from app.charts import generate_charts
+
+        data["charts"] = generate_charts(data)
+    except Exception as ex:
+        log.warning("chart generation failed for %s: %s", cid, ex)
+        data["charts"] = {}
     with open(os.path.join(cases_dir, cid + ".json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return {"case": data}
@@ -324,7 +331,9 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                     run_debate(case, session_id, agents, overrides or None)
                 )
             elif msg.get("type") == "human":
-                await manager.push_human(session_id, msg.get("text", ""))
+                await manager.push_human(
+                    session_id, msg.get("text", ""), msg.get("subtype", "intervene")
+                )
 
     task = asyncio.create_task(receiver())
     try:

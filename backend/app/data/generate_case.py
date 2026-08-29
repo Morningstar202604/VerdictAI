@@ -555,6 +555,17 @@ def generate() -> str:
     _chart_dna(os.path.join(assets, "dna.png"))
     _chart_communication(os.path.join(assets, "communication.png"))
     _chart_bloodstain(os.path.join(assets, "bloodstain.png"))
+    base = f"/static/data/cases/{ASSETS_REL}/"
+    CASE["charts"] = {
+        "关键时间线": base + "timeline.png",
+        "证据可靠性": base + "evidence.png",
+        "现场平面图": base + "scene.png",
+        "资金/动机流向": base + "motive.png",
+        "DNA 比对": base + "dna.png",
+        "通讯关系网": base + "communication.png",
+        "血迹分布与刺入方向": base + "bloodstain.png",
+    }
+    _save_case(os.path.join(d, f"{CASE['id']}.json"))
     return os.path.join(d, f"{CASE['id']}.json")
 
 

@@ -386,6 +386,12 @@
                 <option value="ai">AI 自动落槌</option>
                 <option value="human">人类法官落槌</option>
               </select></div>
+            <div><label class="mini">参与模式</label>
+              <select id="ivMode" onchange="applyMode()">
+                <option value="observe">旁观（只看不打断）</option>
+                <option value="intervene" selected>介入（可中途插话）</option>
+                <option value="collaborate">人机配合（插话 + 人类落槌）</option>
+              </select></div>
           </div>
           <label class="mini">总体分析提示词（系统生成，可修改）</label>
           <textarea id="ivGuidance" rows="2" class="iv-in" placeholder="（上传卷宗后自动生成）" oninput="onIntake()"></textarea>
@@ -539,8 +545,8 @@
       const $ = (id) => document.getElementById(id);
       function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
       let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = [];
-      const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", cite_source:"要求举证", run_code:"Python 沙箱" };
-      const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","cite_source"];
+      const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", cite_source:"要求举证", run_code:"Python 沙箱", install_package:"安装依赖" };
+      const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","cite_source","run_code"];
       const GROUP_LABELS = { investigation:"侦查阶段", trial:"庭审阶段", other:"其他" };
       let ws=null, session="", activeRole=null, currentId=null;
       let messages=[], round=0, maxRounds=3, running=false;
@@ -786,7 +792,10 @@
         if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${e(s.topic)}</div><div class="st-text">${e(s.text)}</div></div>`; }); }
         if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${e(t.time)}</div><div class="tl-ev">${e(t.event)}</div><div class="tl-src">来源：${e(t.source||"—")}</div></div>`; }); h+='</div>'; }
         h+='<div class="sec-title">现场勘验图表</div>';
-        [["timeline","关键时间线"],["evidence","证据可靠性"],["scene","现场平面图"],["motive","资金/动机流向"],["dna","DNA 比对"],["communication","通讯关系网"],["bloodstain","血迹分布与刺入方向"]].forEach((k)=>{ const [fn,label]=k; h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${label}</div><img class="chart" src="/static/data/cases/assets/${fn}.png" alt="${label}" onerror="this.style.display='none'">`; });
+        const charts=d.charts||{};
+        const chartItems=Object.entries(charts);
+        if(chartItems.length){ chartItems.forEach(([label,url])=>{ h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${escapeHtml(label)}</div><img class="chart" src="${escapeHtml(url)}" alt="${escapeHtml(label)}" onerror="this.style.display='none'">`; }); }
+        else { h+='<div class="muted">暂无足够数据生成图表（需要证据/时间线/通讯/资金等结构化字段）。</div>'; }
         h+='</div>'; $("casePanel").innerHTML=h; renderRoster(); renderIntake();
       }
 
@@ -821,6 +830,8 @@
       function toggleRail(side){ const m=$("workspace"); if(side==="left"){ m.classList.toggle("no-left"); $("btnLeft").textContent=m.classList.contains("no-left")?"案卷 ›":"案卷 ‹"; } else { m.classList.toggle("no-right"); $("btnRight").textContent=m.classList.contains("no-right")?"‹ 合议":"› 合议"; } }
       function landStart(){
         if(enabledAgents.size===0){ alert("请至少选择一位出庭专家（设置中可调整）。"); return; }
+        if(!selectedCase){ alert("请先在左侧选择一个案件（或生成示例案件）再开庭。"); return; }
+        applyMode();
         // 将落地页的预处理结果同步到工作区
         const b = (caseDetail && caseDetail.brief) || {};
         if(b && b.intake_done) {
@@ -833,6 +844,12 @@
         $("landing").classList.add("hidden");
         $("workspace").classList.remove("hidden");
         start();
+      }
+      function applyMode(){
+        const m=$("ivMode").value; const iv=$("intervene");
+        if(m==="observe"){ iv.classList.add("hidden"); $("ivJudge").value="ai"; }
+        else if(m==="intervene"){ iv.classList.remove("hidden"); $("ivJudge").value="ai"; }
+        else if(m==="collaborate"){ iv.classList.remove("hidden"); $("ivJudge").value="human"; }
       }
       function renderDispatchPreview(b) {
         const disp=$("ivDispatch"); if(!disp) return; disp.innerHTML="";
@@ -876,6 +893,8 @@
             case "agent_note": addRecording(ev.role, ev.name, ev.note||{}); break;
           case "verdict": setPhase("verdict"); lastVerdict=ev.verdict; renderVerdict(ev.verdict); $("dlReport").classList.remove("hidden"); break;
           case "awaiting_human": setPhase("review"); renderHitl(ev.draft||null, ev.final); break;
+          case "human_reminder": setPhase("review"); break;
+          case "judge_end": $("speak").textContent = ev.consensus ? "● 审判长已达成裁决" : "● 审判长未达成完全共识，进入人类复核"; break;
           case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
           case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); break;
           case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
@@ -986,10 +1005,12 @@
         const color=(roleMap[role]||{}).color||"#1f3a5f";
         const evs=(note.evidence_ids||[]).map(e=>`<span class="ev-tag">${escape(e)}</span>`).join("");
         const ds=(note.doubts||[]).map(d=>`${escape(d)}`).join("；");
+        const imp=(note.implicates||[]).map(k=>`${escape((roleMap[k]||{}).name||k)}`).join("、");
         const el=document.createElement("div"); el.className="rec-note";
         el.innerHTML=`<div class="rn-head"><span class="rn-dot" style="background:${color}"></span>${escape(name||role)}</div>`+
           `<div class="rn-claim md">${renderMarkdown(note.claim||"（无摘要）")}</div>`+
           (evs?`<div class="rn-evs">${evs}</div>`:"")+
+          (imp?`<div class="rn-imp">👤 指向：${imp}</div>`:"")+
           (ds?`<div class="rn-doubt">⚠ ${ds}</div>`:"");
         wrap.appendChild(el);
       }
@@ -999,8 +1020,8 @@
         const title = final ? "🧑‍⚖ 人类审判长落槌" : "🧑‍⚖ 人类法官复核";
         $("hitl").innerHTML=`<div class="hitl-box"><div class="ht">${title}</div>${draftHtml}<textarea id="huText" rows="4" placeholder="确认采纳请点左侧；或在此写下你的最终裁决（JSON 或自然语言）"></textarea><div style="display:flex;gap:8px;margin-top:9px"><button class="ghost" style="flex:1" onclick="sendHuman('confirm')">采纳 AI 草案</button><button class="primary" style="flex:1" onclick="sendHuman()">落槌提交</button></div></div>`;
       }
-      function sendHuman(force){ const t = force==="confirm" ? "confirm" : ($("huText").value.trim()); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t})); $("hitl").innerHTML=""; }
-      function sendIntervene(){ const t=$("ivInput").value.trim(); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t})); $("ivInput").value=""; toast("已向合议庭插话，下一轮生效"); }
+      function sendHuman(force){ const t = force==="confirm" ? "confirm" : ($("huText").value.trim()); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t,subtype:"final"})); $("hitl").innerHTML=""; }
+      function sendIntervene(){ const t=$("ivInput").value.trim(); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t,subtype:"intervene"})); $("ivInput").value=""; toast("已向合议庭插话，下一轮生效"); }
       function downloadReport(){
         const brief = serverBrief || (caseDetail && caseDetail.brief) || {};
         const c = caseDetail || {};
@@ -1108,6 +1129,8 @@
         let rec=null; try{ rec=await (await fetch("/api/debates/"+sid)).json(); }catch(e){ return; }
         if(!rec || !Array.isArray(rec.events)){ toast("复盘记录不可用"); return; }
         hideLanding();
+        // 载入案件卷宗，保证复盘视图与报告正确
+        if(rec.case_id){ try{ const c=await (await fetch("/api/cases/"+rec.case_id)).json(); if(c && c.id){ selectedCase=c.id; caseDetail=c; renderCase(); } }catch(e){} }
         reset();
         rec.events.forEach(ev=>handle(ev));
         setPhase("done");

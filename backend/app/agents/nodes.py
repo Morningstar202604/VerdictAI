@@ -415,20 +415,6 @@ async def judge_node(state: DebateState, config) -> Dict:
     return {"consensus": True, "verdict": verdict, "log": [{"event": "verdict"}]}
 
 
-# ------------------------- 节点 4：人工介入（可选） -------------------------
-async def human_review_node(state: DebateState, config) -> Dict:
-    sink: Sink = config["configurable"]["sink"]
-    await sink({"kind": "awaiting_human"})
-    value = interrupt(
-        {
-            "question": "请人类法官确认/修正裁决（可输入补充意见，或输入 'confirm' 通过）："
-        }
-    )
-    human_input = value if isinstance(value, str) else str(value)
-    await sink({"kind": "human_done", "input": human_input})
-    return {"human_input": human_input}
-
-
 # ------------------------- 节点 5：人类审判长落槌 -------------------------
 async def human_final_node(state: DebateState, config) -> Dict:
     sink: Sink = config["configurable"]["sink"]
@@ -460,4 +446,5 @@ async def human_final_node(state: DebateState, config) -> Dict:
             "recommendation": "（由人类审判长直接裁决）",
             "disclaimer": draft.get("disclaimer", ""),
         }
+    await sink({"kind": "verdict", "verdict": verdict, "final": True, "by_human": True})
     return {"human_input": human_input, "verdict": verdict, "consensus": True}

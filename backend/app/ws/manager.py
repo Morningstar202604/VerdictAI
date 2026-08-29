@@ -12,15 +12,18 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active: Dict[str, WebSocket] = {}
         self.human_queues: Dict[str, "asyncio.Queue[str]"] = {}
+        self.final_queues: Dict[str, "asyncio.Queue[str]"] = {}
 
     async def connect(self, session_id: str, ws: WebSocket) -> None:
         await ws.accept()
         self.active[session_id] = ws
         self.human_queues[session_id] = asyncio.Queue()
+        self.final_queues[session_id] = asyncio.Queue()
 
     def disconnect(self, session_id: str) -> None:
         self.active.pop(session_id, None)
         self.human_queues.pop(session_id, None)
+        self.final_queues.pop(session_id, None)
 
     async def send(self, session_id: str, obj: dict) -> None:
         ws = self.active.get(session_id)
@@ -30,8 +33,12 @@ class ConnectionManager:
             except Exception:
                 pass
 
-    async def push_human(self, session_id: str, text: str) -> None:
-        q = self.human_queues.get(session_id)
+    async def push_human(
+        self, session_id: str, text: str, subtype: str = "intervene"
+    ) -> None:
+        q = (self.final_queues if subtype == "final" else self.human_queues).get(
+            session_id
+        )
         if q is not None:
             await q.put(text)
 
@@ -43,7 +50,7 @@ class ConnectionManager:
         return q.get_nowait() if not q.empty() else None
 
     async def wait_for_human(self, session_id: str) -> str:
-        q = self.human_queues.get(session_id)
+        q = self.final_queues.get(session_id)
         if q is None:
             return ""
         return await q.get()
