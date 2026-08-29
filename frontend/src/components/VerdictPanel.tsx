@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Contradiction, Verdict } from '../lib/api'
 import type { Status } from '../lib/useDebate'
 
