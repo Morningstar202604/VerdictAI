@@ -273,8 +273,9 @@ async def upload_case(payload: dict):
     os.makedirs(cases_dir, exist_ok=True)
     try:
         data["brief"] = await preprocess(data)
-    except Exception:
-        data["brief"] = None
+    except Exception as ex:
+        log.warning("preprocess failed for %s: %s", cid, ex)
+        data["brief"] = {"intake_done": False, "error": str(ex)[:300]}
     with open(os.path.join(cases_dir, cid + ".json"), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return {"case": data}

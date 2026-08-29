@@ -128,13 +128,7 @@ def run_code(code: str) -> str:
     if proc.returncode != 0:
         body += f"\n\n[exit code {proc.returncode}]"
     new_imgs = sorted(
-        f
-        for f in (
-            set(os.listdir(out_dir) - before)
-            if False
-            else (set(os.listdir(out_dir)) - before)
-        )
-        if f.lower().endswith(_IMG_EXT)
+        f for f in (set(os.listdir(out_dir)) - before) if f.lower().endswith(_IMG_EXT)
     )
     if new_imgs:
         body += "\n\n" + "\n".join(f"![{f}](/sandbox/{f})" for f in new_imgs)

@@ -125,13 +125,16 @@ def _persist() -> None:
         if "=" in line:
             k = line.partition("=")[0].strip()
             if k in values:
-                out.append(f"{k}={values[k]}")
-                seen.add(k)
+                if k not in seen:
+                    out.append(f"{k}={values[k]}")
+                    seen.add(k)
                 continue
         out.append(line)
     for k, v in values.items():
         if k not in seen:
             out.append(f"{k}={v}")
 
-    with open(ENV_PATH, "w", encoding="utf-8") as f:
+    tmp = ENV_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
+    os.replace(tmp, ENV_PATH)

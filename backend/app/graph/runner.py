@@ -26,6 +26,12 @@ async def run_debate(
 ) -> None:
     # 合并前端在开庭前对「意图 / 思考强度 / 提示词」的编辑，并重新分派角色材料
     brief = dict(case.get("brief") or {})
+    if not brief.get("intake_done") and not brief.get("per_role_material"):
+        await manager.send(
+            session_id,
+            {"kind": "error", "message": "卷宗预处理失败或未完成，请重新上传案件"},
+        )
+        return
     # judge_mode 按会话隔离（不再改写全局 settings，避免并发会话互相污染）
     resolved_judge_mode = (
         overrides.get("judge_mode")

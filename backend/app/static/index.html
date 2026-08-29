@@ -515,7 +515,7 @@
             <div class="muted" style="margin-bottom:10px">案例库：所有上传/生成的案件。可删除、查看详情、或点击标题在落地页选中。</div>
             <div class="row2" style="margin-bottom:10px">
               <button class="ghost" onclick="refreshCaseLibrary()">刷新列表</button>
-              <button class="primary" onclick="generateSampleCase()">生成示例案件</button>
+              <button class="primary" onclick="generateSampleCase(this)">生成示例案件</button>
             </div>
             <div id="libList" class="lib-list"></div>
             <div class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
@@ -591,12 +591,12 @@
       function hideLanding(){ $("landing").classList.add("hidden"); $("workspace").classList.remove("hidden"); }
 
       async function loadCase() { caseDetail = await (await fetch("/api/cases/"+selectedCase)).json(); renderCase(); }
-      async function regen() {
-        const btn=event.target; btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
+      async function regen(btn) {
+        btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
         try { const d=await (await fetch("/api/cases/generate",{method:"POST"})).json();
           const cases=(await (await fetch("/api/cases")).json()).cases; const land=$("landCase"); land.innerHTML="";
           cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
-          selectedCase="case_001"; land.value=selectedCase; caseDetail=d.case; renderCase();
+          selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
         } catch(e){ alert("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
       }
       async function uploadCase(evt) {
@@ -715,7 +715,13 @@
       }
 
       async function showPreprocessingResult(c, fileName, elapsed) {
-        const b = (c&&c.brief)||{}; if(!b||!b.intake_done) return;
+        const b = (c&&c.brief)||{};
+        if(b.error){
+          const stage=$("ppStage"); const header=stage.querySelector(".pp-header");
+          header.innerHTML=`<h2 style="color:var(--bad)">✗ 预处理失败</h2><p>${escapeHtml(b.error)}</p><p style="margin-top:8px"><button class="ghost" onclick="location.reload()">重新上传</button></p>`;
+          return;
+        }
+        if(!b||!b.intake_done) return;
         const stage=$("ppStage");
         const header=stage.querySelector(".pp-header");
         header.innerHTML=`<h2>✓ 卷宗分析完成</h2><p>「${escape(fileName||c.title||"")}」· AI 推理耗时 ${elapsed||"—"}s · 共 ${Object.keys(b.per_role_material||{}).length} 位专家获得材料</p>`;
@@ -797,7 +803,7 @@
         renderDispatchPreview(b);
       }
       function onIntake(){ intakeOverrides = { intent:$("ivIntent").value.trim(), reasoning_intensity:$("ivIntensity").value, global_guidance:$("ivGuidance").value.trim() }; }
-      function intakePayload(){ const p={}; if(intakeOverrides.intent) p.intent=intakeOverrides.intent; if(intakeOverrides.reasoning_intensity) p.reasoning_intensity=intakeOverrides.reasoning_intensity; if(intakeOverrides.global_guidance) p.global_guidance=intakeOverrides.global_guidance; const j=$("ivJudge").value; if(j) p.judge_mode=j; return p; }
+      function intakePayload(){ const p={}; if(intakeOverrides.intent) p.intent=intakeOverrides.intent; if(intakeOverrides.reasoning_intensity) p.reasoning_intensity=intakeOverrides.reasoning_intensity; if(intakeOverrides.global_guidance) p.global_guidance=intakeOverrides.global_guidance; const j=$("ivJudge").value; if(j) p.judge_mode=j; if(enabledAgents.size) p.agents=Array.from(enabledAgents); return p; }
       function renderRoster() {
         const box=$("roster"); box.innerHTML="";
         sortedAgents().forEach(a => {
@@ -864,7 +870,9 @@
           case "tool": { const m=messages.find(x=>x.id===ev.id); if(m) m.tools.push({tool:ev.tool,args:ev.args,result:ev.result}); renderDebate(); } break;
           case "agent_end": { const m=messages.find(x=>x.id===ev.id); if(m) m.done=true; renderDebate(); renderRoster(); break; }
           case "round_end": $("prog").style.width=(round/maxRounds*100)+"%"; break;
+            case "critic_start": $("speak").textContent="● 纠错官 分析矛盾中…"; break;
             case "critic_end": (ev.contradictions||[]).forEach(c=>addContra(c)); break;
+            case "judge_start": setPhase("verdict"); $("speak").textContent="● 审判长 综合裁决中…"; break;
             case "agent_note": addRecording(ev.role, ev.name, ev.note||{}); break;
           case "verdict": setPhase("verdict"); lastVerdict=ev.verdict; renderVerdict(ev.verdict); $("dlReport").classList.remove("hidden"); break;
           case "awaiting_human": setPhase("review"); renderHitl(ev.draft||null, ev.final); break;
@@ -1007,7 +1015,7 @@
         messages.forEach(m=>{ if(m.role==="human"){ h+=`<div class="rec" style="border-color:#facc15"><div class="n">${escape(m.name)}</div><div>${renderMarkdown(m.text)}</div></div>`; return; } const a=roleMap[m.role]||{}; h+=`<div class="rec"><div class="n" style="color:${m.color}">${escape(m.name)}</div><div>${renderMarkdown(m.text)||"<i>（无文本输出）</i>"}</div></div>`; });
         h += `<h2>五、合议记录（实时摘要）</h2><div class="sec">${recNotes.length?recNotes.map(r=>`<div><b style="color:#1f3a5f">${escape(r.name)}</b>：${renderMarkdown(r.note.claim||"")}${r.note.evidence_ids&&r.note.evidence_ids.length?` ［证据：${r.note.evidence_ids.join("、")}］`:""}${r.note.doubts&&r.note.doubts.length?` <span style="color:#b45309">⚠ ${r.note.doubts.join("；")}</span>`:""}</div>`).join(""):"<div>无</div>"}</div>`;
         h += `<h2>六、矛盾与纠错清单</h2><div class="sec">${contraList.length?contraList.map(c=>{const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); return `<div>⚠ ${parties?parties+"：":""}${renderMarkdown(c.issue||"")}</div>`;}).join(""):"<div>无</div>"}</div>`;
-        h += `<h2>六、审判长裁决</h2><div class="rec" style="border-color:#7f1d1d"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
+        h += `<h2>七、审判长裁决</h2><div class="rec" style="border-color:#7f1d1d"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
         h += `<div class="sec"><b>真相推定：</b>${renderMarkdown(v.truth_hypothesis||"")}</div>`;
         if(v.evidence_chain&&v.evidence_chain.length) h += `<div class="sec"><b>证据链：</b><ul>${v.evidence_chain.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
         if(v.doubts&&v.doubts.length) h += `<div class="sec"><b>存疑点：</b><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
@@ -1056,7 +1064,11 @@
         } catch(e){ out.innerHTML="<span class='muted'>请求失败: "+escape(e.message)+"</span>"; }
       }
       async function saveSettings(){
-        const p=$("s_provider").value; const engine={ llm_provider:p, temperature:parseFloat($("s_temp").value), max_rounds:parseInt($("s_rounds").value), judge_mode:$("s_judge").value, intake_model:$("s_intake").value.trim(), code_sandbox_enabled:$("s_sandbox").checked, code_sandbox_python:$("s_py").value.trim()||"python3" };
+        const p=$("s_provider").value;
+        const temp=parseFloat($("s_temp").value); const rounds=parseInt($("s_rounds").value);
+        if(isNaN(temp)||temp<0||temp>2){ $("setMsg").textContent="温度须为 0-2"; $("setMsg").style.color="var(--bad)"; return; }
+        if(isNaN(rounds)||rounds<1||rounds>10){ $("setMsg").textContent="审理轮次须为 1-10"; $("setMsg").style.color="var(--bad)"; return; }
+        const engine={ llm_provider:p, temperature:temp, max_rounds:rounds, judge_mode:$("s_judge").value, intake_model:$("s_intake").value.trim(), code_sandbox_enabled:$("s_sandbox").checked, code_sandbox_python:$("s_py").value.trim()||"python3" };
         if(p==="ollama"){ engine.ollama_base_url=$("s_base").value.trim(); engine.ollama_model=$("s_model").value.trim(); }
         else if(p==="openai_compatible"||p==="openai"){ engine.llm_base_url=$("s_base").value.trim(); engine.llm_api_key=$("s_key").value.trim(); engine.llm_model=$("s_model").value.trim(); }
         const agentMap={}; Object.values(agentsCfg).forEach(a=>{ const ta=document.querySelector(`textarea[data-k="${a.key}"]`); const prompt=ta?ta.value.trim():""; agentMap[a.key]={ enabled:a.enabled, order:a.order, system_prompt: prompt||null, tools:a.tools||null }; });
@@ -1095,6 +1107,7 @@
         closeSettings();
         let rec=null; try{ rec=await (await fetch("/api/debates/"+sid)).json(); }catch(e){ return; }
         if(!rec || !Array.isArray(rec.events)){ toast("复盘记录不可用"); return; }
+        hideLanding();
         reset();
         rec.events.forEach(ev=>handle(ev));
         setPhase("done");
@@ -1111,8 +1124,8 @@
           box.appendChild(el);
         });
       }
-      async function generateSampleCase(){
-        const btn=event.target; btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
+      async function generateSampleCase(btn){
+        btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
         try {
           const r=await fetch("/api/cases/generate",{method:"POST"}); if(!r.ok) throw new Error("HTTP "+r.status);
           const d=await r.json(); toast("示例案件已生成: "+d.case.id); await refreshCaseLibrary();

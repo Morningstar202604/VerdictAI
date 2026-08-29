@@ -134,6 +134,9 @@ async def _run_agent(
         # 仍按 token 分片下发以保留逐字显示效果）
         resp = await _retry_ainvoke(llm, messages)
         full = _to_str(resp.content)
+    if not full.strip():
+        role = ROLES.get(role_key, {})
+        full = f"（{role.get('name', role_key)}未能生成有效分析，请检查模型可用性。）"
     for seg in _chunk(full):
         await sink({"kind": "token", "role": role_key, "text": seg, "id": msg_id})
         await asyncio.sleep(0.004)
@@ -248,7 +251,9 @@ async def experts_node(state: DebateState, config) -> Dict:
         }
     )
     claims: Dict[str, str] = {}
-    order = agent_config.debate_order() or DEBATE_ROLES
+    all_order = agent_config.debate_order() or DEBATE_ROLES
+    requested = state.get("agents") or []
+    order = [k for k in all_order if k in requested] if requested else all_order
 
     async def _run_one(role_key: str):
         role = ROLES[role_key]
