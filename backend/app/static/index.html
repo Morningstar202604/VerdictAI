@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>智能探案合议庭 · 多方辩论推理</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #eef1f5;
+        --panel: #ffffff;
+        --ink: #1f2730;
+        --muted: #6b7682;
+        --faint: #97a1ac;
+        --line: #dde2ea;
+        --line-strong: #c3cad4;
+        --navy: #1f3a5f;
+        --navy-deep: #15293f;
+        --gold: #9c7c43;
+        --seal: #9b2c2c;
+        --ok: #2f7d52;
+        --bad: #b42318;
+        --serif: "Noto Serif SC","Songti SC","SimSun",Georgia,"Times New Roman",serif;
+        --sans: "PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+        --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body { background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; font-size: 14px; }
+
+      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 22px;
+        border-bottom: 1px solid var(--line-strong); background: var(--panel); position: sticky; top: 0; z-index: 30; }
+      .brand { display: flex; align-items: center; gap: 13px; }
+      .emblem { width: 36px; height: 36px; border-radius: 8px; background: var(--navy); color: #fff; display: grid; place-items: center;
+        font-family: var(--serif); font-size: 20px; font-weight: 700; border: 1px solid var(--navy-deep); }
+      .title { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--navy-deep); letter-spacing: .5px; }
+      .sub { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: .3px; }
+      .controls { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
+      .badge { font-size: 11.5px; padding: 5px 11px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;
+        border: 1px solid var(--line); background: #f5f7fa; color: var(--muted); }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: #b7bfca; }
+      .dot.on { background: var(--ok); } .dot.busy { background: var(--gold); }
+      select, button, input { font-size: 13px; border-radius: 7px; padding: 7px 13px; border: 1px solid var(--line-strong);
+        background: #fff; color: var(--ink); transition: .15s; font-family: inherit; }
+      input[type=file] { display: none; }
+      input { cursor: text; } button { cursor: pointer; }
+      button:hover, select:hover, input:hover { border-color: #aab3bf; }
+      button.primary { background: var(--navy); border-color: var(--navy-deep); color: #fff; font-weight: 600; font-family: var(--serif); }
+      button.primary:hover { background: var(--navy-deep); }
+      button.primary:disabled { opacity: .5; cursor: default; }
+      button.ghost { background: #fff; }
+      button.ghost:hover { background: #f3f5f8; }
+
+      /* ---------- 落地页（GPT 式首页） ---------- */
+      .landing { position: fixed; inset: 0; z-index: 40; overflow-y: auto;
+        background: radial-gradient(1200px 520px at 50% -12%, #f4f6f9 0%, var(--paper) 62%); padding: 64px 24px 80px; }
+      .hero { width: min(880px, 96vw); margin: 0 auto; }
+      .cover-kicker { font-size: 12px; letter-spacing: 5px; color: var(--gold); text-align: center; font-weight: 600; }
+      .hero h1 { font-family: var(--serif); text-align: center; font-size: 34px; font-weight: 700; color: var(--navy-deep); margin: 10px 0 8px; letter-spacing: 3px; }
+      .cover-desc { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.9; margin: 0 auto 26px; max-width: 640px; }
+      .composer { margin: 0 auto; max-width: 780px; border: 1px solid var(--line-strong); border-radius: 16px; background: #fff;
+        box-shadow: 0 14px 40px rgba(20,30,45,.10); padding: 14px 14px 12px; }
+      .composer textarea { width: 100%; border: none; outline: none; resize: none; font-family: inherit; font-size: 14px;
+        line-height: 1.7; color: var(--ink); background: transparent; min-height: 54px; }
+      .composer textarea::placeholder { color: var(--faint); }
+      .composer-bar { display: flex; align-items: center; gap: 9px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+      .composer-bar select { flex: 1; min-width: 0; }
+      .composer-bar .primary { margin-left: auto; padding: 9px 22px; font-size: 14px; letter-spacing: 1px; }
+      .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 18px auto 0; max-width: 780px; }
+      .chip { font-size: 12.5px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-strong); background: #fff; color: var(--muted); cursor: pointer; transition: .15s; }
+      .chip:hover { border-color: var(--navy); color: var(--navy); }
+      .roster-preview { max-width: 780px; margin: 30px auto 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+      .roster-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 12px; }
+      .roster-pick { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fbfcfe; font-size: 12px; cursor: pointer; transition: .12s; }
+      .roster-pick .ainit { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 12px; flex: none; }
+      .roster-pick.off { opacity: .4; }
+      .linkbtn { color: var(--navy); font-size: 12.5px; cursor: pointer; font-weight: 600; }
+      .linkbtn:hover { text-decoration: underline; }
+      .cover-foot { text-align: center; color: var(--faint); font-size: 11.5px; margin-top: 22px; }
+
+      /* ---------- 工作区 ---------- */
+      main { display: grid; grid-template-columns: 340px minmax(0,1fr) 372px; height: calc(100vh - 60px); }
+      main.no-left { grid-template-columns: minmax(0,1fr) 372px; }
+      main.no-right { grid-template-columns: 340px minmax(0,1fr); }
+      main.no-left.no-right { grid-template-columns: minmax(0,1fr); }
+      aside, section { overflow-y: auto; min-height: 0; }
+      .left { border-right: 1px solid var(--line); background: #f7f8fa; }
+      .center { display: flex; flex-direction: column; background: var(--paper); }
+      .right { border-left: 1px solid var(--line); background: #f7f8fa; }
+      .card { padding: 16px 16px 18px; border-bottom: 1px solid var(--line); }
+      .sec-title { font-family: var(--serif); font-size: 12.5px; font-weight: 700; color: var(--navy); margin: 2px 0 11px;
+        padding-bottom: 6px; border-bottom: 1px solid var(--line); letter-spacing: .5px; display: flex; align-items: center; gap: 7px; }
+      .sec-title::before { content: ""; width: 3px; height: 13px; background: var(--gold); display: inline-block; }
+      .muted { color: var(--muted); font-size: 12.5px; line-height: 1.65; }
+      .conn-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 90; display: none; background: var(--seal); color: #fff; text-align: center; padding: 9px 12px; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+      .intake { margin-top: 16px; text-align: left; }
+      .intake .mini { display: block; font-size: 11.5px; color: var(--muted); margin: 8px 0 3px; font-weight: 600; }
+      .iv-in { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 12.5px; background: var(--paper); color: var(--ink); }
+      textarea.iv-in { resize: vertical; }
+      .iv-det { margin-top: 10px; font-size: 12px; color: var(--muted); }
+      .iv-dispatch { margin-top: 6px; display: grid; gap: 6px; }
+      .iv-dispatch .dp { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; }
+      .iv-dispatch .dp b { color: var(--navy); }
+      .iv-dispatch .dp span { color: var(--muted); font-size: 11px; }
+      .intervene { display: flex; gap: 8px; padding: 10px 2px 2px; border-top: 1px dashed var(--line); margin-top: 10px; }
+      .intervene input { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+      .hitl-box { margin-top: 10px; }
+      .hitl-box textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; font-size: 12.5px; resize: vertical; }
+      .hitl-draft { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 8px; font-size: 11.5px; color: var(--muted); max-height: 140px; overflow: auto; margin-bottom: 8px; }
+
+      .case-head { border-bottom: 2px solid var(--navy); padding-bottom: 12px; margin-bottom: 4px; }
+      .case-no { font-size: 11px; color: var(--gold); letter-spacing: 1px; font-weight: 600; }
+      .case-title { font-family: var(--serif); font-size: 19px; font-weight: 700; color: var(--navy-deep); margin: 4px 0 6px; }
+      .person { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); align-items: baseline; }
+      .person:last-child { border-bottom: none; }
+      .person .pname { font-weight: 700; font-size: 13.5px; min-width: 56px; }
+      .person .prole { font-size: 10.5px; color: #fff; background: var(--navy); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+      .person .pdesc { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+      .evi { border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; margin-bottom: 9px; background: #fff; }
+      .evi-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .evi-id { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--navy); }
+      .evi-type { font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); padding: 1px 7px; border-radius: 4px; }
+      .evi-desc { font-size: 12px; color: #3a444e; margin-top: 5px; line-height: 1.55; }
+      .bar { height: 6px; border-radius: 3px; background: #e3e8ee; overflow: hidden; margin-top: 7px; }
+      .bar > div { height: 100%; background: var(--navy); }
+      .chain { font-size: 10.5px; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+      .chain.ok { color: var(--ok); } .chain.no { color: var(--bad); }
+      .statute { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+      .statute:last-child { border-bottom: none; }
+      .statute .st-topic { font-weight: 700; font-size: 12.5px; color: var(--seal); }
+      .statute .st-text { font-size: 12px; color: #3a444e; margin-top: 3px; line-height: 1.6; }
+      .tl { position: relative; padding-left: 16px; }
+      .tl::before { content: ""; position: absolute; left: 4px; top: 4px; bottom: 4px; width: 2px; background: var(--line-strong); }
+      .tl-item { position: relative; padding: 7px 0; }
+      .tl-item::before { content: ""; position: absolute; left: -14px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); border: 2px solid #fff; }
+      .tl-time { font-size: 11px; color: var(--navy); font-weight: 700; font-family: var(--mono); }
+      .tl-ev { font-size: 12px; color: #3a444e; margin-top: 2px; }
+      .tl-src { font-size: 10.5px; color: var(--faint); margin-top: 1px; }
+      img.chart { width: 100%; border: 1px solid var(--line); border-radius: 8px; display: block; margin-bottom: 10px; background: #fff; }
+
+      .roster { display: flex; flex-direction: column; gap: 7px; }
+      .agent-row { border: 1px solid var(--line); border-left-width: 3px; border-radius: 7px; padding: 8px 10px; background: #fff; }
+      .agent-row .ar-top { display: flex; gap: 10px; align-items: center; }
+      .agent-row .ainit { width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center; font-family: var(--serif); font-weight: 700; color: #fff; font-size: 13px; flex-shrink: 0; }
+      .agent-row .an { font-weight: 700; font-size: 13px; }
+      .agent-row .ad { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+      .agent-row .tools { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 3px; }
+      .agent-row .tchip { font-size: 9.5px; color: var(--navy); background: #eef3f9; border: 1px solid #dde6f0; border-radius: 4px; padding: 1px 5px; }
+      .astatus { margin-left: auto; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+      .astatus.speaking { color: var(--seal); font-weight: 700; }
+      .astatus.done { color: var(--ok); }
+      .strategy { margin-top: 6px; font-size: 11px; color: var(--muted); }
+      .strategy summary { cursor: pointer; color: var(--navy); font-weight: 600; }
+      .strategy pre { white-space: pre-wrap; font-family: var(--sans); font-size: 11px; color: #4a5560; background: #f3f5f8; border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin: 6px 0 0; line-height: 1.55; }
+
+      /* 中央笔录 */
+      .center-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line-strong); background: var(--panel); }
+      .rail-btn { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 9px; font-size: 12px; color: var(--muted); }
+      .rail-btn:hover { background: #f3f5f8; }
+      .ch-title { font-family: var(--serif); font-size: 14px; font-weight: 700; color: var(--navy-deep); }
+      .phase { font-size: 11.5px; color: var(--muted); margin-left: auto; }
+      .progress { height: 4px; border-radius: 3px; background: #dde3ea; overflow: hidden; margin: 0 16px; }
+      .progress > div { height: 100%; background: var(--navy); transition: width .4s; }
+      .speak { font-size: 11.5px; color: var(--seal); padding: 5px 16px 0; height: 16px; font-weight: 600; }
+      #debate { flex: 1; padding: 26px 20px 60px; overflow-y: auto; }
+      .thread { max-width: 840px; margin: 0 auto; }
+      .round-sep { text-align: center; color: var(--gold); font-family: var(--serif); font-size: 12.5px; font-weight: 700; letter-spacing: 2px; margin: 22px 0 16px; position: relative; }
+      .round-sep::before, .round-sep::after { content: ""; position: absolute; top: 50%; width: 28%; height: 1px; background: var(--line); }
+      .round-sep::before { left: 0; } .round-sep::after { right: 0; }
+      .rec { display: flex; gap: 13px; margin-bottom: 20px; animation: fade .25s ease; }
+      @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .rec .ava { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; color: #fff; font-family: var(--serif); font-weight: 700; font-size: 15px; flex-shrink: 0; }
+      .rec .body { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+      .rec .rname { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+      .rec .rtag { font-size: 10px; color: #fff; background: var(--navy); padding: 1px 7px; border-radius: 4px; }
+      .rec .rstance { font-size: 11px; color: var(--muted); margin-top: 2px; }
+      .rec .rtext { font-size: 13.5px; line-height: 1.75; color: #2c353e; margin-top: 7px; white-space: normal; word-break: break-word; }
+      .md { word-break: break-word; }
+      .md > *:first-child { margin-top: 0; } .md > *:last-child { margin-bottom: 0; }
+      .md h1, .md h2, .md h3, .md h4 { font-family: var(--serif); color: var(--navy-deep); margin: 10px 0 6px; line-height: 1.35; }
+      .md h1 { font-size: 18px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14.5px; } .md h4 { font-size: 13.5px; }
+      .md p { margin: 6px 0; }
+      .md strong { color: #11202f; font-weight: 700; }
+      .md em { color: #5a6571; }
+      .md ul, .md ol { margin: 6px 0; padding-left: 22px; }
+      .md li { margin: 3px 0; }
+      .md code { font-family: var(--mono); font-size: 12px; background: #eef2f7; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: #b42318; }
+      .md pre { background: #0f1722; color: #d7e2ee; padding: 11px 13px; border-radius: 8px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.55; margin: 8px 0; }
+      .md pre code { background: none; border: none; color: inherit; padding: 0; }
+      .md blockquote { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--gold); background: #f6f1e6; color: #5a4a2a; border-radius: 0 6px 6px 0; }
+      .md table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12.5px; }
+      .md th, .md td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+      .md th { background: #eef2f7; color: var(--navy); }
+      .md a { color: var(--navy); text-decoration: underline; }
+      .sb-row pre.md { background: #0f1722; color: #d7e2ee; padding: 10px 12px; border-radius: 8px; margin: 6px 0 0; max-height: 240px; overflow: auto; }
+      .sb-row pre.md code { background: none; border: none; color: inherit; padding: 0; }
+      .sandbox-result img, .md.sandbox-result img { max-width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; margin: 8px 0; box-shadow: 0 2px 8px rgba(20,30,45,.08); }
+      .sb-err { color: #b42318; background: #fdecea; border: 1px solid #f3c2bd; border-radius: 6px; padding: 7px 10px; margin: 6px 0; }
+      .sb-err-h { color: #b42318; font-weight: 700; font-size: 11px; margin-top: 8px; }
+      .sb-err .md code { background: #f6d9d4; color: #8a1c12; }
+      .cursor { display: inline-block; width: 7px; height: 14px; background: var(--navy); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+      .sandbox { margin-top: 9px; border: 1px solid var(--line); border-radius: 8px; background: #f6f8fa; overflow: hidden; }
+      .sandbox summary { cursor: pointer; padding: 7px 11px; font-size: 11.5px; font-weight: 700; color: var(--navy); background: #eef2f7; border-bottom: 1px solid var(--line); }
+      .sandbox .sb-row { padding: 8px 11px; font-family: var(--mono); font-size: 11.5px; line-height: 1.55; color: #33414f; border-bottom: 1px dashed var(--line); }
+      .sandbox .sb-row:last-child { border-bottom: none; }
+      .sandbox .sb-k { color: var(--gold); font-weight: 700; margin-right: 6px; }
+      .empty { display: flex; height: 100%; align-items: center; justify-content: center; color: var(--faint); font-size: 13px; text-align: center; padding: 20px; }
+
+      /* 右栏 */
+      .contra { border: 1px solid #e7c9c9; border-left: 3px solid var(--bad); border-radius: 7px; padding: 9px 11px; margin-bottom: 9px; background: #fdf6f6; }
+      .contra .cp { font-size: 11px; color: var(--bad); font-weight: 700; margin-bottom: 3px; }
+      .contra .ci { font-size: 12px; color: #5b2b2b; line-height: 1.55; }
+      .rec-note { border: 1px solid #cfe3f3; border-left: 3px solid var(--navy); border-radius: 7px; padding: 8px 10px; margin-bottom: 9px; background: #f5fafe; }
+      .rec-note .rn-head { font-size: 12px; font-weight: 700; color: var(--navy-deep); display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+      .rec-note .rn-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+      .rec-note .rn-claim { font-size: 12.5px; color: #10283f; line-height: 1.55; }
+      .rec-note .rn-evs { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
+      .rec-note .ev-tag { font-size: 10.5px; background: #e2effb; color: var(--navy); border: 1px solid #cfe3f3; border-radius: 4px; padding: 1px 6px; }
+      .rec-note .rn-doubt { margin-top: 5px; font-size: 11.5px; color: #b45309; line-height: 1.5; }
+      .verdict { border: 1px solid var(--line-strong); border-radius: 10px; padding: 16px; background: #fff; position: relative; margin-top: 6px; }
+      .verdict .vhead { font-family: var(--serif); font-size: 14px; font-weight: 700; color: var(--navy-deep); display: flex; align-items: center; gap: 8px; }
+      .seal { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--seal); color: var(--seal); display: grid; place-items: center; font-family: var(--serif); font-size: 13px; font-weight: 700; transform: rotate(-12deg); opacity: .85; flex-shrink: 0; }
+      .verdict ul { margin: 4px 0 10px; padding-left: 18px; font-size: 12.5px; color: #2c353e; line-height: 1.6; }
+      .verdict li { margin: 3px 0; }
+      .verdict .vsec { font-size: 11.5px; font-weight: 700; color: var(--navy); margin: 10px 0 2px; }
+      .verdict .disc { font-size: 10.5px; color: var(--muted); margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; line-height: 1.6; }
+      textarea { width: 100%; resize: none; border-radius: 8px; background: #fff; border: 1px solid var(--line-strong); padding: 9px; color: var(--ink); font-size: 13px; outline: none; font-family: inherit; }
+      textarea:focus { border-color: var(--navy); }
+      .hitl-box { border: 1px solid var(--gold); border-radius: 8px; padding: 11px; margin-top: 12px; background: #fdfaf3; }
+      .hitl-box .ht { font-size: 12px; color: var(--gold); font-weight: 700; margin-bottom: 7px; }
+
+      /* 设置弹窗 */
+      .modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(20,30,45,.35); }
+      .modal-card { width: min(640px, 96vw); max-height: 90vh; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 24px 70px rgba(20,30,45,.3); }
+      .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--navy-deep); }
+      .tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--line); background: #f7f8fa; }
+      .tab { padding: 10px 14px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+      .tab.on { color: var(--navy); font-weight: 700; border-bottom-color: var(--navy); }
+      .modal-body { padding: 18px 20px; overflow-y: auto; }
+      .tabpane { display: none; } .tabpane.on { display: block; }
+      .lib-list { max-height: 360px; overflow-y: auto; }
+      .lib-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: #fff; flex-wrap: wrap; }
+      .lib-main { flex: 1; min-width: 220px; }
+      .lib-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin-bottom: 3px; }
+      .lib-meta { font-size: 11.5px; color: var(--muted); }
+      .lib-actions { display: flex; gap: 6px; flex-shrink: 0; }
+      .lib-actions button { padding: 6px 12px; font-size: 11.5px; }
+      .lib-actions button.danger { color: var(--bad); border-color: var(--bad); }
+      .lib-actions button.danger:hover { background: #fef2f2; }
+      .modal-body label { display: block; font-size: 12px; color: var(--muted); margin: 13px 0 6px; font-weight: 600; }
+      .modal-body input, .modal-body select { width: 100%; padding: 9px 11px; }
+      .modal-body .row2 { display: flex; gap: 12px; } .modal-body .row2 > div { flex: 1; }
+      .toggle-line { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--ink); cursor: pointer; }
+      .toggle-line input { width: 16px; height: 16px; accent-color: var(--navy); }
+      .ac-item { border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; margin-bottom: 10px; }
+      .ac-top { display: flex; align-items: center; gap: 10px; }
+      .ac-top .ainit { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-family: var(--serif); font-weight: 700; font-size: 12px; }
+      .ac-top .an { font-weight: 700; font-size: 13px; }
+      .ac-top .ord { width: 54px; margin-left: auto; }
+      .ac-tools { display: flex; flex-wrap: wrap; gap: 12px; margin: 9px 0 4px; }
+      .ac-tools label { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink); font-weight: 500; margin: 0; cursor: pointer; }
+      .ac-tools input { width: 14px; height: 14px; accent-color: var(--navy); }
+      .modal-foot { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--line); gap: 12px; }
+      .modal-foot > div { display: flex; gap: 10px; }
+      .toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 80; background: var(--navy); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 14px 40px rgba(20,30,45,.4); animation: fade .25s ease; }
+      /* 预处理流水线 */
+      .pp-stage { max-width: 780px; margin: 0 auto; animation: ppFadeIn .35s ease; }
+      @keyframes ppFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      .pp-header { text-align: center; margin-bottom: 18px; }
+      .pp-header h2 { font-family: var(--serif); font-size: 18px; color: var(--navy-deep); margin: 0 0 4px; }
+      .pp-header p { font-size: 12.5px; color: var(--muted); margin: 0; }
+      .pp-steps { display: flex; flex-direction: column; gap: 10px; }
+      .pp-step { display: flex; align-items: flex-start; gap: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; transition: border-color .3s, box-shadow .3s; }
+      .pp-step.active { border-color: var(--navy); box-shadow: 0 0 0 2px rgba(31,58,95,.12); }
+      .pp-step.done { border-color: var(--ok); }
+      .pp-step.error { border-color: var(--bad); }
+      .pp-icon { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; flex-shrink: 0; transition: background .3s, color .3s; background: #f0f2f5; color: var(--faint); }
+      .pp-step.active .pp-icon { background: var(--navy); color: #fff; animation: ppPulse 1.5s ease-in-out infinite; }
+      .pp-step.done .pp-icon { background: var(--ok); color: #fff; }
+      .pp-step.error .pp-icon { background: var(--bad); color: #fff; }
+      @keyframes ppPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(31,58,95,.3); } 50% { box-shadow: 0 0 0 8px rgba(31,58,95,0); } }
+      .pp-body { flex: 1; min-width: 0; }
+      .pp-label { font-weight: 700; font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+      .pp-status { font-size: 11px; color: var(--faint); margin-top: 1px; }
+      .pp-step.active .pp-status { color: var(--navy); font-weight: 600; }
+      .pp-step.done .pp-status { color: var(--ok); }
+      .pp-spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--navy); border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+      .pp-step.active .pp-spinner { display: inline-block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .pp-result { margin-top: 8px; font-size: 12px; color: #3a444e; line-height: 1.65; background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; animation: resultIn .3s ease; overflow: hidden; }
+      @keyframes resultIn { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 600px; } }
+      .pp-result b { color: var(--navy); }
+      .pp-typewriter { border-right: 2px solid var(--navy); animation: blinkCursor .6s steps(2) infinite; display: inline; }
+      @keyframes blinkCursor { 50% { border-color: transparent; } }
+      .pp-confirm { text-align: center; margin-top: 20px; animation: ppFadeIn .4s ease .2s both; }
+      .pp-confirm .primary { padding: 11px 36px; font-size: 15px; letter-spacing: 1px; }
+
+      /* PDF 上传区 — 核心入口 */
+      .pdf-drop-main { border: 2px dashed var(--navy); border-radius: 16px; padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s, box-shadow .2s; margin: 0 auto 16px; max-width: 780px; background: linear-gradient(135deg, #f8f9fb 0%, #eef2f7 100%); }
+      .pdf-drop-main:hover, .pdf-drop-main.over { border-color: var(--gold); background: linear-gradient(135deg, #f0f2f7 0%, #e8ecf3 100%); box-shadow: 0 4px 20px rgba(31,58,95,.08); }
+      .ico-main { font-size: 42px; margin-bottom: 10px; }
+      .txt-main { font-size: 15px; color: var(--navy-deep); font-weight: 600; }
+      .sub-main { font-size: 12px; color: var(--muted); margin-top: 5px; }
+      .or-divider { text-align: center; margin: 10px 0 14px; position: relative; color: var(--faint); font-size: 12px; }
+      .or-divider::before { content: ""; position: absolute; left: 20%; right: 20%; top: 50%; height: 1px; background: var(--line); }
+      .or-divider span { background: var(--paper); padding: 0 12px; position: relative; }
+
+      /* 旧的 pdf-drop 保留兼容 */
+      .pdf-drop { border: 2px dashed var(--line-strong); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s; margin-bottom: 16px; }
+      .pdf-drop:hover, .pdf-drop.over { border-color: var(--navy); background: #f0f4f9; }
+      .pdf-drop .ico { font-size: 32px; margin-bottom: 8px; }
+      .pdf-drop .txt { font-size: 13px; color: var(--muted); }
+      .pdf-drop .sub { font-size: 11px; color: var(--faint); margin-top: 4px; }
+      .pdf-file { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fff; margin-bottom: 14px; }
+      .pdf-file .fname { font-size: 13px; font-weight: 600; color: var(--ink); }
+      .pdf-file .fsize { font-size: 11px; color: var(--muted); }
+      .pdf-file .fok { color: var(--ok); font-size: 12px; margin-left: auto; }
+
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <div class="emblem">法</div>
+        <div>
+          <div class="title">智能探案合议庭</div>
+          <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
+        </div>
+      </div>
+      <div class="controls">
+        <span id="modelBadge" class="badge">模型: …</span>
+        <span id="connBadge" class="badge"><span id="connDot" class="dot"></span><span id="connText">未连接</span></span>
+        <button class="ghost" onclick="openSettings()">⚙ 设置</button>
+      </div>
+    </header>
+
+    <div id="connBanner" class="conn-banner"></div>
+    <div id="landing" class="landing">
+      <div class="hero">
+        <div class="cover-kicker">司 法 辅 助 · 案 件 受 理</div>
+        <h1>多方辩论推理</h1>
+        <p class="cover-desc">上传一份案件卷宗（PDF），AI 自动阅读、识别意图、分配专家、展开多轮辩论，最终形成裁决。全流程真实推理，非预设演示。</p>
+
+        <!-- PDF 上传区 — 核心入口 -->
+        <div id="pdfDropMain" class="pdf-drop-main" onclick="document.getElementById('pdfInputMain').click()"
+             ondragover="event.preventDefault();this.classList.add('over')"
+             ondragleave="this.classList.remove('over')"
+             ondrop="event.preventDefault();this.classList.remove('over');handlePdfDropMain(event)">
+          <div class="ico-main">📄</div>
+          <div class="txt-main">拖拽 PDF 卷宗到这里，或点击选择</div>
+          <div class="sub-main">支持判决书、起诉书、侦查报告、案件卷宗等</div>
+        </div>
+        <input id="pdfInputMain" type="file" accept=".pdf,application/pdf" style="display:none" onchange="uploadPdfMain(event)" />
+        <div id="pdfFileInfoMain" class="pdf-file hidden"></div>
+
+        <div class="or-divider"><span>或</span></div>
+
+        <div class="composer">
+          <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…"></textarea>
+          <div class="composer-bar">
+            <button class="ghost" onclick="document.getElementById('fileInput').click()">📎 上传 JSON 卷宗</button>
+            <input id="fileInput" type="file" accept=".json,application/json" onchange="uploadCase(event)" />
+            <select id="landCase" onchange="onPickCase(this)"></select>
+            <button id="landStart" class="primary" onclick="landStart()">开庭审理 →</button>
+          </div>
+        </div>
+
+        <!-- 预处理可视化 -->
+        <div id="ppStage" class="pp-stage hidden"></div>
+
+        <div id="intakeCard" class="card intake hidden">
+          <div class="sec-title">卷宗预处理 · 意图识别与分派</div>
+          <label class="mini">调查意图（系统识别，可修改）</label>
+          <input id="ivIntent" class="iv-in" placeholder="（上传卷宗后自动识别）" oninput="onIntake()" />
+          <div class="row2">
+            <div><label class="mini">思考强度</label>
+              <select id="ivIntensity" onchange="onIntake()">
+                <option value="low">低 · 简明</option>
+                <option value="medium" selected>中 · 条理</option>
+                <option value="high">高 · 深度推理</option>
+              </select></div>
+            <div><label class="mini">审判长</label>
+              <select id="ivJudge">
+                <option value="ai">AI 自动落槌</option>
+                <option value="human">人类法官落槌</option>
+              </select></div>
+          </div>
+          <label class="mini">总体分析提示词（系统生成，可修改）</label>
+          <textarea id="ivGuidance" rows="2" class="iv-in" placeholder="（上传卷宗后自动生成）" oninput="onIntake()"></textarea>
+          <details class="iv-det"><summary>查看分派到各角色的材料</summary><div id="ivDispatch" class="iv-dispatch"></div></details>
+        </div>
+
+        <div class="chips" id="caseChips"></div>
+
+        <div class="roster-preview">
+          <div class="grp-label">合议庭阵容（点击可调整出庭专家，顺序与策略在「设置」中编辑）</div>
+          <div id="landRoster" class="roster-grid"></div>
+          <span class="linkbtn" onclick="openSettings(); switchTab('board')">在设置中调整出场顺序与每位专家的策略 →</span>
+        </div>
+
+        <div class="cover-foot">当前审理引擎：<span id="landModel">…</span>　·　<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="openSettings()">修改引擎设置</button></div>
+      </div>
+    </div>
+
+    <main id="workspace" class="hidden">
+      <aside class="left">
+        <div id="casePanel"></div>
+        <div class="card">
+          <div class="sec-title">出庭专家名册</div>
+          <div id="roster" class="roster"></div>
+        </div>
+      </aside>
+
+      <section class="center">
+        <div class="center-head">
+          <button class="rail-btn" id="btnLeft" onclick="toggleRail('left')">案卷 ‹</button>
+          <span class="ch-title">庭审笔录</span>
+          <span id="phase" class="phase">待命</span>
+          <a href="/static/flow.html" target="_blank" class="linkbtn" style="margin-left:auto;font-size:11.5px">流程图 ↗</a>
+          <button class="rail-btn" id="btnRight" onclick="toggleRail('right')">› 合议</button>
+        </div>
+        <div class="progress"><div id="prog" style="width:0%"></div></div>
+        <div id="speak" class="speak"></div>
+        <div id="debate"><div class="empty">选择案件与出庭专家后，点击「开庭审理」。<br/>各专家将依次举证、质证，过程实时记录于此。</div></div>
+        <div id="intervene" class="intervene hidden">
+          <input id="ivInput" placeholder="中途介入：向合议庭插话（将在下一轮生效）…" />
+          <button class="primary" onclick="sendIntervene()">插话</button>
+        </div>
+      </section>
+
+      <aside class="right">
+        <div class="card">
+          <div class="sec-title">合议记录 <span class="muted" style="font-weight:400">（实时 · AI 书记员）</span></div>
+          <div id="recording"><div class="muted">辩论开始后，各专家主张将实时记录于此。</div></div>
+        </div>
+        <div class="card">
+          <div class="sec-title">矛盾 · 纠错清单</div>
+          <div id="contra"><div class="muted">尚未记录矛盾点。</div></div>
+        </div>
+          <div class="card">
+            <div class="sec-title">审判长裁决</div>
+            <div id="verdictBox"></div>
+            <div id="hitl"></div>
+            <button id="dlReport" class="ghost hidden" style="width:100%;margin-top:10px" onclick="downloadReport()">⬇ 下载审判报告</button>
+          </div>
+      </aside>
+    </main>
+
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head"><span>合议庭设置</span><button class="ghost" onclick="closeSettings()">✕</button></div>
+        <div class="tabs">
+          <div class="tab on" data-tab="engine" onclick="switchTab('engine')">审理引擎</div>
+          <div class="tab" data-tab="env" onclick="switchTab('env')">运行环境</div>
+          <div class="tab" data-tab="board" onclick="switchTab('board')">合议庭组成</div>
+          <div class="tab" data-tab="agents" onclick="switchTab('agents')">专家配置</div>
+          <div class="tab" data-tab="library" onclick="switchTab('library')">案例库</div>
+        </div>
+        <div class="modal-body">
+          <div class="tabpane on" id="tab-engine">
+            <label>模型提供方</label>
+            <select id="s_provider" onchange="syncSettingsFields()">
+              <option value="openai_compatible">OpenAI 兼容（云端 API）</option>
+              <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama（本地部署）</option>
+              <option value="mock">离线模拟（无需联网）</option>
+            </select>
+            <label id="lblBase">API Base URL</label>
+            <input id="s_base" placeholder="https://api.xxx/v1" autocomplete="off" />
+            <label id="lblKey">API Key</label>
+            <input id="s_key" type="password" placeholder="sk-..." autocomplete="off" />
+            <label id="lblModel">模型名称</label>
+            <input id="s_model" placeholder="auto" autocomplete="off" />
+            <div class="row2">
+              <div><label>审理轮次</label><input id="s_rounds" type="number" min="1" max="6" /></div>
+              <div><label>推理温度</label><input id="s_temp" type="number" step="0.1" min="0" max="1" /></div>
+            </div>
+            <label class="mini">审判长落槌方式</label>
+            <select id="s_judge">
+              <option value="ai">AI 审判长自动裁决</option>
+              <option value="human">人类法官最终裁决（辩论末暂停落槌）</option>
+            </select>
+            <label class="mini" style="margin-top:8px">卷宗预处理模型（意图识别/分派，留空用主模型）</label>
+            <input id="s_intake" placeholder="如 step-3.7-flash（JSON 输出更稳）" autocomplete="off" />
+            <div class="muted" style="margin-top:4px">无论哪种模式，辩论中途你都可以随时「插话」介入下一轮。</div>
+          </div>
+          <div class="tabpane" id="tab-env">
+            <div class="muted" style="margin-bottom:10px">智能体运行环境。笔录中的 <b>Markdown</b> 始终渲染；专家默认在后端<b>隔离子进程沙箱</b>中运行代码，可对证据做计算、比对、时间线推算，并生成图表（matplotlib，自动渲染到笔录）。</div>
+            <label class="toggle-line"><input id="s_sandbox" type="checkbox" /> 启用 Python 代码沙箱（专家可运行代码）</label>
+            <label>Python 解释器路径</label>
+            <input id="s_py" placeholder="python3" autocomplete="off" />
+            <div class="sec-title" style="margin-top:14px">安装更多环境（用户可扩展）</div>
+            <div class="row2">
+              <input id="s_pkg" placeholder="包名，如 scipy / openpyxl / seaborn" autocomplete="off" />
+              <button class="ghost" onclick="installPkg()">安装</button>
+            </div>
+            <pre id="pkgOut" class="md" style="background:#0f1722;color:#d7e2ee;padding:10px 12px;border-radius:8px;max-height:160px;overflow:auto;margin-top:8px;white-space:pre-wrap;display:none"></pre>
+            <div class="sec-title" style="margin-top:14px">试跑代码（验证沙箱）</div>
+            <textarea id="s_try" rows="5" placeholder="在此粘贴 Python 试跑，例如：&#10;import matplotlib&#10;matplotlib.use('Agg')&#10;import matplotlib.pyplot as plt&#10;plt.plot([1,2,3],[3,1,2]); plt.savefig(os.environ['SANDBOX_OUT']+'/demo.png')" style="width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;border:1px solid var(--line-strong);border-radius:8px;padding:9px;background:#fff;color:#1f2730"></textarea>
+            <div style="margin-top:8px"><button class="ghost" onclick="runTry()">运行</button> <span class="muted" style="font-size:11px">（图表将显示在下方；保存到 SANDBOX_OUT 目录）</span></div>
+            <div id="tryOut" class="md sandbox-result" style="margin-top:10px"></div>
+            <div class="disc" style="margin-top:10px">说明：沙箱以 <code>-I</code> 隔离模式、60 秒超时执行 LLM 生成的代码；首次使用会尽力安装基础库（numpy/pandas/matplotlib）。图表保存到沙箱目录后将以图片形式渲染在笔录中。证据/法条等工具调用结果同样以「沙箱」块展示。</div>
+          </div>
+          <div class="tabpane" id="tab-board">
+            <div class="muted" style="margin-bottom:6px">勾选出庭专家并设定出场顺序（数值越小越靠前；审判长始终最后收敛）。</div>
+            <div id="boardList"></div>
+          </div>
+          <div class="tabpane" id="tab-agents">
+            <div class="muted" style="margin-bottom:6px">编辑每位专家的<b>系统提示词</b>与<b>可用工具</b>。留空则使用内置策略。</div>
+            <div id="agentList"></div>
+          </div>
+          <div class="tabpane" id="tab-library">
+            <div class="muted" style="margin-bottom:10px">案例库：所有上传/生成的案件。可删除、查看详情、或点击标题在落地页选中。</div>
+            <div class="row2" style="margin-bottom:10px">
+              <button class="ghost" onclick="refreshCaseLibrary()">刷新列表</button>
+              <button class="primary" onclick="generateSampleCase()">生成示例案件</button>
+            </div>
+            <div id="libList" class="lib-list"></div>
+            <div class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
+            <div class="row2" style="margin-bottom:10px">
+              <button class="ghost" onclick="refreshDebates()">刷新复盘</button>
+            </div>
+            <div id="debateList" class="lib-list"></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="setMsg" class="muted"></span>
+          <div>
+            <button class="ghost" onclick="closeSettings()">取消</button>
+            <button class="primary" onclick="saveSettings()">保存并应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = [];
+      const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", cite_source:"要求举证", run_code:"Python 沙箱" };
+      const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","cite_source"];
+      const GROUP_LABELS = { investigation:"侦查阶段", trial:"庭审阶段", other:"其他" };
+      let ws=null, session="", activeRole=null, currentId=null;
+      let messages=[], round=0, maxRounds=3, running=false;
+      let agentsCfg={}, roleMap={}, selectedCase="case_001", caseDetail=null;
+      let settingsCache={}, enabledAgents=new Set();
+
+      async function init() {
+        try { settingsCache = await (await fetch("/api/settings")).json(); } catch(e){ settingsCache={}; }
+        applyModelBadge();
+        try { const ac = await (await fetch("/api/agent-config")).json(); ac.agents.forEach(a => agentsCfg[a.key]=a); } catch(e){}
+        roleMap = {}; Object.values(agentsCfg).forEach(a => roleMap[a.key]=a);
+        const cases = (await (await fetch("/api/cases")).json()).cases;
+        const land = $("landCase");
+        cases.forEach(c => { const o=document.createElement("option"); o.value=c.id; o.textContent=c.title; land.appendChild(o); });
+        selectedCase = cases[0]?.id || "case_001"; land.value = selectedCase;
+        land.onchange = () => { selectedCase = land.value; loadCase(); };
+        Object.values(agentsCfg).filter(a=>a.enabled).forEach(a => enabledAgents.add(a.key));
+        renderCaseChips(cases);
+        renderLandRoster();
+        await loadCase();
+      }
+
+      function applyModelBadge() {
+        const s = settingsCache||{}; const mock = s.llm_provider==="mock";
+        const txt = mock ? "离线模拟" : `${s.llm_provider||"?" } · ${s.llm_model||"?"}`;
+        $("modelBadge").textContent = "模型: "+txt; $("landModel").textContent = txt;
+      }
+
+      function sortedAgents() { return Object.values(agentsCfg).slice().sort((a,b)=>a.order-b.order); }
+      function isDebatable(k){ return k!=="judge" && k!=="critic"; }
+      function renderCaseChips(cases){
+        const box=$("caseChips"); if(!box) return; box.innerHTML="";
+        cases.slice(0,6).forEach(c=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=c.title; b.onclick=()=>{ const land=$("landCase"); land.value=c.id; selectedCase=c.id; loadCase(); }; box.appendChild(b); });
+        const set=document.createElement("button"); set.className="chip"; set.textContent="⚙ 设置"; set.onclick=()=>openSettings(); box.appendChild(set);
+      }
+      function renderLandRoster(){
+        const box=$("landRoster"); if(!box) return; box.innerHTML="";
+        sortedAgents().filter(a=>isDebatable(a.key)).forEach(a=>{
+          const on=enabledAgents.has(a.key);
+          const el=document.createElement("div"); el.className="roster-pick"+(on?"":" off");
+          el.innerHTML=`<span class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</span><span>${a.name}</span>`;
+          el.title="点击切换出庭 / 不出庭";
+          el.onclick=()=>{ if(enabledAgents.has(a.key)) enabledAgents.delete(a.key); else enabledAgents.add(a.key); a.enabled=enabledAgents.has(a.key); el.classList.toggle("off",!enabledAgents.has(a.key)); };
+          box.appendChild(el);
+        });
+      }
+      function onPickCase(sel){ selectedCase=sel.value; loadCase(); }
+      function hideLanding(){ $("landing").classList.add("hidden"); $("workspace").classList.remove("hidden"); }
+
+      async function loadCase() { caseDetail = await (await fetch("/api/cases/"+selectedCase)).json(); renderCase(); }
+      async function regen() {
+        const btn=event.target; btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
+        try { const d=await (await fetch("/api/cases/generate",{method:"POST"})).json();
+          const cases=(await (await fetch("/api/cases")).json()).cases; const land=$("landCase"); land.innerHTML="";
+          cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
+          selectedCase="case_001"; land.value=selectedCase; caseDetail=d.case; renderCase();
+        } catch(e){ alert("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
+      }
+      async function uploadCase(evt) {
+        const file = evt.target.files[0]; if(!file) return;
+        if (file.name.toLowerCase().endsWith(".pdf")) { uploadPdfFile(file); evt.target.value=""; return; }
+        try {
+          const text = await file.text(); const data = JSON.parse(text);
+          showPdfDropMain(false);
+          await startPreprocessing(data, file.name);
+        } catch(err){ alert("上传失败："+err.message); }
+        evt.target.value="";
+      }
+
+      async function uploadPdfMain(evt) {
+        const file = evt.target.files[0]; if(!file) return;
+        await uploadPdfFile(file);
+        evt.target.value="";
+      }
+      function handlePdfDropMain(evt) { const f=evt.dataTransfer.files[0]; if(f) uploadPdfFile(f); }
+      function showPdfDropMain(show) { const el=$("pdfDropMain"); if(el) el.classList.toggle("hidden",!show); }
+
+      async function uploadPdfFile(file) {
+        if (!file.name.toLowerCase().endsWith(".pdf")) { alert("请选择 PDF 文件"); return; }
+        const infoEl=$("pdfFileInfoMain");
+        if(infoEl){ infoEl.innerHTML=`<span style="font-size:20px">📄</span><span class="fname">${escape(file.name)}</span><span class="fsize">${(file.size/1024).toFixed(0)} KB</span><span class="fok">✓ 已选择</span>`; infoEl.classList.remove("hidden"); }
+        showPdfDropMain(false);
+        const b64 = await file.arrayBuffer().then(buf => {
+          let s=""; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return btoa(s);
+        });
+        await startPreprocessing({ file_type:"pdf", file_content:b64, file_name:file.name, title:file.name.replace(/\.pdf$/i,"") }, file.name);
+      }
+
+      const PP_STEPS = [
+        { icon:"📥", label:"文档解析", desc:"提取 PDF 文本与结构" },
+        { icon:"🔍", label:"AI 意图识别", desc:"调用大模型分析案件性质" },
+        { icon:"🧠", label:"思考强度评估", desc:"模型判断推理深度需求" },
+        { icon:"📋", label:"专家提示词生成", desc:"模型生成总体分析指导" },
+        { icon:"📦", label:"分角色材料分发", desc:"按职责为每位专家定制卷宗" },
+      ];
+
+      async function startPreprocessing(caseData, fileName) {
+        showPdfDropMain && showPdfDropMain(false);
+        const stage = $("ppStage"); stage.classList.remove("hidden");
+        const modelName = settingsCache.intake_model || settingsCache.llm_model || "AI";
+        stage.innerHTML = `<div class="pp-header"><h2>卷宗预处理</h2><p>正在分析「${escape(fileName||caseData.title||"案件")}」· 使用模型 ${escape(modelName)}</p></div><div class="pp-steps" id="ppSteps"></div>`;
+        const stepsEl = $("ppSteps");
+        PP_STEPS.forEach((s,i) => {
+          const el=document.createElement("div"); el.className="pp-step"; el.id="ppStep"+i;
+          el.innerHTML=`<div class="pp-icon"><span class="pp-icon-txt">${s.icon}</span><span class="pp-spinner"></span></div><div class="pp-body"><div class="pp-label">${s.label} <span class="pp-spinner"></span></div><div class="pp-status">${s.desc}</div></div>`;
+          stepsEl.appendChild(el);
+        });
+
+        // 第1步：文档解析（客户端，几乎瞬间）
+        await animateStep(0, "正在读取文件…");
+        const t0=Date.now();
+        await sleep(300);
+
+        // 如果是文本输入（非PDF），先构建case
+        if (!caseData.file_type && caseData.summary) {
+          setPpStep(0,"done",`文本已解析 · ${caseData.summary.length} 字`);
+        } else {
+          setPpStep(0,"done",`PDF 文本提取完成 · ${(caseData.file_name||"").split(".").pop().toUpperCase()}`);
+        }
+
+        // 第2-4步：调用后端 AI（实际是同一个请求，但前端逐步展示）
+        await animateStep(1, `正在调用 ${modelName} 识别意图…`);
+        await sleep(200);
+
+        // 发送到后端（AI 在这里做真正的推理）
+        const t1=Date.now();
+        let d;
+        try {
+          const r = await fetch("/api/cases/upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(caseData)});
+          if(!r.ok) throw new Error("HTTP "+r.status);
+          d = await r.json();
+        } catch(err) {
+          setPpStep(1,"error","AI 调用失败: "+err.message);
+          toast("预处理失败: "+err.message); return;
+        }
+        const elapsed=((Date.now()-t1)/1000).toFixed(1);
+        const b=d.case.brief||{};
+
+        // 展示真实结果
+        setPpStep(1,"done",`意图识别完成 · ${elapsed}s · "${(b.intent||"").slice(0,30)}"`);
+        await sleep(200);
+
+        setPpStep(2,"done",`强度: $({low:"低",medium:"中",high:"高"}[b.reasoning_intensity]||b.reasoning_intensity||"—")}`);
+        await sleep(150);
+
+        setPpStep(3,"done",`提示词已生成 · ${(b.global_guidance||"").length} 字`);
+        await sleep(150);
+
+        const roleCount = b.per_role_material ? Object.keys(b.per_role_material).length : 0;
+        setPpStep(4,"done",`已分发到 ${roleCount} 位专家`);
+
+        // 显示真实结果
+        await sleep(300);
+        showPreprocessingResult(d.case, fileName, elapsed);
+        // 刷新案件列表
+        const cases=(await(await fetch("/api/cases")).json()).cases;
+        const land=$("landCase"); land.innerHTML="";
+        cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
+        selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
+      }
+
+      function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+      function setPpStep(i, state, statusText) {
+        const el=$("ppStep"+i); if(!el) return;
+        el.className="pp-step "+state;
+        if(statusText) el.querySelector(".pp-status").textContent=statusText;
+      }
+      async function animateStep(i) {
+        setPpStep(i,"active");
+        await sleep(300);
+        setPpStep(i,"done","完成");
+      }
+
+      async function showPreprocessingResult(c, fileName, elapsed) {
+        const b = (c&&c.brief)||{}; if(!b||!b.intake_done) return;
+        const stage=$("ppStage");
+        const header=stage.querySelector(".pp-header");
+        header.innerHTML=`<h2>✓ 卷宗分析完成</h2><p>「${escape(fileName||c.title||"")}」· AI 推理耗时 ${elapsed||"—"}s · 共 ${Object.keys(b.per_role_material||{}).length} 位专家获得材料</p>`;
+
+        // 提取文本预览（如果有 PDF 原文）
+        if(c.pdf_text) {
+          const preview=c.pdf_text.slice(0,500).replace(/\n+/g,"\n");
+          const txtEl=document.createElement("div"); txtEl.className="pp-result"; txtEl.style.marginTop="10px";
+          txtEl.innerHTML=`<div style="margin-bottom:6px"><b>📄 提取的文本（前500字）：</b></div><pre style="white-space:pre-wrap;font-size:11.5px;color:#4a5560;background:#fff;border:1px solid var(--line);border-radius:6px;padding:8px;max-height:160px;overflow:auto;margin:0">${escape(preview)}${c.pdf_text.length>500?"…":""}</pre>`;
+          stage.appendChild(txtEl);
+        }
+
+        // 意图识别结果
+        let tags=(b.intent_tags||[]).map(t=>`<span style="display:inline-block;background:#eef3f9;border:1px solid #dde6f0;border-radius:4px;padding:1px 6px;font-size:11px;color:var(--navy);margin:2px">${escape(t)}</span>`).join("");
+        const res=document.createElement("div"); res.className="pp-result"; res.style.marginTop="10px";
+        res.innerHTML=`<div style="margin-bottom:8px"><b>🔍 调查意图：</b><span id="ppIntent"></span></div><div style="margin-bottom:8px">${tags?`<b>🏷 标签：</b>${tags}`:""}</div><div style="margin-bottom:8px"><b>🧠 思考强度：</b>${{low:"低 · 简明推理",medium:"中 · 条理分析",high:"高 · 深度链式推理"}[b.reasoning_intensity]||b.reasoning_intensity}</div><div><b>📋 总体分析提示：</b><span id="ppGuidance"></span></div>`;
+        stage.appendChild(res);
+        // 打字机
+        await typewrite("ppIntent", b.intent||"未识别");
+        await typewrite("ppGuidance", b.global_guidance||"请基于卷宗客观分析");
+
+        // 分角色分发
+        const pm=b.per_role_material||{}; const keys=Object.keys(pm);
+        if(keys.length){
+          const disp=document.createElement("div"); disp.className="pp-result"; disp.style.marginTop="8px";
+          disp.innerHTML=`<div style="margin-bottom:6px"><b>📦 已分发到 ${keys.length} 位专家（每人获得差异化材料）：</b></div>`+keys.map(k=>{const a=roleMap[k]||{name:k};const snip=(pm[k]||"").replace(/\s+/g," ").slice(0,100);return`<div style="margin:4px 0;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:6px"><b style="color:${a.color||'var(--navy)'}">${escape(a.name)}</b><span style="font-size:11px;color:var(--muted)"> · ${(GROUP_LABELS[a.group]||"")}</span><div style="font-size:11.5px;color:#4a5560;margin-top:3px">${escape(snip)}…</div></div>`;}).join("");
+          stage.appendChild(disp);
+        }
+
+        // 确认按钮
+        const btn=document.createElement("div"); btn.className="pp-confirm";
+        btn.innerHTML=`<button class="primary" onclick="confirmPreprocessing()">确认并准备开庭</button>`;
+        stage.appendChild(btn);
+        serverBrief=b;
+        intakeOverrides={intent:b.intent||"",reasoning_intensity:b.reasoning_intensity||"medium",global_guidance:b.global_guidance||""};
+      }
+
+      async function typewrite(elId, text) {
+        const el=$(elId); if(!el) return;
+        el.textContent="";
+        el.classList.add("pp-typewriter");
+        for(let i=0;i<text.length;i++){
+          el.textContent+=text[i];
+          await sleep(18+Math.random()*12);
+        }
+        el.classList.remove("pp-typewriter");
+      }
+
+      function confirmPreprocessing() {
+        $("ppStage").classList.add("hidden");
+        renderIntake();
+        $("intakeCard").classList.remove("hidden");
+        toast("预处理完成，请确认后点击「开庭审理」");
+      }
+
+      function renderCase() {
+        const d=caseDetail; if(!d){ $("casePanel").innerHTML='<div class="muted">加载案件中…</div>'; return; }
+        let h=`<div class="card"><div class="case-head"><div class="case-no">案号 ${d.id?("〔2026〕"+d.id.toUpperCase()):"—"}</div><div class="case-title">${d.title}</div><div class="muted">${d.summary||""}</div></div>`;
+        if(d.persons&&d.persons.length){ h+='<div class="sec-title">涉案人员</div>'; d.persons.forEach(p=>{ h+=`<div class="person"><div><div><span class="pname">${p.name}</span> <span class="prole">${p.role}</span></div><div class="pdesc">${p.desc||""}</div></div></div>`; }); }
+        if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单</div>'; d.evidence.forEach(e=>{ const col=e.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e.id}</span><span class="evi-type">${e.type}</span></div><div class="evi-desc">${e.desc}</div><div class="bar"><div style="width:${(e.reliability||0)*100}%"></div></div><span class="chain ${e.chain_intact?'ok':'no'}">${e.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((e.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
+        if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${s.topic}</div><div class="st-text">${s.text}</div></div>`; }); }
+        if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${t.time}</div><div class="tl-ev">${t.event}</div><div class="tl-src">来源：${t.source||"—"}</div></div>`; }); h+='</div>'; }
+        h+='<div class="sec-title">现场勘验图表</div>';
+        [["timeline","关键时间线"],["evidence","证据可靠性"],["scene","现场平面图"],["motive","资金/动机流向"],["dna","DNA 比对"],["communication","通讯关系网"],["bloodstain","血迹分布与刺入方向"]].forEach((k)=>{ const [fn,label]=k; h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${label}</div><img class="chart" src="/static/data/cases/assets/${fn}.png" alt="${label}" onerror="this.style.display='none'">`; });
+        h+='</div>'; $("casePanel").innerHTML=h; renderRoster(); renderIntake();
+      }
+
+      function renderIntake(){
+        const b = (caseDetail && caseDetail.brief) || {};
+        const card = $("intakeCard"); if(!card) return;
+        if(!b || !b.intake_done){ card.classList.add("hidden"); return; }
+        card.classList.remove("hidden");
+        $("ivIntent").value = intakeOverrides.intent || b.intent || "";
+        $("ivIntensity").value = intakeOverrides.reasoning_intensity || b.reasoning_intensity || "medium";
+        $("ivGuidance").value = intakeOverrides.global_guidance || b.global_guidance || "";
+        $("ivJudge").value = (settingsCache && settingsCache.judge_mode) || "ai";
+        onIntake();
+        renderDispatchPreview(b);
+      }
+      function onIntake(){ intakeOverrides = { intent:$("ivIntent").value.trim(), reasoning_intensity:$("ivIntensity").value, global_guidance:$("ivGuidance").value.trim() }; }
+      function intakePayload(){ const p={}; if(intakeOverrides.intent) p.intent=intakeOverrides.intent; if(intakeOverrides.reasoning_intensity) p.reasoning_intensity=intakeOverrides.reasoning_intensity; if(intakeOverrides.global_guidance) p.global_guidance=intakeOverrides.global_guidance; const j=$("ivJudge").value; if(j) p.judge_mode=j; return p; }
+      function renderRoster() {
+        const box=$("roster"); box.innerHTML="";
+        sortedAgents().forEach(a => {
+          const st = a.key===activeRole ? "speaking" : (running && a.key!==activeRole && messages.some(m=>m.role===a.key) ? "done":"");
+          const stTxt = st==="speaking"?"举证中":st==="done"?"已陈述":"待席";
+          const tools=(a.tools||[]).map(t=>`<span class="tchip">${TOOL_LABELS[t]||t}</span>`).join("");
+          const el=document.createElement("div"); el.className="agent-row"; el.style.borderLeftColor=a.color;
+          el.innerHTML=`<div class="ar-top"><div class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</div><div style="flex:1;min-width:0"><div class="an">${a.name}</div><div class="ad">${a.duty}</div></div><span class="astatus ${st}">${stTxt}</span></div><div class="tools">${tools}</div><details class="strategy"><summary>查看策略</summary><pre>${escape(a.system_prompt||a.default_prompt||a.stance)}</pre></details>`;
+          box.appendChild(el);
+        });
+      }
+
+      function setPhase(t){ const map={idle:["待命","var(--muted)"],running:["审理进行中","var(--seal)"],verdict:["裁决形成中","var(--gold)"],review:["等待人类复核","var(--gold)"],done:["审理终结","var(--ok)"]}; const [txt,c]=map[t]||[t,"var(--muted)"]; $("phase").textContent=txt; $("phase").style.color=c; }
+      function setConn(s){ const dot=$("connDot"),txt=$("connText"); dot.className="dot"+(s==="on"?" on":s==="busy"?" busy":""); txt.textContent=s==="on"?"已连接":s==="busy"?"连接中":"未连接"; }
+      function toggleRail(side){ const m=$("workspace"); if(side==="left"){ m.classList.toggle("no-left"); $("btnLeft").textContent=m.classList.contains("no-left")?"案卷 ›":"案卷 ‹"; } else { m.classList.toggle("no-right"); $("btnRight").textContent=m.classList.contains("no-right")?"‹ 合议":"› 合议"; } }
+      function landStart(){
+        if(enabledAgents.size===0){ alert("请至少选择一位出庭专家（设置中可调整）。"); return; }
+        // 将落地页的预处理结果同步到工作区
+        const b = (caseDetail && caseDetail.brief) || {};
+        if(b && b.intake_done) {
+          $("ivIntent").value = intakeOverrides.intent || b.intent || "";
+          $("ivIntensity").value = intakeOverrides.reasoning_intensity || b.reasoning_intensity || "medium";
+          $("ivGuidance").value = intakeOverrides.global_guidance || b.global_guidance || "";
+          $("ivJudge").value = (settingsCache && settingsCache.judge_mode) || "ai";
+          renderDispatchPreview(b);
+        }
+        $("landing").classList.add("hidden");
+        $("workspace").classList.remove("hidden");
+        start();
+      }
+      function renderDispatchPreview(b) {
+        const disp=$("ivDispatch"); if(!disp) return; disp.innerHTML="";
+        const pm=b.per_role_material||{};
+        Object.keys(pm).forEach(k=>{
+          const a=roleMap[k]||{name:k,group:""};
+          const snip=(pm[k]||"").replace(/\s+/g," ").slice(0,140);
+          const el=document.createElement("div"); el.className="dp";
+          el.innerHTML=`<b>${escape(a.name)}</b><span> · ${(GROUP_LABELS[a.group]||"")}</span><br><span>${escape(snip)}…</span>`;
+          disp.appendChild(el);
+        });
+      }
+      let wsRetries=0; let manualClose=false;
+      function showBanner(t){ const b=$("connBanner"); if(b){ b.textContent=t; b.style.display="block"; } }
+      function hideBanner(){ const b=$("connBanner"); if(b) b.style.display="none"; }
+      function doConnect(){
+        reset(); running=true; wsRetries++; $("landStart").disabled=true; session=Math.random().toString(36).slice(2);
+        ws=new WebSocket(`ws://${location.host}/ws/${session}`);
+        ws.onopen=()=>{ setConn("on"); hideBanner(); ws.send(JSON.stringify(Object.assign({type:"start",case_id:selectedCase}, intakePayload()))); };
+        ws.onclose=()=>{ setConn("off"); if(!manualClose && wsRetries<6){ showBanner("连接断开，正在重连…（第 "+wsRetries+" 次）"); setTimeout(doConnect, 2500); return; } running=false; $("landStart").disabled=false; if(!manualClose) showBanner("连接失败，请刷新页面重试。"); };
+        ws.onerror=()=>setConn("off");
+        ws.onmessage=(e)=>handle(JSON.parse(e.data));
+      }
+      function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(); }
+      function reset(){ messages=[]; activeRole=null; currentId=null; round=0; serverBrief=null; lastVerdict=null; contraList=[]; recNotes=[]; $("debate").innerHTML='<div class="empty">已重置。</div>'; $("contra").innerHTML='<div class="muted">尚未记录矛盾点。</div>'; $("recording").innerHTML='<div class="muted">辩论开始后，各专家主张将实时记录于此。</div>'; $("verdictBox").innerHTML=""; $("hitl").innerHTML=""; $("prog").style.width="0%"; $("speak").textContent=""; $("intervene").classList.add("hidden"); $("dlReport").classList.add("hidden"); setPhase("idle"); renderRoster(); }
+      function handle(ev){
+        switch(ev.kind){
+           case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); break;
+          case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary}; break;
+          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true}); renderDebate(); break; }
+          case "round_start": round=ev.round; maxRounds=ev.max_rounds||3; activeRole=null; $("prog").style.width=((round-1)/maxRounds*100)+"%"; renderRoster(); break;
+          case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; $("speak").textContent="● "+ev.name+" 举证中…"; const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false}); renderDebate(); renderRoster(); break; }
+          case "token": { const m=messages.find(x=>x.id===ev.id); if(m) m.text+=ev.text; renderDebate(); } break;
+          case "tool": { const m=messages.find(x=>x.id===ev.id); if(m) m.tools.push({tool:ev.tool,args:ev.args,result:ev.result}); renderDebate(); } break;
+          case "agent_end": { const m=messages.find(x=>x.id===ev.id); if(m) m.done=true; renderDebate(); renderRoster(); break; }
+          case "round_end": $("prog").style.width=(round/maxRounds*100)+"%"; break;
+            case "critic_end": (ev.contradictions||[]).forEach(c=>addContra(c)); break;
+            case "agent_note": addRecording(ev.role, ev.name, ev.note||{}); break;
+          case "verdict": setPhase("verdict"); lastVerdict=ev.verdict; renderVerdict(ev.verdict); $("dlReport").classList.remove("hidden"); break;
+          case "awaiting_human": setPhase("review"); renderHitl(ev.draft||null, ev.final); break;
+          case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
+          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); break;
+          case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
+        }
+      }
+      function cleanText(s){
+        s = (s||"");
+        s = s.replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/<thinking[\s\S]*?<\/thinking>/gi,"");
+        s = s.replace(/\n{3,}/g,"\n\n");
+        // 按标点补软换行，保证渲染时一行一句；但跳过代码块与 markdown 表格行，避免破坏结构。
+        const lines = s.split("\n");
+        const sep = /^\s*\|?[\s:|-]+\|?\s*$/;
+        let inCode = false;
+        const out = [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (/^```/.test(line.trim())) { inCode = !inCode; out.push(line); continue; }
+          if (inCode) { out.push(line); continue; }
+          const prev = lines[i - 1] || "", next = lines[i + 1] || "";
+          const isTableLine = line.includes("|") && (sep.test(prev.trim()) || sep.test(next.trim()));
+          if (isTableLine) { out.push(line); continue; }
+          out.push(line.replace(/([。！？；])(?![\n\s)】」』」’"])([^。！？；\n]{2,})/g, "$1\n$2"));
+        }
+        return out.join("\n").trim();
+      }
+      function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+      function inlineMd(s){
+        s = s.replace(/`([^`]+)`/g, (m,c)=>"<code>"+c+"</code>");
+        s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m,a,u)=>'<img src="'+u+'" alt="'+a+'" />');
+        s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m,t,u)=>'<a href="'+u+'" target="_blank" rel="noopener">'+t+"</a>");
+        s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+        s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+        s = s.replace(/(^|[^_])_([^_\n]+)_/g, "$1<em>$2</em>");
+        return s;
+      }
+      function splitRow(line){ return line.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim()); }
+      function mdToHtml(src){
+        src = cleanText(src);
+        const lines = src.split(/\n/);
+        let html = "", para = [], i = 0;
+        const flush = () => { if(para.length){ html += "<p>"+para.map(l=>inlineMd(escapeHtml(l))).join("<br>")+"</p>"; para = []; } };
+        while(i < lines.length){
+          const line = lines[i];
+          if(/^```/.test(line.trim())){
+            flush(); const code = []; i++;
+            while(i < lines.length && !/^```/.test(lines[i].trim())){ code.push(lines[i]); i++; }
+            i++;
+            html += "<pre><code>"+escapeHtml(code.join("\n"))+"</code></pre>"; continue;
+          }
+          if(/^\s*([-*_])\1{2,}\s*$/.test(line)){ flush(); html += "<hr>"; i++; continue; }
+          const h = line.match(/^(#{1,6})\s+(.*)$/);
+          if(h){ flush(); const l=h[1].length; html += "<h"+l+">"+inlineMd(escapeHtml(h[2]))+"</h"+l+">"; i++; continue; }
+          if(/^>\s?/.test(line)){
+            flush(); const q = [];
+            while(i < lines.length && /^>\s?/.test(lines[i])){ q.push(lines[i].replace(/^>\s?/,"")); i++; }
+            html += "<blockquote>"+mdToHtml(q.join("\n"))+"</blockquote>"; continue;
+          }
+          if(line.includes("|") && i+1 < lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i+1]) && lines[i+1].includes("-")){
+            flush();
+            const header = splitRow(line);
+            const aligns = splitRow(lines[i+1]).map(c=> (c.startsWith(":")&&c.endsWith(":"))?"center":c.endsWith(":")?"left":c.startsWith(":")?"right":"");
+            i += 2; const rows = [];
+            while(i < lines.length && lines[i].includes("|") && lines[i].trim()!==""){ rows.push(splitRow(lines[i])); i++; }
+            let t = "<table><thead><tr>"+header.map((c,j)=>'<th style="text-align:'+(aligns[j]||"left")+'">'+inlineMd(escapeHtml(c))+"</th>").join("")+"</tr></thead><tbody>";
+            t += rows.map(r=>"<tr>"+r.map((c,j)=>'<td style="text-align:'+(aligns[j]||"left")+'">'+inlineMd(escapeHtml(c))+"</td>").join("")+"</tr>").join("")+"</tbody></table>";
+            html += t; continue;
+          }
+          if(/^\s*([-*+])\s+/.test(line) || /^\s*\d+\.\s+/.test(line)){
+            flush(); const items = []; const ordered = /^\s*\d+\.\s+/.test(line);
+            while(i < lines.length && (/^\s*([-*+])\s+/.test(lines[i]) || /^\s*\d+\.\s+/.test(lines[i]))){
+              const m = lines[i].match(/^\s*(?:[-*+]|\d+\.)\s+(.*)$/); items.push(inlineMd(escapeHtml(m[1]))); i++;
+            }
+            html += (ordered?"<ol>":"<ul>")+items.map(it=>"<li>"+it+"</li>").join("")+(ordered?"</ol>":"</ul>"); continue;
+          }
+          if(line.trim()===""){ flush(); i++; continue; }
+          para.push(line); i++;
+        }
+        flush();
+        return html;
+      }
+      function renderMarkdown(s){ return mdToHtml(s); }
+      function renderSandbox(s){
+        const raw = s || "";
+        const parts = raw.split(/(\[stderr\]|\[exit code \d+\])/g);
+        return parts.map(p => {
+          if (p === "[stderr]") return '<div class="sb-err-h">⚠ 标准错误（stderr）</div>';
+          if (/^\[exit code \d+\]$/.test(p)) return '<div class="sb-err-h">'+escape(p)+'</div>';
+          if (!p) return "";
+          const isErr = /Traceback \(|Error:|Exception|exit code/.test(p);
+          return '<div class="'+(isErr?"sb-err":"")+'">'+renderMarkdown(p)+"</div>";
+        }).join("");
+      }
+      function renderDebate(){ const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
+        messages.forEach(m=>{ const rk=parseInt(m.id.split("-")[1]); if(rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
+           const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escape(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
+          const el=document.createElement("div"); el.className="rec";
+           el.innerHTML=`<div class="ava" style="background:${m.color}">${m.name.slice(0,1)}</div><div class="body"><div class="rname">${m.name}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span></div>${m.stance?`<div class="rstance">${m.stance}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
+          wrap.appendChild(el);
+        });
+        box.innerHTML=""; box.appendChild(wrap); box.scrollTop=box.scrollHeight;
+      }
+      function addContra(c){ contraList.push(c); const wrap=$("contra"); if(wrap.querySelector(".muted")) wrap.innerHTML=""; const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); const el=document.createElement("div"); el.className="contra"; el.innerHTML=`<div class="cp">${parties?"⚠ "+parties:"⚠ 矛盾点"}</div><div class="ci md">${renderMarkdown(c.issue)}</div>`; wrap.appendChild(el); }
+      function addRecording(role, name, note){
+        recNotes.push({role, name, note});
+        const wrap=$("recording"); if(!wrap) return;
+        if(wrap.querySelector(".muted")) wrap.innerHTML="";
+        const color=(roleMap[role]||{}).color||"#1f3a5f";
+        const evs=(note.evidence_ids||[]).map(e=>`<span class="ev-tag">${escape(e)}</span>`).join("");
+        const ds=(note.doubts||[]).map(d=>`${escape(d)}`).join("；");
+        const el=document.createElement("div"); el.className="rec-note";
+        el.innerHTML=`<div class="rn-head"><span class="rn-dot" style="background:${color}"></span>${escape(name||role)}</div>`+
+          `<div class="rn-claim md">${renderMarkdown(note.claim||"（无摘要）")}</div>`+
+          (evs?`<div class="rn-evs">${evs}</div>`:"")+
+          (ds?`<div class="rn-doubt">⚠ ${ds}</div>`:"");
+        wrap.appendChild(el);
+      }
+      function renderVerdict(v){ if(!v) return; const sec=(t,arr)=>(arr&&arr.length)?`<div class="vsec">${t}</div><ul>${arr.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:""; $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`; }
+      function renderHitl(draft, final){
+        const draftHtml = draft ? `<div class="hitl-draft md">${renderMarkdown(JSON.stringify(draft,null,2))}</div>` : "";
+        const title = final ? "🧑‍⚖ 人类审判长落槌" : "🧑‍⚖ 人类法官复核";
+        $("hitl").innerHTML=`<div class="hitl-box"><div class="ht">${title}</div>${draftHtml}<textarea id="huText" rows="4" placeholder="确认采纳请点左侧；或在此写下你的最终裁决（JSON 或自然语言）"></textarea><div style="display:flex;gap:8px;margin-top:9px"><button class="ghost" style="flex:1" onclick="sendHuman('confirm')">采纳 AI 草案</button><button class="primary" style="flex:1" onclick="sendHuman()">落槌提交</button></div></div>`;
+      }
+      function sendHuman(force){ const t = force==="confirm" ? "confirm" : ($("huText").value.trim()); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t})); $("hitl").innerHTML=""; }
+      function sendIntervene(){ const t=$("ivInput").value.trim(); if(!t||!ws) return; ws.send(JSON.stringify({type:"human",text:t})); $("ivInput").value=""; toast("已向合议庭插话，下一轮生效"); }
+      function downloadReport(){
+        const brief = serverBrief || (caseDetail && caseDetail.brief) || {};
+        const c = caseDetail || {};
+        const v = lastVerdict || {};
+        let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审判报告 - ${escape(c.title||"")}</title>`;
+        h += `<style>body{font-family:-apple-system,'Microsoft YaHei',sans-serif;max-width:880px;margin:24px auto;padding:0 18px;color:#0f172a;line-height:1.75} h1{border-bottom:3px solid #7f1d1d;padding-bottom:8px} h2{margin-top:28px;color:#7f1d1d;border-left:4px solid #7f1d1d;padding-left:10px} .meta{color:#64748b;font-size:13px} .rec{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:10px 0} .rec .n{font-weight:700} .sec{background:#f8fafc;border-radius:8px;padding:10px 14px;margin:6px 0} .seal{display:inline-block;border:2px solid #7f1d1d;color:#7f1d1d;border-radius:50%;width:30px;height:30px;line-height:26px;text-align:center;font-weight:700;font-size:13px} pre{white-space:pre-wrap;background:#fff7ed;padding:8px;border-radius:8px} .disc{color:#64748b;font-size:12px;margin-top:10px} ul{margin:4px 0;padding-left:20px} li{margin:2px 0}</style></head><body>`;
+        h += `<h1>审判报告</h1><div class="meta">案号：${escape(c.id||"")} ｜ 标题：${escape(c.title||"")}<br>调查意图：${escape(brief.intent||"")} ｜ 思考强度：${escape(brief.reasoning_intensity||"")}</div>`;
+        h += `<h2>一、案件概要</h2><div class="sec">${renderMarkdown(c.summary||"")}</div>`;
+        if(c.persons&&c.persons.length){ h+="<h2>二、涉案人员</h2><div class='sec'>"+c.persons.map(p=>`<div><b>${escape(p.name)}</b>（${escape(p.role||"")}）：${escape(p.desc||"")}</div>`).join("")+"</div>"; }
+        if(c.evidence&&c.evidence.length){ h+="<h2>三、证据材料</h2><div class='sec'>"+c.evidence.map(e=>`<div><b>[${escape(e.id||"")}]${escape(e.type||"")}</b>：${escape(e.desc||"")}（可靠性${e.reliability}，保管链${e.chain_intact?"完整":"瑕疵"}）</div>`).join("")+"</div>"; }
+        h += `<h2>四、合议庭审理笔录</h2>`;
+        messages.forEach(m=>{ if(m.role==="human"){ h+=`<div class="rec" style="border-color:#facc15"><div class="n">${escape(m.name)}</div><div>${renderMarkdown(m.text)}</div></div>`; return; } const a=roleMap[m.role]||{}; h+=`<div class="rec"><div class="n" style="color:${m.color}">${escape(m.name)}</div><div>${renderMarkdown(m.text)||"<i>（无文本输出）</i>"}</div></div>`; });
+        h += `<h2>五、合议记录（实时摘要）</h2><div class="sec">${recNotes.length?recNotes.map(r=>`<div><b style="color:#1f3a5f">${escape(r.name)}</b>：${renderMarkdown(r.note.claim||"")}${r.note.evidence_ids&&r.note.evidence_ids.length?` ［证据：${r.note.evidence_ids.join("、")}］`:""}${r.note.doubts&&r.note.doubts.length?` <span style="color:#b45309">⚠ ${r.note.doubts.join("；")}</span>`:""}</div>`).join(""):"<div>无</div>"}</div>`;
+        h += `<h2>六、矛盾与纠错清单</h2><div class="sec">${contraList.length?contraList.map(c=>{const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); return `<div>⚠ ${parties?parties+"：":""}${renderMarkdown(c.issue||"")}</div>`;}).join(""):"<div>无</div>"}</div>`;
+        h += `<h2>六、审判长裁决</h2><div class="rec" style="border-color:#7f1d1d"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
+        h += `<div class="sec"><b>真相推定：</b>${renderMarkdown(v.truth_hypothesis||"")}</div>`;
+        if(v.evidence_chain&&v.evidence_chain.length) h += `<div class="sec"><b>证据链：</b><ul>${v.evidence_chain.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
+        if(v.doubts&&v.doubts.length) h += `<div class="sec"><b>存疑点：</b><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
+        if(v.recommendation) h += `<div class="sec"><b>处置建议：</b>${renderMarkdown(v.recommendation)}</div>`;
+        if(v.disclaimer) h += `<div class="disc">${escape(v.disclaimer)}</div>`;
+        h += `</div><div class="disc">本报告由多智能体系统自动生成，仅供研究与演示，不构成法律意见。</div></body></html>`;
+        const blob = new Blob([h], {type:"text/html;charset=utf-8"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href=url; a.download = `审判报告_${(c.id||"case")}.html`; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      }
+      function escape(s){ return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+      /* 设置 */
+      function openSettings(){ $("setMsg").textContent=""; switchTab("engine");
+        $("s_provider").value=settingsCache.llm_provider||"openai_compatible"; syncSettingsFields();
+        $("s_rounds").value=settingsCache.max_rounds??3; $("s_temp").value=settingsCache.temperature??0.3; $("s_judge").value=settingsCache.judge_mode||"ai"; $("s_intake").value=settingsCache.intake_model||"";
+        $("s_sandbox").checked=!!settingsCache.code_sandbox_enabled; $("s_py").value=settingsCache.code_sandbox_python||"python3";
+        renderBoard(); renderAgentConfig();
+        $("settingsModal").classList.remove("hidden");
+      }
+      function closeSettings(){ $("settingsModal").classList.add("hidden"); }
+      function switchTab(name){ document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name)); document.querySelectorAll(".tabpane").forEach(p=>p.classList.toggle("on",p.id==="tab-"+name)); }
+      function syncSettingsFields(){ const p=$("s_provider").value, local=p==="ollama", mock=p==="mock";
+        if(local){ $("s_base").value=settingsCache.ollama_base_url||"http://localhost:11434/v1"; $("s_model").value=settingsCache.ollama_model||"qwen2.5:14b"; $("s_key").value=""; $("s_key").disabled=true; $("s_key").style.opacity=.4; $("lblKey").textContent="API Key（本地无需）"; $("lblBase").textContent="Ollama Base URL"; $("lblModel").textContent="Ollama 模型"; }
+        else if(mock){ ["s_base","s_key","s_model"].forEach(id=>{$(id).value="";$(id).disabled=true;$(id).style.opacity=.4;}); $("lblBase").textContent="API Base URL"; $("lblKey").textContent="API Key"; $("lblModel").textContent="模型名称"; }
+        else { $("s_base").value=settingsCache.llm_base_url||""; $("s_model").value=settingsCache.llm_model||""; $("s_key").value=settingsCache.llm_api_key||""; ["s_base","s_key","s_model"].forEach(id=>{$(id).disabled=false;$(id).style.opacity=1;}); $("lblBase").textContent="API Base URL"; $("lblKey").textContent="API Key"; $("lblModel").textContent="模型名称"; }
+      }
+      function renderBoard(){ const box=$("boardList"); box.innerHTML=""; sortedAgents().filter(a=>isDebatable(a.key)).forEach(a=>{ const el=document.createElement("div"); el.className="ac-item"; el.innerHTML=`<div class="ac-top"><div class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</div><div class="an">${a.name}</div><input class="ord" type="number" min="0" max="20" value="${a.order}" data-k="${a.key}" onchange="onOrderChange(this)"><input type="checkbox" ${a.enabled?"checked":""} data-k="${a.key}" onchange="onEnableChange(this)" style="width:16px;height:16px;accent-color:var(--navy);margin-left:12px"></div><div class="ad" style="font-size:11px;color:var(--muted);margin-top:4px">${a.duty}</div>`; box.appendChild(el); }); }
+      function onOrderChange(e){ const k=e.dataset.k; agentsCfg[k].order=parseInt(e.value)||0; renderBoard(); }
+      function onEnableChange(e){ const k=e.dataset.k; agentsCfg[k].enabled=e.checked; }
+      function renderAgentConfig(){ const box=$("agentList"); box.innerHTML=""; sortedAgents().forEach(a=>{ const noTools = (a.key==="judge"||a.key==="critic"); const tools=(a.tools||ALL_TOOLS).slice(); const toolChk= noTools ? `<span class="muted" style="font-size:11.5px">该角色不调用工具</span>` : ALL_TOOLS.map(t=>`<label><input type="checkbox" data-k="${a.key}" data-t="${t}" ${tools.includes(t)?"checked":""} onchange="onToolChange(this)">${TOOL_LABELS[t]||t}</label>`).join(""); const el=document.createElement("div"); el.className="ac-item"; el.innerHTML=`<div class="ac-top"><div class="ainit" style="background:${a.color}">${a.name.slice(0,1)}</div><div class="an">${a.name}</div>${a.key==="critic"?'<span class="rtag" style="margin-left:auto">纠错官</span>':a.key==="judge"?'<span class="rtag" style="margin-left:auto">审判长</span>':""}</div><div class="ad" style="font-size:11px;color:var(--muted);margin:4px 0 6px">${a.stance||a.duty}</div><label style="font-size:12px;color:var(--muted);font-weight:600">系统提示词</label><textarea data-k="${a.key}" rows="4" placeholder="${(a.default_prompt||"").replace(/"/g,"&quot;")}">${a.system_prompt||""}</textarea>${noTools?"":`<label style="font-size:12px;color:var(--muted);font-weight:600;margin-top:8px">可用工具</label><div class="ac-tools">${toolChk}</div>`}`; box.appendChild(el); }); }
+      function onToolChange(e){ const k=e.dataset.k; const has=(agentsCfg[k].tools||ALL_TOOLS.slice()); if(e.checked){ if(!has.includes(e.dataset.t)) has.push(e.dataset.t); } else { const i=has.indexOf(e.dataset.t); if(i>=0) has.splice(i,1); } agentsCfg[k].tools=has; }
+      async function installPkg(){
+        const pkg=$("s_pkg").value.trim(); const out=$("pkgOut"); out.style.display="block"; out.textContent="安装中…";
+        try {
+          const r=await fetch("/api/sandbox/install",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({package:pkg})});
+          const d=await r.json(); out.textContent=d.result||d.error||("HTTP "+r.status);
+        } catch(e){ out.textContent="请求失败: "+e.message; }
+      }
+      async function runTry(){
+        const code=$("s_try").value; const out=$("tryOut"); out.innerHTML="运行中…";
+        try {
+          const r=await fetch("/api/sandbox/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
+          const d=await r.json(); out.innerHTML = (d.result!=null)? renderSandbox(d.result) : ("<span class='muted'>"+(d.error||("HTTP "+r.status))+"</span>");
+        } catch(e){ out.innerHTML="<span class='muted'>请求失败: "+escape(e.message)+"</span>"; }
+      }
+      async function saveSettings(){
+        const p=$("s_provider").value; const engine={ llm_provider:p, temperature:parseFloat($("s_temp").value), max_rounds:parseInt($("s_rounds").value), judge_mode:$("s_judge").value, intake_model:$("s_intake").value.trim(), code_sandbox_enabled:$("s_sandbox").checked, code_sandbox_python:$("s_py").value.trim()||"python3" };
+        if(p==="ollama"){ engine.ollama_base_url=$("s_base").value.trim(); engine.ollama_model=$("s_model").value.trim(); }
+        else if(p==="openai_compatible"||p==="openai"){ engine.llm_base_url=$("s_base").value.trim(); engine.llm_api_key=$("s_key").value.trim(); engine.llm_model=$("s_model").value.trim(); }
+        const agentMap={}; Object.values(agentsCfg).forEach(a=>{ const ta=document.querySelector(`textarea[data-k="${a.key}"]`); const prompt=ta?ta.value.trim():""; agentMap[a.key]={ enabled:a.enabled, order:a.order, system_prompt: prompt||null, tools:a.tools||null }; });
+        try {
+          const r1=await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(engine)}); if(!r1.ok) throw new Error("引擎保存失败"); settingsCache=await r1.json();
+          const r2=await fetch("/api/agent-config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({agents:agentMap})}); if(!r2.ok) throw new Error("专家配置保存失败");
+          const d=await r2.json(); agentsCfg={}; d.agents.forEach(a=>agentsCfg[a.key]=a);
+          applyModelBadge(); enabledAgents=new Set(Object.values(agentsCfg).filter(a=>a.enabled).map(a=>a.key));
+          renderLandRoster(); closeSettings(); toast("设置已保存，对下一场审理生效");
+        } catch(e){ $("setMsg").textContent="保存失败: "+e.message; $("setMsg").style.color="var(--bad)"; }
+      }
+
+      async function refreshCaseLibrary(){
+        const box=$("libList"); box.innerHTML="<div class='muted'>加载中…</div>";
+        try {
+          const d=await (await fetch("/api/cases")).json();
+          renderCaseLibrary(d.cases||[]);
+        } catch(e){ box.innerHTML="<div class='muted' style='color:var(--bad)'>加载失败: "+escape(e.message)+"</div>"; }
+        refreshDebates();
+      }
+      async function refreshDebates(){
+        const box=$("debateList"); if(!box) return; box.innerHTML="<div class='muted'>加载中…</div>";
+        let list=[]; try{ list=await (await fetch("/api/debates")).json(); }catch(e){ list=[]; }
+        if(!list.length){ box.innerHTML="<div class='muted'>暂无复盘记录。</div>"; return; }
+        box.innerHTML="";
+        list.forEach(d=>{
+          const el=document.createElement("div"); el.className="lib-item";
+          const t=escape((d.truth||"无结论").slice(0,70));
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(d.case_title||"案件")}</div><div class="lib-meta">${d.started_at||""} · ${d.rounds||0}轮 · ${d.model||""}</div></div><div class="lib-sub" style="margin:4px 0">${t}</div>`;
+          const btn=document.createElement("button"); btn.className="ghost"; btn.textContent="打开复盘"; btn.style.marginTop="6px";
+          btn.onclick=()=>openReplay(d.session_id);
+          el.appendChild(btn); box.appendChild(el);
+        });
+      }
+      async function openReplay(sid){
+        closeSettings();
+        let rec=null; try{ rec=await (await fetch("/api/debates/"+sid)).json(); }catch(e){ return; }
+        if(!rec || !Array.isArray(rec.events)){ toast("复盘记录不可用"); return; }
+        reset();
+        rec.events.forEach(ev=>handle(ev));
+        setPhase("done");
+        $("dlReport").classList.remove("hidden");
+        toast("已载入复盘：" + (rec.case_title||sid));
+      }
+      function renderCaseLibrary(cases){
+        const box=$("libList"); box.innerHTML="";
+        if(!cases.length){ box.innerHTML="<div class='muted'>案例库为空。上传 PDF 或点击「生成示例案件」开始。</div>"; return; }
+        cases.forEach(c=>{
+          const el=document.createElement("div"); el.className="lib-item";
+          const hasBrief = c.brief && c.brief.intake_done;
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
+          box.appendChild(el);
+        });
+      }
+      async function generateSampleCase(){
+        const btn=event.target; btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
+        try {
+          const r=await fetch("/api/cases/generate",{method:"POST"}); if(!r.ok) throw new Error("HTTP "+r.status);
+          const d=await r.json(); toast("示例案件已生成: "+d.case.id); await refreshCaseLibrary();
+        } catch(e){ toast("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
+      }
+      async function deleteCase(id){
+        if(!confirm("确定删除案件 "+id+"？此操作不可恢复。")) return;
+        try {
+          const r=await fetch("/api/cases/"+id,{method:"DELETE"}); if(!r.ok) throw new Error("HTTP "+r.status);
+          toast("已删除: "+id); await refreshCaseLibrary();
+          // 如果当前选中的是被删除的案件，重置
+          if(selectedCase===id){ selectedCase=""; const land=$("landCase"); land.value=""; caseDetail=null; renderCase(); }
+        } catch(e){ toast("删除失败: "+e.message); }
+      }
+      function viewCase(id){
+        // 在落地页选中并加载详情
+        selectCaseFromLib(id);
+        closeSettings();
+      }
+      function selectCaseFromLib(id){
+        selectedCase=id; const land=$("landCase"); if(land) land.value=id; loadCase();
+      }
+
+      function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
+
+      window.addEventListener("beforeunload", () => { manualClose = true; try { if (ws) ws.close(); } catch (e) {} });
+      init();
+    </script>
+  </body>
+</html>

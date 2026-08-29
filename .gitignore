@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime data
+backend/data/debates/
+backend/data/sandbox_out/
+backend/data/cases/*.json
+
+# Cache
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+node_modules/
+
+# Logs
+*.log
+
+# Test artifacts
+_verify*.py
+_smoke*.py
+_modeltest*.py
+_criticlat*.py
+_speedtest.py
+_c.js
