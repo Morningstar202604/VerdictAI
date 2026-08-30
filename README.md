@@ -36,7 +36,16 @@
 ## ✨ What Makes VerdictAI Different?
 
 | | Traditional AI Q&A | **VerdictAI** |
-|---|---|---|
+|---|-## 📸 Screenshots
+
+| | |
+|---|---|
+| ![Case intake & branding](docs/screenshots/landing.png) | ![Live trial with human intervention](docs/screenshots/trial-debate.png) |
+| *Case intake — PDF upload, roster, AI extraction* | *Live trial — 7 experts, human intervention, usage stats* |
+| ![Verdict & post-verdict workflow](docs/screenshots/verdict-workflow.png) | ![Dark mode](docs/screenshots/dark-mode.png) |
+| *Verdict, Q&A, executable next-steps checklist* | *Dark theme, full transcript* |
+
+--|---|
 | Approach | Single model, single answer | **7 specialized agents** debate & challenge each other |
 | Output | One-shot text | **Multi-round deliberation** + contradiction detection |
 | Transparency | Black box | **Full event stream** — every token, tool call, agent status |

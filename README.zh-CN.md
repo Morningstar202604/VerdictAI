@@ -35,7 +35,16 @@
 ## ✨ VerdictAI 有什么不同？
 
 | | 传统 AI 问答 | **VerdictAI** |
-|---|---|---|
+|---|-## 📸 界面预览
+
+| | |
+|---|---|
+| ![案件受理与品牌](docs/screenshots/landing.png) | ![实时庭审与人类介入](docs/screenshots/trial-debate.png) |
+| *案件受理——PDF 上传、专家阵容、AI 提取* | *实时庭审——7 专家辩论、人类介入、用量统计* |
+| ![裁决与裁决后工作流](docs/screenshots/verdict-workflow.png) | ![深色模式](docs/screenshots/dark-mode.png) |
+| *裁决书、质询、可执行后续清单* | *深色主题，完整笔录* |
+
+--|---|
 | 模式 | 单模型、单次回答 | **7 个专业智能体**多轮辩论、相互质疑 |
 | 产出 | 一次性文本 | **多轮审议** + 矛盾检测 |
 | 透明度 | 黑盒 | **完整事件流**——每个 token、工具调用、Agent 状态 |
