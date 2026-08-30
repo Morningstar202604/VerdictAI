@@ -114,7 +114,9 @@ async def _run_agent(
                         raw_args = tc.get("args") or {}
                         if not isinstance(raw_args, dict):
                             raw_args = {}
-                        result = fn.invoke(raw_args) if fn else "工具未找到"
+                        # ainvoke：同步工具（如 run_code 沙箱 subprocess）在线程池执行，
+                        # 避免长任务阻塞事件循环导致 WebSocket keepalive 超时断连
+                        result = (await fn.ainvoke(raw_args)) if fn else "工具未找到"
                     except Exception as ex:
                         # 工具参数缺失/校验失败等：返回友好错误而非中断整场辩论
                         result = "工具调用失败：" + str(ex)[:300]
