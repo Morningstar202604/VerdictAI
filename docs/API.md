@@ -2,140 +2,155 @@
 
 Base URL: `http://localhost:8787`
 
+All request/response bodies are JSON unless noted. When `ACCESS_PASSWORD` is set
+in `backend/.env`, every endpoint except `/login`, `/api/health` and
+`/static/assets/*` requires the session cookie issued by `POST /login`.
+
 ## Health
 
 ### `GET /api/health`
 
-Returns server health status.
-
-**Response:**
 ```json
-{
-  "status": "ok",
-  "provider": "openai_compatible",
-  "mock": false
-}
+{ "status": "ok", "provider": "openai_compatible", "mock": false }
 ```
 
-## Configuration
+## Settings
 
 ### `GET /api/settings`
 
-Returns current server configuration.
+Returns the full runtime configuration (provider, model, rounds, judge mode,
+HITL timeout, memory window, context limit, concurrency, call timeout,
+web-search toggle, sandbox settings). Values persist to `backend/.env`.
 
-**Response:**
-```json
-{
-  "llm_provider": "openai_compatible",
-  "llm_model": "step-explore",
-  "llm_base_url": "https://api.example.com/v1",
-  "max_rounds": 3,
-  "human_in_the_loop": false,
-  "judge_mode": "ai"
-}
-```
+### `POST /api/settings`
+
+Update any subset of the configuration. Accepted keys include:
+`llm_provider`, `llm_api_key`, `llm_base_url`, `llm_model`, `ollama_base_url`,
+`ollama_model`, `temperature`, `max_rounds`, `human_in_the_loop`, `judge_mode`
+(`ai`|`human`), `hitl_timeout`, `memory_rounds`, `context_char_limit`,
+`max_concurrency`, `llm_timeout`, `web_search_enabled`, `intake_model`,
+`code_sandbox_enabled`, `code_sandbox_python`.
+
+Returns the updated configuration.
 
 ## Roles
 
 ### `GET /api/roles`
 
-Returns the list of expert roles.
+Returns the full roster: `key`, `name`, `color`, `stance`, `duty`, `group`,
+`enabled`, `order`, `tools`, `model` per agent.
 
-**Response:**
-```json
-[
-  {
-    "key": "crime_scene",
-    "name": "现场勘查专家",
-    "name_en": "Crime Scene Analyst",
-    "stance": "prosecution"
-  },
-  ...
-]
-```
+## Agent Config
+
+### `GET /api/agent-config`
+
+Per-agent runtime configuration: `enabled`, `order`, `system_prompt`,
+`tools`, `model` (per-agent model override, `null` = main model).
+
+### `POST /api/agent-config`
+
+Persists the same shape. Used by Settings → 专家配置 and by config import.
 
 ## Cases
 
 ### `GET /api/cases`
 
-Returns all stored cases.
-
-**Response:**
-```json
-[
-  {
-    "id": "case_001",
-    "title": "江城「3·15」别墅命案",
-    "created_at": "2026-08-27T10:00:00"
-  }
-]
-```
+Lists all cases (id, title, summary, `brief.intake_done` marker).
 
 ### `GET /api/cases/{id}`
 
-Returns full case details including evidence, timeline, suspects, etc.
+Full case JSON: `summary`, `persons`, `evidence`, `timeline`, `statutes`,
+`finance`, `dna_persons`, `contacts`, `charts`, `brief` (AI intake result with
+`per_role_material`), optional `pdf_text`, `ai_extracted`.
 
-### `POST /api/cases`
+### `POST /api/cases/generate`
 
-Create a new case manually.
+Generates a sample case into the library. Returns `{ "path", "case" }`.
 
-**Request Body:**
-```json
-{
-  "id": "my_case",
-  "title": "Case Title",
-  "summary": "Brief description",
-  "suspects": [...],
-  "victims": [...],
-  "evidence": [...],
-  "timeline": [...]
-}
-```
+### `POST /api/cases/upload`
 
-### `DELETE /api/cases`
+Upload a case. Two forms (both `application/json`):
 
-Delete a case by ID (passed as query parameter or body).
+1. **PDF**: `{ "file_type": "pdf", "file_content": "<base64>", "file_name":
+"report.pdf", "title": "..." }` — text is extracted (PyMuPDF) and the AI intake
+extracts persons / evidence / timeline / statutes / finance for unstructured
+reports.
+2. **Case JSON**: a case object (at minimum `summary`) — or a full structured
+case. AI intake runs unless disabled.
 
-### `POST /api/upload`
+Response: `{ "case": { ...case with brief, charts... } }`.
 
-Upload a PDF file for case preprocessing.
+### `DELETE /api/cases/{id}`
 
-**Request:** `multipart/form-data` with `file` field.
-
-**Response:**
-```json
-{
-  "case_id": "case_abc123",
-  "title": "Extracted Case Title",
-  "status": "preprocessed"
-}
-```
+Deletes a case file. Returns `{ "deleted": id }`.
 
 ## Debates
 
 ### `GET /api/debates`
 
-Lists all persisted debate transcripts.
-
-**Response:**
-```json
-[
-  {
-    "session_id": "abc-123",
-    "case_id": "case_001",
-    "model": "step-explore",
-    "max_rounds": 3,
-    "events_count": 85,
-    "started_at": "2026-08-29T10:00:00",
-    "done": true,
-    "error": false
-  }
-]
-```
+Lists persisted trials (newest first): `session_id`, `case_title`,
+`started_at`, `model`, `rounds`, `truth`, `usage` (`calls`, `in_chars`,
+`out_chars`).
 
 ### `GET /api/debates/{session_id}`
 
-Returns full debate transcript with all events and verdict.
+Full transcript: every event, final verdict, usage.
+
+## Knowledge Base
+
+### `GET /api/knowledge?q=<keyword>`
+
+Lists all entries (custom first, then built-in statutes & doctrine) or searches
+by keyword.
+
+### `POST /api/knowledge`
+
+Add a custom entry: `{ "title", "text", "keywords": ["...", ...] }`.
+
+### `DELETE /api/knowledge/{id}`
+
+Deletes a custom entry (built-in statutes cannot be deleted).
+
+## Presets (Strategy Templates)
+
+### `GET /api/presets`
+
+All templates: built-in (「刑事·严格证据攻防」, 「民事·责任划分」) + custom.
+
+### `POST /api/presets`
+
+`{ "name", "guidance", "agents": { "<role_key>": "<system_prompt>" } }` — saves
+a custom template.
+
+### `POST /api/presets/apply`
+
+`{ "name" }` — writes the template's agent prompts into agent config
+(persisted). Returns `{ "applied", "guidance", "agents" }`.
+
+### `DELETE /api/presets/{name}`
+
+Deletes a custom template.
+
+## Verdict Q&A
+
+### `POST /api/verdict-qa`
+
+Ask a follow-up question about a delivered verdict.
+
+**Request:** `{ "question", "verdict": { ...verdict object... }, "case_id" }`
+
+**Response:** `{ "answer": "Markdown, cites evidence IDs" }`
+
+## Sandbox
+
+### `POST /api/sandbox/run`
+
+`{ "code": "<python>" }` — executes in the isolated sandbox (60s timeout).
+Chart files saved to `SANDBOX_OUT` are served under `/sandbox/`.
+
+### `POST /api/sandbox/install`
+
+`{ "package": "scipy" }` — installs a package into the sandbox environment.
 
 ## WebSocket
 
@@ -143,56 +158,40 @@ Returns full debate transcript with all events and verdict.
 
 Real-time debate event stream.
 
-**Connect with:**
-```javascript
-const ws = new WebSocket(`ws://localhost:8787/ws/${sessionId}`);
-```
+**Client → server:**
 
-**Send to start:**
 ```json
-{
-  "type": "start",
-  "case_id": "case_001",
-  "judge_mode": "ai"
-}
+{ "type": "start", "case_id": "case_001", "judge_mode": "ai",
+  "intent": "...", "reasoning_intensity": "high",
+  "global_guidance": "...", "agents": ["scene", "forensic", "..."] }
+{ "type": "human", "text": "...", "subtype": "intervene" }
+{ "type": "human", "text": "confirm", "subtype": "final" }
 ```
 
-**Receive events:**
-```json
-{"kind": "session_start", "session_id": "...", "model": "..."}
-{"kind": "intake", "case_id": "...", "title": "..."}
-{"kind": "round_start", "round": 1, "max_rounds": 3}
-{"kind": "agent_start", "id": "a1", "role": "crime_scene", "round": 1}
-{"kind": "token", "id": "a1", "role": "crime_scene", "text": "...", "round": 1}
-{"kind": "tool", "id": "a1", "role": "crime_scene", "tool": "search_evidence", "args": {...}, "result": "..."}
-{"kind": "agent_end", "id": "a1", "role": "crime_scene", "tokens": 245, "round": 1}
-{"kind": "agent_note", "role": "crime_scene", "text": "..."}
-{"kind": "round_end", "round": 1}
-{"kind": "critic_start"}
-{"kind": "critic_end", "contradictions": [...]}
-{"kind": "judge_start"}
-{"kind": "verdict", "truth_hypothesis": "...", "evidence_chain": [...], "open_questions": [...]}
-{"kind": "judge_end"}
-{"kind": "done"}
-```
-
-**Event kinds reference:**
+**Server → client (event kinds):**
 
 | Kind | Description |
 |---|---|
-| `session_start` | Debate session initialized |
-| `intake` | Case loaded |
-| `round_start` | New debate round |
-| `agent_start` | Expert agent begins processing |
-| `token` | Streaming text token from agent |
-| `tool` | Tool invocation result |
-| `agent_end` | Expert agent finished |
-| `agent_note` | Expert's summary for recording |
+| `session_start` | Trial session initialized |
+| `intake` | AI preprocessing result (intent, guidance, summary) |
+| `round_start` | `{round, max_rounds}` |
+| `agent_start` | `{id, role, name}` — expert begins |
+| `token` | Streaming text chunk (`id` links to agent) |
+| `tool` | Tool invocation `{tool, args, result}` |
+| `agent_end` | Expert finished |
+| `agent_note` | Clerk summary `{role, name, note:{claim, evidence_ids, doubts, implicates}}` |
 | `round_end` | Round completed |
-| `critic_start` | Contradiction analysis begins |
-| `critic_end` | Contradiction analysis complete |
+| `critic_start` / `critic_end` | Contradiction scan (`contradictions` list) |
 | `judge_start` | Judge convergence begins |
-| `verdict` | Final verdict delivered |
-| `judge_end` | Judge finished |
-| `done` | Debate complete |
-| `error` | Error occurred (see `message` field) |
+| `verdict` | Full verdict `{truth_hypothesis, evidence_chain, doubts, recommendation, next_steps, disclaimer}` |
+| `judge_end` | `{consensus}` |
+| `awaiting_human` | HITL pause (human judge mode) |
+| `human_reminder` | Nudge while waiting for the human verdict |
+| `human_timeout` | HITL timeout — AI draft adopted automatically |
+| `human_inject` | Mid-trial intervention echoed into the transcript |
+| `usage` | `{calls, in_chars, out_chars}` for this trial |
+| `done` | Trial complete |
+| `error` | Failure (`message` field) |
+
+Client disconnect cancels a running trial. On reconnect the client starts a
+new session; past trials remain available via `/api/debates`.

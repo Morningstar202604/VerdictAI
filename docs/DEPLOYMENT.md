@@ -12,6 +12,23 @@
 | `MAX_ROUNDS` | `3` | Maximum debate rounds (2–10) |
 | `HUMAN_IN_THE_LOOP` | `false` | Enable human judge review |
 | `OLLAMA_MODEL` | `qwen2.5:14b` | Model name for Ollama provider |
+| `ACCESS_PASSWORD` | — | When set, all pages/API/WebSocket require login (intranet gate) |
+| `JUDGE_MODE` | `ai` | `ai` or `human` (HITL) |
+| `HITL_TIMEOUT` | `300` | Seconds to wait for the human verdict; auto-adopts the AI draft on timeout (0 = unlimited) |
+| `MEMORY_ROUNDS` | `2` | Round summaries injected into expert context |
+| `CONTEXT_CHAR_LIMIT` | `12000` | Max characters per LLM call (0 = unlimited) |
+| `MAX_CONCURRENCY` | `4` | Parallel expert cap per round |
+| `LLM_TIMEOUT` | `180` | Per-call timeout in seconds (0 = unlimited) |
+| `WEB_SEARCH_ENABLED` | `true` | Enable the Bing-CN web search tool |
+
+## One-Command Start / Stop
+
+```bash
+python tools/start_all.py       # backend (8787) + local engine (9100), windowless daemons with auto-restart
+python tools/start_all.py stop
+```
+
+A bundled **local reasoning engine** (`backend/ai_engine/`, port 9100) runs the entire pipeline offline — point `LLM_BASE_URL` at `http://127.0.0.1:9100/v1` (the default `tools/start_all.py` setup) or swap in any cloud API.
 
 ## Manual Deployment
 

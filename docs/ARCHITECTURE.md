@@ -73,15 +73,24 @@ Each expert has access to 5 tools:
 
 Tools are invoked via the LLM's tool-calling mechanism. Failed tool calls are caught gracefully (never crash the debate).
 
-## Cross-Round Memory
+## Cross-Round Memory (tiered)
 
-Arguments from previous rounds are summarized and stored in `round_summaries` (a list appended via LangGraph's `operator.add`). In each new round, experts receive:
+Round summaries live in `round_summaries` (LangGraph `operator.add`). Each round, experts receive:
 
 - The full case dossier
-- Summaries of all previous rounds' arguments
+- The last `MEMORY_ROUNDS` round summaries **in full**
+- A rolling **`memory_digest`** — rounds beyond the window are compressed (~150 chars each, capped) instead of dropped, so long trials keep early clues
 - Contradictions flagged by the critic
 
-This allows experts to address counter-arguments and evolve their positions.
+The local engine derives the round number deterministically from the number of summaries in the request, making parallel experts and repeated trials collision-free.
+
+## Vertical Knowledge Base
+
+`app/legal/knowledge.py` ships a built-in statute library (stable provisions of the Criminal Procedure Law, Criminal Law, Civil Code) plus evidence-review doctrine (three-factor test, chain of custody, electronic data) and precedent digests. `search_case_law` performs a **three-tier retrieval**: case-file statutes → user custom entries (`data/knowledge_base.json`, editable in Settings) → built-in library. Agents cite only retrieval hits — a miss is reported, never fabricated. Precedent references are scored by feature overlap with the case facts.
+
+## Local Reasoning Engine
+
+`backend/ai_engine/` is an OpenAI-compatible FastAPI service implementing the full expert/critic/judge/intake behavior deterministically over the parsed case file: role-specific structured analysis, cross-round references, tool calls (including matplotlib charts in the sandbox) and strict JSON for every node. It exists so the pipeline can run with zero network, zero cost — or be swapped for any cloud model with one settings change.
 
 ## Event Stream
 
@@ -104,6 +113,8 @@ Every debate action emits a typed event over WebSocket:
 | `done` | `{}` | Debate complete |
 | `error` | `{message}` | Error occurred |
 
+Post-verdict / HITL events: `awaiting_human`, `human_reminder`, `human_timeout` (auto-adopt AI draft), `human_inject`, `usage` (`{calls, in_chars, out_chars}`). Full reference: [API.md](API.md).
+
 ## Persistence
 
 Each completed debate is saved to `data/debates/{session_id}.json` containing:
@@ -117,6 +128,6 @@ Past debates can be replayed via the "复盘记录" (Replay) tab in the UI.
 
 1. User uploads PDF via drag-and-drop
 2. PyMuPDF (`fitz`) extracts text (capped at 50 pages / 60,000 characters)
-3. Text is structured into a case dossier with: title, summary, suspects, victims, evidence list, timeline, finance, DNA persons, contacts
-4. Demo charts are auto-generated (7 PNG charts: timeline, evidence, motive, DNA, communication, bloodstain, scene)
-5. Dossier is stored in `data/cases/` and becomes available for debate
+3. **AI intake structures the prose**: persons (role keywords), evidence items, timeline events (Chinese time expressions normalized to `HH:MM`), applicable statutes, insurance/finance traces — plain reports get the same structured treatment as hand-built cases
+4. Charts are auto-generated (evidence reliability, timeline, contacts, finance) and the AI-extracted structure is badged in the case panel
+5. Dossier (with `brief.per_role_material`) is stored in `data/cases/` and becomes available for debate
