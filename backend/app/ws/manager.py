@@ -49,11 +49,17 @@ class ConnectionManager:
             return None
         return q.get_nowait() if not q.empty() else None
 
-    async def wait_for_human(self, session_id: str) -> str:
+    async def wait_for_human(self, session_id: str, timeout: float = 0) -> "str | None":
+        """阻塞等待人类落槌。timeout>0 时限时等待，超时返回 None（由调用方兜底）。"""
         q = self.final_queues.get(session_id)
         if q is None:
             return ""
-        return await q.get()
+        try:
+            if timeout and timeout > 0:
+                return await asyncio.wait_for(q.get(), timeout=timeout)
+            return await q.get()
+        except asyncio.TimeoutError:
+            return None
 
 
 manager = ConnectionManager()

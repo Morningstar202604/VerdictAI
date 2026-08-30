@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Dict, List
 
 import matplotlib
@@ -45,6 +46,31 @@ def _bar(ax, labels, values, title, color="#1f3a5f"):
     ax.spines["right"].set_visible(False)
 
 
+def _amount_value(v) -> float:
+    """把「$340 万」「300万→2000万」「2000000」等宽松解析为数值（万元为单位）。
+
+    解析失败返回 0，调用方据此跳过该项。"""
+    if isinstance(v, (int, float)):
+        return abs(float(v))
+    s = str(v or "")
+    nums = re.findall(r"([\d.]+)\s*(万|亿)?", s)
+    if not nums:
+        return 0.0
+    total = 0.0
+    for num, unit in nums:
+        try:
+            n = float(num)
+        except ValueError:
+            continue
+        if unit == "亿":
+            n *= 10000
+        elif unit == "万" or not unit:
+            # 裸数字（如 2000000）按原值折算为万元；带「万」已是万元
+            n = n / 10000 if ("." not in num and float(num) > 10000) else n
+        total += n
+    return total
+
+
 def generate_charts(case: dict) -> Dict[str, str]:
     """根据案件数据生成图表，返回 {标签: 访问URL}。仅生成有数据支撑的图。"""
     case_id = case.get("id") or "case"
@@ -87,21 +113,24 @@ def generate_charts(case: dict) -> Dict[str, str]:
         plt.close(fig)
         charts["关键时间线"] = f"/static/data/cases/assets/{case_id}/timeline.png"
 
-    # 3. 通讯关系网
-    comm = case.get("communication") or []
+    # 3. 通讯关系网（案件字段为 contacts；兼容旧 communication）
+    comm = case.get("contacts") or case.get("communication") or []
     if comm:
         fig, ax = plt.subplots(figsize=(4, 2.4))
         persons = case.get("persons") or []
-        names = [p.get("name", f"P{i}") for i, p in enumerate(persons)] or [
-            "A",
-            "B",
-            "C",
-        ]
+        names = [p.get("name", f"P{i}") for i, p in enumerate(persons)]
+        # 通讯记录里出现的人物也要入图，避免 from/to 对不上点位
+        for c in comm:
+            for side in ("from", "to"):
+                nm = (c.get(side) or "").strip()
+                if nm and nm not in names:
+                    names.append(nm)
+        names = names or ["A", "B", "C"]
         pos = {n: (i / max(1, len(names) - 1), 0.5) for i, n in enumerate(names)}
         for c in comm:
             a = c.get("from") or (names[0] if names else "A")
             b = c.get("to") or (names[-1] if names else "B")
-            if a in pos and b in pos:
+            if a in pos and b in pos and a != b:
                 arrow = FancyArrowPatch(
                     pos[a],
                     pos[b],
@@ -124,13 +153,14 @@ def generate_charts(case: dict) -> Dict[str, str]:
         plt.close(fig)
         charts["通讯关系网"] = f"/static/data/cases/assets/{case_id}/communication.png"
 
-    # 4. 资金/动机流向
-    fin = case.get("financial") or case.get("motive") or []
+    # 4. 资金/动机流向（案件字段为 finance；兼容旧 financial/motive）
+    fin = case.get("finance") or case.get("financial") or case.get("motive") or []
+    fin = [f for f in fin if _amount_value(f.get("amount")) > 0]
     if fin:
         fig, ax = plt.subplots(figsize=(4, 2.4))
-        labels = [f.get("from", "?") + "→" + f.get("to", "?") for f in fin][:8]
-        vals = [abs(f.get("amount", 0)) or 1 for f in fin][:8]
-        _bar(ax, labels, vals, "资金/动机流向", "#b45309")
+        labels = [f.get("item", "?") for f in fin][:8]
+        vals = [_amount_value(f.get("amount")) or 1 for f in fin][:8]
+        _bar(ax, labels, vals, "资金规模（万元）", "#b45309")
         p = os.path.join(out, "motive.png")
         fig.tight_layout()
         fig.savefig(p)

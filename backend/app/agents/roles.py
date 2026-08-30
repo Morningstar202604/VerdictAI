@@ -141,6 +141,7 @@ def role_list() -> List[Dict]:
                 "enabled": r["enabled"],
                 "order": r["order"],
                 "tools": [t.name for t in tools_for_role(r["key"])],
+                "model": r.get("model"),
             }
         )
     return out

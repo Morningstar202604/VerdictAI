@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile all backend sources
+        run: python -m compileall -q app ai_engine tools
+
+      - name: Import app & engine
+        env:
+          LLM_PROVIDER: mock
+        run: |
+          python -c "from app.main import app; print('app import OK')"
+          python -c "import ai_engine.server; print('engine import OK')"
+
+      - name: API smoke test (mock engine)
+        env:
+          LLM_PROVIDER: mock
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          c = TestClient(app)
+
+          r = c.get("/api/health")
+          assert r.status_code == 200 and r.json()["status"] == "ok", r.text
+
+          r = c.get("/api/cases")
+          assert r.status_code == 200 and "cases" in r.json(), r.text
+
+          r = c.get("/api/presets")
+          assert r.status_code == 200 and r.json().get("presets"), r.text
+
+          r = c.get("/api/knowledge")
+          assert r.status_code == 200 and r.json().get("entries"), r.text
+
+          r = c.get("/api/roles")
+          assert r.status_code == 200 and r.json().get("roles"), r.text
+
+          print("API smoke OK")
+          PY
+
+  frontend:
+    name: Frontend (inline app syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Inline application syntax check
+        run: |
+          node -e "const fs=require('fs');const h=fs.readFileSync('backend/app/static/index.html','utf8');const m=h.match(/<script>([\s\S]*)<\/script>/);if(!m)throw new Error('inline script not found');new Function(m[1]);if(!h.includes('id=\"tab-agent\"'))throw new Error('agent tab missing');if(!h.includes('id=\"tab-kb\"'))throw new Error('kb tab missing');console.log('frontend OK')"

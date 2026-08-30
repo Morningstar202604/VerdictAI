@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from typing import Dict, List
 
 from langchain_core.tools import tool
@@ -82,18 +83,66 @@ def list_contradictions() -> str:
 
 @tool
 def search_case_law(keyword: str) -> str:
-    """检索与关键词相关的法条或类案要旨。输入法律关键词，如 '非法证据排除'。"""
+    """检索与关键词相关的法条或类案要旨。三级检索：本案卷宗法条 → 用户自定义知识库 → 内置法条库。输入法律关键词，如 '非法证据排除'。"""
+    from app.legal.knowledge import search_knowledge
+
+    parts: List[str] = []
     laws = _ACTIVE_CASE.get("statutes", [])
     hits = [l for l in laws if keyword in (l.get("topic", "") + l.get("text", ""))]
-    if not hits:
-        return f"卷宗中暂无与「{keyword}」直接相关的法条。"
-    return json.dumps(hits, ensure_ascii=False, indent=2)
+    if hits:
+        parts.append("【本案卷宗法条】\n" + json.dumps(hits, ensure_ascii=False, indent=2))
+    kb = search_knowledge(keyword, limit=4)
+    if kb:
+        lines = "\n".join(
+            f"- 《{e.get('category', '知识库')}》{e['title']}：{e['text'][:140]}"
+            for e in kb
+        )
+        parts.append("【知识库检索结果】\n" + lines)
+    if not parts:
+        return f"卷宗与知识库中暂无与「{keyword}」直接相关的法条。可尝试其他关键词（如：证明标准、非法证据、保管链、三性）。"
+    return "\n\n".join(parts)
 
 
 @tool
 def cite_source(fact: str) -> str:
     """要求为某事实标注依据。返回该事实应有的证据来源提示。"""
     return f"请为事实「{fact}」提供证据编号或法条依据，否则视为无依据推测。"
+
+
+@tool
+def web_search(query: str) -> str:
+    """联网检索公开信息（法条更新、类案报道、公开事实核查）。输入检索词，返回前若干条结果的标题、摘要与链接。"""
+    if not settings.web_search_enabled:
+        return "联网搜索未启用（设置 → Agent 工程）。可依据卷宗与知识库作答。"
+    import urllib.parse
+    import urllib.request
+
+    url = "https://cn.bing.com/search?q=" + urllib.parse.quote(query) + "&count=8"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    })
+    try:
+        html = urllib.request.urlopen(req, timeout=12).read().decode("utf-8", "ignore")
+    except Exception as ex:  # noqa: BLE001
+        return f"联网检索失败（网络不可达）：{str(ex)[:120]}。请依据卷宗与知识库继续分析。"
+    chunks = html.split('<li class="b_algo"')[1:]
+    items = []
+    for ch in chunks:
+        mh = re.search(r'<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', ch, re.S)
+        if not mh:
+            continue
+        mp = re.search(r'<p[^>]*>(.*?)</p>', ch, re.S)
+        items.append((mh.group(1), mh.group(2), mp.group(1) if mp else ""))
+    out: List[str] = []
+    nl = chr(10)
+    for i, (href, title, snip) in enumerate(items[:5], 1):
+        title_txt = re.sub(r"<[^>]+>", "", title).strip()
+        snip = re.sub(r"<[^>]+>", "", snip).strip()
+        out.append(f"{i}. {title_txt}" + nl + f"   {snip[:140]}" + nl + f"   来源: {href[:110]}")
+    if not out:
+        return f"联网检索「{query}」无结果。请依据卷宗与知识库继续分析。"
+    return f"联网检索「{query}」结果：" + nl + nl.join(out)
 
 
 @tool
@@ -104,7 +153,8 @@ def run_code(code: str) -> str:
     _ensure_base()
     out_dir = settings.sandbox_out_dir
     os.makedirs(out_dir, exist_ok=True)
-    before = set(os.listdir(out_dir))
+    t0 = time.time()
+    before = {f: os.path.getmtime(os.path.join(out_dir, f)) for f in os.listdir(out_dir)}
     env = dict(os.environ)
     env["SANDBOX_OUT"] = out_dir
     env["MPLBACKEND"] = "Agg"
@@ -127,9 +177,15 @@ def run_code(code: str) -> str:
         body += ("\n\n[stderr]\n" + err) if body else ("[stderr]\n" + err)
     if proc.returncode != 0:
         body += f"\n\n[exit code {proc.returncode}]"
-    new_imgs = sorted(
-        f for f in (set(os.listdir(out_dir)) - before) if f.lower().endswith(_IMG_EXT)
-    )
+    # 本次新建或被覆盖写入（mtime 晚于调用开始）的图片都渲染；
+    # 只认「新增」会导致固定文件名重复生成时丢失渲染。
+    new_imgs = []
+    for f in os.listdir(out_dir):
+        if not f.lower().endswith(_IMG_EXT):
+            continue
+        if f not in before or os.path.getmtime(os.path.join(out_dir, f)) > t0:
+            new_imgs.append(f)
+    new_imgs = sorted(new_imgs)
     if new_imgs:
         body += "\n\n" + "\n".join(f"![{f}](/sandbox/{f})" for f in new_imgs)
     return body or "（无输出）"
@@ -161,6 +217,7 @@ def install_package(package: str) -> str:
 
 
 TOOLS = [
+    web_search,
     read_evidence,
     timeline_check,
     list_contradictions,
@@ -179,6 +236,7 @@ _BUILTIN = {
     "law": [
         "read_evidence",
         "search_case_law",
+        "web_search",
         "list_contradictions",
         "cite_source",
         "run_code",
@@ -186,6 +244,7 @@ _BUILTIN = {
     "prosecutor": [
         "read_evidence",
         "search_case_law",
+        "web_search",
         "list_contradictions",
         "cite_source",
         "run_code",
@@ -193,11 +252,12 @@ _BUILTIN = {
     "defense": [
         "read_evidence",
         "search_case_law",
+        "web_search",
         "list_contradictions",
         "cite_source",
         "run_code",
     ],
-    "psych": ["list_contradictions", "timeline_check", "run_code"],
+    "psych": ["web_search", "list_contradictions", "timeline_check", "run_code"],
     "judge": ["list_contradictions", "timeline_check", "run_code"],
 }
 

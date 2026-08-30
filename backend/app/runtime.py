@@ -17,6 +17,12 @@ _MAP = {
     "max_rounds": "MAX_ROUNDS",
     "human_in_the_loop": "HUMAN_IN_THE_LOOP",
     "judge_mode": "JUDGE_MODE",
+    "hitl_timeout": "HITL_TIMEOUT",
+    "memory_rounds": "MEMORY_ROUNDS",
+    "context_char_limit": "CONTEXT_CHAR_LIMIT",
+    "max_concurrency": "MAX_CONCURRENCY",
+    "llm_timeout": "LLM_TIMEOUT",
+    "web_search_enabled": "WEB_SEARCH_ENABLED",
     "intake_model": "INTAKE_MODEL",
     "code_sandbox_enabled": "CODE_SANDBOX_ENABLED",
     "code_sandbox_python": "CODE_SANDBOX_PYTHON",
@@ -35,6 +41,12 @@ def current() -> dict:
         "max_rounds": settings.max_rounds,
         "human_in_the_loop": settings.human_in_the_loop,
         "judge_mode": settings.judge_mode,
+        "hitl_timeout": settings.hitl_timeout,
+        "memory_rounds": settings.memory_rounds,
+        "context_char_limit": settings.context_char_limit,
+        "max_concurrency": settings.max_concurrency,
+        "llm_timeout": settings.llm_timeout,
+        "web_search_enabled": settings.web_search_enabled,
         "intake_model": settings.intake_model,
         "code_sandbox_enabled": settings.code_sandbox_enabled,
         "code_sandbox_python": settings.code_sandbox_python,
@@ -71,6 +83,20 @@ def update(payload: dict) -> dict:
     if "judge_mode" in payload and payload["judge_mode"] is not None:
         v = str(payload["judge_mode"]).strip().lower()
         settings.judge_mode = "human" if v == "human" else "ai"
+
+    if "hitl_timeout" in payload and payload["hitl_timeout"] is not None:
+        try:
+            settings.hitl_timeout = max(0, min(86400, int(payload["hitl_timeout"])))
+        except (TypeError, ValueError):
+            pass
+    if "web_search_enabled" in payload and payload["web_search_enabled"] is not None:
+        settings.web_search_enabled = bool(payload["web_search_enabled"])
+    for _f in ("memory_rounds", "context_char_limit", "max_concurrency", "llm_timeout"):
+        if _f in payload and payload[_f] is not None:
+            try:
+                setattr(settings, _f, max(0, min(50000, int(payload[_f]))))
+            except (TypeError, ValueError):
+                pass
 
     if "intake_model" in payload and payload["intake_model"] is not None:
         settings.intake_model = str(payload["intake_model"]).strip() or "step-3.7-flash"
@@ -114,6 +140,12 @@ def _persist() -> None:
         "MAX_ROUNDS": str(settings.max_rounds),
         "HUMAN_IN_THE_LOOP": "true" if settings.human_in_the_loop else "false",
         "JUDGE_MODE": settings.judge_mode,
+        "HITL_TIMEOUT": str(settings.hitl_timeout),
+        "MEMORY_ROUNDS": str(settings.memory_rounds),
+        "CONTEXT_CHAR_LIMIT": str(settings.context_char_limit),
+        "MAX_CONCURRENCY": str(settings.max_concurrency),
+        "LLM_TIMEOUT": str(settings.llm_timeout),
+        "WEB_SEARCH_ENABLED": "true" if settings.web_search_enabled else "false",
         "INTAKE_MODEL": settings.intake_model,
         "CODE_SANDBOX_ENABLED": "true" if settings.code_sandbox_enabled else "false",
         "CODE_SANDBOX_PYTHON": settings.code_sandbox_python,

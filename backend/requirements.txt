@@ -6,3 +6,6 @@ langchain-openai>=0.2
 pydantic>=2.7
 python-dotenv>=1.0
 matplotlib>=3.8
+pymupdf>=1.24
+websockets>=12
+python-multipart>=0.0.9

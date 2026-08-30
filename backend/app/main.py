@@ -6,7 +6,7 @@ import logging
 import os
 import uuid
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +24,90 @@ log = logging.getLogger("verdictai")
 
 app = FastAPI(title="VerdictAI", version="0.1.0")
 
+# ---------------- 访问认证（ACCESS_PASSWORD 为空时完全开放） ----------------
+_AUTH_COOKIE = "vai_auth"
+
+
+def _auth_token() -> str:
+    import hashlib
+
+    return hashlib.sha256(("verdictai:" + settings.access_password).encode()).hexdigest()
+
+
+_EXEMPT_PREFIXES = ("/login", "/static/assets/", "/api/health", "/favicon")
+
+
+@app.middleware("http")
+async def access_gate(request, call_next):
+    pwd = settings.access_password
+    path = request.url.path
+    if pwd and not any(path.startswith(pfx) or path == pfx for pfx in _EXEMPT_PREFIXES):
+        if request.cookies.get(_AUTH_COOKIE) != _auth_token():
+            from fastapi.responses import RedirectResponse
+
+            if path.startswith("/api/"):
+                return JSONResponse({"error": "未登录或会话已过期"}, status_code=401)
+            return RedirectResponse("/login", status_code=302)
+    return await call_next(request)
+
+
+_LOGIN_PAGE = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · VerdictAI</title>
+<link rel="icon" type="image/svg+xml" href="/static/assets/logo.svg">
+<style>
+ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e131a;
+   font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;color:#e2e9f2;}
+ .card{width:min(360px,92vw);background:#1a2330;border:1px solid #26313f;border-radius:16px;
+   padding:34px 30px;box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center;}
+ img{width:64px;height:64px;border-radius:14px;margin-bottom:14px;}
+ h1{font-family:"Noto Serif SC","Songti SC",serif;font-size:19px;margin:0 0 6px;letter-spacing:1px;}
+ p{font-size:12px;color:#94a1b1;margin:0 0 22px;}
+ input{width:100%;box-sizing:border-box;padding:11px 13px;border-radius:9px;border:1px solid #36465c;
+   background:#131a23;color:#e2e9f2;font-size:14px;outline:none;margin-bottom:12px;}
+ input:focus{border-color:#4a78b0;}
+ button{width:100%;padding:11px;border:0;border-radius:9px;background:#2f5d94;color:#fff;
+   font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+ button:hover{background:#3a6cab;}
+ .err{color:#e08073;font-size:12px;min-height:16px;margin:8px 0 0;}
+</style></head><body>
+ <div class="card">
+  <img src="/static/assets/logo.svg" alt="VerdictAI">
+  <h1>VerdictAI · 智能探案合议庭</h1>
+  <p>本系统受访问口令保护，请输入后继续</p>
+  <form method="post" action="/login">
+    <input type="password" name="password" placeholder="访问口令" autofocus>
+    <button type="submit">进 入</button>
+  </form>
+  <div class="err">{error}</div>
+ </div>
+</body></html>"""
+
+
+@app.get("/login")
+def login_page():
+    if not settings.access_password:
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse("/", status_code=302)
+    from fastapi.responses import HTMLResponse
+
+    return HTMLResponse(_LOGIN_PAGE.replace("{error}", ""))
+
+
+@app.post("/login")
+def login_submit(password: str = Form("")):
+    from fastapi.responses import HTMLResponse, RedirectResponse
+
+    if not settings.access_password:
+        return RedirectResponse("/", status_code=302)
+    if password and password == settings.access_password:
+        resp = RedirectResponse("/", status_code=302)
+        resp.set_cookie(_AUTH_COOKIE, _auth_token(), max_age=7 * 24 * 3600, httponly=True, samesite="lax")
+        return resp
+    return HTMLResponse(_LOGIN_PAGE.replace("{error}", "口令错误，请重试"), status_code=401)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:8787", "http://127.0.0.1:8787"],
@@ -36,6 +120,11 @@ app.add_middleware(
 data_dir = os.path.abspath(settings.data_dir)
 app.mount("/static/data", StaticFiles(directory=data_dir), name="data")
 
+# 品牌与界面静态资源（logo 等）
+assets_dir = os.path.join(os.path.dirname(__file__), "static", "assets")
+os.makedirs(assets_dir, exist_ok=True)
+app.mount("/static/assets", StaticFiles(directory=assets_dir), name="assets")
+
 # 沙箱产物（图表等）对外提供
 sandbox_out_dir = os.path.abspath(settings.sandbox_out_dir)
 os.makedirs(sandbox_out_dir, exist_ok=True)
@@ -47,7 +136,18 @@ FLOW_HTML = os.path.join(os.path.dirname(__file__), "static", "flow.html")
 
 @app.get("/")
 def index():
-    return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
+    # no-cache：保证用户总是拿到最新界面（静态资源仍走缓存）
+    return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    # 避免浏览器默认请求 /favicon.ico 产生 404 噪音
+    path = os.path.join(os.path.dirname(__file__), "static", "assets", "logo.svg")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/svg+xml")
+    return JSONResponse({"error": "not found"}, status_code=404)
 
 
 @app.get("/flow.html")
@@ -110,6 +210,7 @@ def list_debates():
                 "model": rec.get("model"),
                 "rounds": rec.get("rounds"),
                 "truth": (rec.get("final_verdict") or {}).get("truth_hypothesis", ""),
+                "usage": rec.get("usage") or {},
             }
         )
     return out
@@ -301,8 +402,204 @@ async def delete_case(case_id: str):
     return {"deleted": case_id}
 
 
+@app.post("/api/verdict-qa")
+async def verdict_qa(payload: dict):
+    """裁决质询：辩论终结后，用户可就裁决继续向审判长追问。
+
+    只依据卷宗与裁决内容作答，引用证据编号；供前端「裁决质询」面板使用。"""
+    from langchain_core.messages import HumanMessage
+
+    from app.agents.nodes import _retry_ainvoke
+    from app.models.llm import get_llm
+
+    data = payload if isinstance(payload, dict) else {}
+    question = str(data.get("question") or "").strip()
+    if not question:
+        return JSONResponse({"error": "问题不能为空"}, status_code=400)
+    verdict = data.get("verdict") or {}
+    case_id = str(data.get("case_id") or "")
+    case = load_case(case_id) if case_id and validate_id(case_id) else None
+
+    case_facts = {
+        "title": (case or {}).get("title", ""),
+        "summary": ((case or {}).get("summary") or "")[:800],
+        "evidence": [
+            {"id": e.get("id"), "type": e.get("type"), "desc": (e.get("desc") or "")[:120]}
+            for e in ((case or {}).get("evidence") or [])[:10]
+        ],
+        "verdict": verdict,
+    }
+    prompt = (
+        "你是审判长。辩论已终结、裁决已作出。现在当事方就裁决提出质询，请以审判长身份答复：\n"
+        "- 只依据卷宗与裁决内容，引用证据编号（如 [E-02]）；\n"
+        "- 卷宗未覆盖的，明确说明属于待补充侦查/审查事项，不得编造；\n"
+        "- 用中文、Markdown、条理清晰，250 字内。\n\n"
+        "【裁决与卷宗要点】\n" + json.dumps(case_facts, ensure_ascii=False) +
+        "\n\n【质询】\n" + question +
+        "\n\n【裁决质询】请直接输出答复。"
+    )
+    llm = get_llm("审判长", temperature=0.2)
+    try:
+        resp = await _retry_ainvoke(llm, [HumanMessage(content=prompt)])
+        content = resp.content if hasattr(resp, "content") else str(resp)
+        answer = content if isinstance(content, str) else str(content)
+    except Exception as ex:  # noqa: BLE001
+        return JSONResponse({"error": f"质询答复失败：{str(ex)[:200]}"}, status_code=502)
+    if not answer.strip():
+        return JSONResponse({"error": "模型未返回有效答复"}, status_code=502)
+    return {"answer": answer}
+
+
+# ---------------- 策略模板（Presets）：本产品的"技能包" ----------------
+_PRESETS_PATH = os.path.join(data_dir, "presets.json")
+
+_BUILTIN_PRESETS: dict = {
+    "刑事·严格证据攻防": {
+        "guidance": "以证据裁判为主线：每一项指控事实必须对应证据编号；重点审查保管链、原始载体与取证程序；口供不作为定案唯一依据；对证明标准（排除合理怀疑）逐项检验。",
+        "agents": {
+            "law": "你是一位刑事诉讼证据法专家。除常规审查外，本轮请对每件关键证据逐项输出「三性」结论（真实性/合法性/关联性），并对证明标准达成度给出百分比估计与缺口清单。",
+            "defense": "你是一位辩护 Agent。请优先攻击证据链中最薄弱的一环（保管链瑕疵、剪辑数据、身份不明生物检材），并明确给出替代事实模型；每个合理怀疑必须对应卷宗证据编号。",
+        },
+    },
+    "民事·责任划分": {
+        "guidance": "以合同与法律关系为骨架：先固定权利义务与违约事实，再按原因力比例划分责任；对不可抗力、减损义务、过错相抵逐项检验；赔偿数额须有计算依据。",
+        "agents": {
+            "psych": "你是一位集中于商业动机的分析专家：围绕交易背景、履约能力、违约获益与止损可能性构建动机与行为时间线，区分商业风险与主观过错。",
+            "prosecutor": "你是一位主张方代理人：请按「合同成立 → 履行义务 → 违约事实 → 损失因果 → 数额依据」五步构建请求权基础，并引用《民法典》相应条文。",
+        },
+    },
+}
+
+
+def _load_presets() -> dict:
+    presets = dict(_BUILTIN_PRESETS)
+    try:
+        with open(_PRESETS_PATH, encoding="utf-8") as f:
+            custom = json.load(f)
+        if isinstance(custom, dict):
+            presets.update(custom)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    return presets
+
+
+@app.get("/api/presets")
+def get_presets():
+    return {"presets": _load_presets()}
+
+
+@app.post("/api/presets")
+def save_preset(payload: dict):
+    from fastapi.responses import JSONResponse
+
+    data = payload if isinstance(payload, dict) else {}
+    name = str(data.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "模板名称不能为空"}, status_code=400)
+    body = {"guidance": str(data.get("guidance") or ""),
+            "agents": data.get("agents") or {}}
+    custom = {}
+    try:
+        with open(_PRESETS_PATH, encoding="utf-8") as f:
+            custom = json.load(f)
+        if not isinstance(custom, dict):
+            custom = {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    custom[name] = body
+    os.makedirs(os.path.dirname(_PRESETS_PATH), exist_ok=True)
+    with open(_PRESETS_PATH, "w", encoding="utf-8") as f:
+        json.dump(custom, f, ensure_ascii=False, indent=2)
+    return {"saved": name}
+
+
+@app.delete("/api/presets/{name}")
+def delete_preset(name: str):
+    from fastapi.responses import JSONResponse
+
+    if name in _BUILTIN_PRESETS:
+        return JSONResponse({"error": "内置模板不可删除"}, status_code=400)
+    custom = {}
+    try:
+        with open(_PRESETS_PATH, encoding="utf-8") as f:
+            custom = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        custom = {}
+    if name not in custom:
+        return JSONResponse({"error": "模板不存在"}, status_code=404)
+    del custom[name]
+    with open(_PRESETS_PATH, "w", encoding="utf-8") as f:
+        json.dump(custom, f, ensure_ascii=False, indent=2)
+    return {"deleted": name}
+
+
+@app.post("/api/presets/apply")
+def apply_preset(payload: dict):
+    """应用策略模板：写入各专家系统提示词（持久化到 agent_config），返回总体指导语。"""
+    from fastapi.responses import JSONResponse
+
+    from app.agents import agent_config as ac
+
+    data = payload if isinstance(payload, dict) else {}
+    name = str(data.get("name") or "").strip()
+    presets = _load_presets()
+    if name not in presets:
+        return JSONResponse({"error": "模板不存在"}, status_code=404)
+    preset = presets[name]
+    cfg = ac.load()
+    for role_key, prompt in (preset.get("agents") or {}).items():
+        if role_key in cfg and prompt:
+            cfg[role_key]["system_prompt"] = prompt
+    ac.save(cfg)
+    return {"applied": name, "guidance": preset.get("guidance", ""),
+            "agents": ac.effective_list()}
+
+
+@app.get("/api/knowledge")
+def get_knowledge(q: str = ""):
+    """知识库：内置法条 + 用户自定义条目，支持关键词检索。"""
+    from app.legal.knowledge import list_knowledge, search_knowledge
+
+    return {"entries": search_knowledge(q) if q.strip() else list_knowledge()}
+
+
+@app.post("/api/knowledge")
+def post_knowledge(payload: dict):
+    """新增自定义知识条目（标题/正文/关键词）。"""
+    from fastapi.responses import JSONResponse
+
+    from app.legal.knowledge import add_knowledge
+
+    data = payload if isinstance(payload, dict) else {}
+    title = str(data.get("title") or "").strip()
+    text = str(data.get("text") or "").strip()
+    if not title or not text:
+        return JSONResponse({"error": "标题与正文不能为空"}, status_code=400)
+    kws = data.get("keywords") or []
+    if isinstance(kws, str):
+        kws = [k for k in kws.replace("，", ",").split(",") if k.strip()]
+    entry = add_knowledge(title, text, kws)
+    return {"entry": entry}
+
+
+@app.delete("/api/knowledge/{entry_id}")
+def remove_knowledge(entry_id: str):
+    """删除自定义知识条目（内置法条不可删除）。"""
+    from fastapi.responses import JSONResponse
+
+    from app.legal.knowledge import delete_knowledge
+
+    if not delete_knowledge(entry_id):
+        return JSONResponse({"error": "条目不存在或为内置法条（不可删除）"}, status_code=400)
+    return {"deleted": entry_id}
+
+
 @app.websocket("/ws/{session_id}")
 async def ws_endpoint(websocket: WebSocket, session_id: str):
+    # 访问口令启用时，WebSocket 同样校验登录 cookie（ accept 前拒绝，避免产生半开连接）
+    if settings.access_password and websocket.cookies.get(_AUTH_COOKIE) != _auth_token():
+        await websocket.close(code=4401)
+        return
     await manager.connect(session_id, websocket)
     debate_task = None
 

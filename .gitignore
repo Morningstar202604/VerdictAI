@@ -49,3 +49,15 @@ _modeltest*.py
 _criticlat*.py
 _speedtest.py
 _c.js
+
+# Secrets backup (never commit)
+backend/.env.backup-*
+backend/.env.*.bak
+
+# Runtime AI-extracted structures & user knowledge bases
+backend/data/agent_config.json
+backend/data/knowledge_base.json
+backend/data/presets.json
+
+# Runtime-generated case charts (regenerated per case)
+backend/data/cases/assets/case_*/

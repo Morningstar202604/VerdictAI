@@ -178,8 +178,11 @@ def build_role_material(
     return out
 
 
-def _extract_json(text: str) -> Optional[dict]:
-    """容错解析：兼容干净 JSON、代码块包裹、以及被整体转义（\" 形式）的二次编码。"""
+def _extract_json(text: str) -> Optional[dict | list]:
+    """容错解析：兼容干净 JSON、代码块包裹、被整体转义的二次编码。
+
+    返回 dict 或 list——纠错官节点要求输出 JSON 数组，若只接受 dict，
+    数组会被静默丢弃导致矛盾检测永远为空。"""
     if not text:
         return None
     t = text.strip()
@@ -196,10 +199,15 @@ def _extract_json(text: str) -> Optional[dict]:
         c = t[i : j + 1]
         candidates.append(c)
         candidates.append(c.replace('\\"', '"').replace("\\\\", "\\"))
+    a, b = t.find("["), t.rfind("]")
+    if a != -1 and b > a:
+        c = t[a : b + 1]
+        candidates.append(c)
+        candidates.append(c.replace('\\"', '"').replace("\\\\", "\\"))
     for cand in candidates:
         try:
             obj = json.loads(cand)
-            if isinstance(obj, dict):
+            if isinstance(obj, (dict, list)):
                 return obj
         except Exception:
             pass
@@ -234,7 +242,7 @@ async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
             resp = await llm.ainvoke([{"role": "user", "content": prompt}])
             text = resp.content if hasattr(resp, "content") else str(resp)
             obj = _extract_json(text)
-            if obj:
+            if isinstance(obj, dict) and obj:
                 return obj
             last = text
         except Exception:
@@ -294,6 +302,21 @@ async def preprocess(raw: dict, use_llm: bool = True) -> dict:
             intensity = _intensity_norm(res.get("reasoning_intensity", "medium"))
             guidance = res.get("global_guidance") or guidance
             summary = res.get("summary") or summary
+            # PDF/纯文本卷宗没有结构化字段：AI 预处理从正文中抽取
+            # 人员/证据/时间线/法条并回写案件，左侧案卷、图表与专家材料才有据可依
+            extracted = res.get("extracted")
+            if isinstance(extracted, dict):
+                merged = False
+                for k in ("persons", "evidence", "timeline", "statutes", "finance"):
+                    v = extracted.get(k)
+                    if v and not case.get(k):
+                        case[k] = v
+                        raw[k] = v
+                        merged = True
+                if merged:
+                    raw["ai_extracted"] = True
+                if any(case.get(k) for k in ("persons", "evidence", "timeline")):
+                    dossier = _build_dossier_text(case, image_captions)
 
     per_role_material = build_role_material(case, intent, guidance)
     return {

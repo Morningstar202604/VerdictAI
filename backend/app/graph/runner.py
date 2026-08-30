@@ -14,7 +14,7 @@ from langgraph.types import Command
 from app.agents.tools import activate_case
 from app.config import settings
 from app.graph.builder import build_graph
-from app.intake.processor import build_role_material
+from app.intake.processor import build_role_material, preprocess
 from app.ws.manager import manager
 
 
@@ -24,6 +24,18 @@ async def run_debate(
     agents: Optional[list] = None,
     overrides: Optional[dict] = None,
 ) -> None:
+    if not case:
+        await manager.send(session_id, {"kind": "error", "message": "案件不存在或已被删除，请刷新后重新选择。"})
+        return
+
+    # 存量案件可能没有 brief（如直接放入 cases 目录、或旧版本生成）：
+    # 开庭时自动补跑一次卷宗预处理，保证专家拿到结构化分案材料。
+    if not (case.get("brief") or {}).get("intake_done"):
+        try:
+            case["brief"] = await preprocess(case)
+        except Exception as ex:
+            case["brief"] = {"intake_done": False, "error": str(ex)[:300]}
+
     # 合并前端在开庭前对「意图 / 思考强度 / 提示词」的编辑，并重新分派角色材料
     brief = dict(case.get("brief") or {})
     if brief.get("error"):
@@ -91,6 +103,7 @@ async def run_debate(
             "sink": sink,
             "human_pop": lambda: manager.pop_human(session_id),
             "note_tasks": [],
+            "usage": {"calls": 0, "in_chars": 0, "out_chars": 0},
         }
     }
     inputs = {
@@ -101,16 +114,15 @@ async def run_debate(
         "agents": agents or [],
     }
 
-    await manager.send(
-        session_id,
+    # 经 sink 发送，使 session_start/intake 一并进入转录（复盘记录完整可回放）
+    await sink(
         {
             "kind": "session_start",
             "case_id": case.get("id"),
             "title": case.get("title"),
-        },
+        }
     )
-    await manager.send(
-        session_id,
+    await sink(
         {
             "kind": "intake",
             "intent": brief.get("intent"),
@@ -119,7 +131,7 @@ async def run_debate(
             "global_guidance": brief.get("global_guidance"),
             "summary": brief.get("summary"),
             "judge_mode": resolved_judge_mode,
-        },
+        }
     )
 
     import traceback
@@ -141,7 +153,19 @@ async def run_debate(
                 session_id,
                 {"kind": "human_reminder", "message": "请人类审判长输入最终裁决以继续"},
             )
-            human = await manager.wait_for_human(session_id)
+            human = await manager.wait_for_human(
+                session_id, timeout=float(settings.hitl_timeout or 0)
+            )
+            if human is None:
+                # 超时兜底：自动采纳 AI 草案并归档，避免会话无限挂起
+                await manager.send(
+                    session_id,
+                    {
+                        "kind": "human_timeout",
+                        "message": f"人类审判长 {settings.hitl_timeout} 秒内未落槌，系统已采纳 AI 裁决草案并归档。",
+                    },
+                )
+                human = "confirm"
             await graph.ainvoke(Command(resume=human), config=config)
             count += 1
     except Exception as e:
@@ -167,12 +191,18 @@ async def run_debate(
             event_count,
             settings.llm_model,
         )
+        # 用量统计随辩论落盘，供复盘与成本评估
+        try:
+            await manager.send(session_id, {"kind": "usage", "usage": config["configurable"].get("usage") or {}})
+        except Exception:
+            pass
         # 持久化整场辩论记录，便于复盘（刷新/断线不丢失）
         try:
             debates_dir = os.path.join(settings.data_dir, "debates")
             os.makedirs(debates_dir, exist_ok=True)
             record = {
                 "session_id": session_id,
+                "usage": config["configurable"].get("usage") or {},
                 "case_id": case.get("id"),
                 "case_title": case.get("title"),
                 "started_at": time.strftime(

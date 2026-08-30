@@ -1,0 +1,15 @@
+/* VerdictAI 标题衬线字体 —— 国内可达源（npmmirror / fontsource），font-display swap 离线不阻塞 */
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(https://registry.npmmirror.com/@fontsource/noto-serif-sc/latest/files/files/noto-serif-sc-chinese-simplified-700-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 900;
+  src: url(https://registry.npmmirror.com/@fontsource/noto-serif-sc/latest/files/files/noto-serif-sc-chinese-simplified-900-normal.woff2) format('woff2');
+}

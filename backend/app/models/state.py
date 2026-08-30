@@ -33,6 +33,7 @@ class DebateState(TypedDict, total=False):
     round_summaries: Annotated[
         List[str], operator.add
     ]  # 各轮专家主张摘要（跨轮记忆，仅近轮使用）
+    memory_digest: str  # 超出记忆窗口的轮次滚动压缩摘要（不丢失，只压缩）
 
     # ---- 第六层：收敛 ----
     consensus: bool

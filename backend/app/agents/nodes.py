@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any, Awaitable, Callable, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -38,10 +39,13 @@ def _to_str(content) -> str:
 
 
 async def _retry_ainvoke(llm, messages, retries: int = 3, base: float = 1.5):
-    """对 JSON 关键的 LLM 调用做指数退避重试，吸收瞬时限流（如 1302）。"""
+    """对 JSON 关键的 LLM 调用做指数退避重试，吸收瞬时限流（如 1302）。
+    settings.llm_timeout > 0 时单次调用限时，防止引擎挂死拖垮整场辩论。"""
     last: Exception | None = None
     for i in range(retries):
         try:
+            if settings.llm_timeout and settings.llm_timeout > 0:
+                return await asyncio.wait_for(llm.ainvoke(messages), timeout=settings.llm_timeout)
             return await llm.ainvoke(messages)
         except Exception as e:  # noqa: BLE001
             last = e
@@ -70,10 +74,12 @@ async def _run_agent(
     history,
     sink: Sink,
     msg_id: str | None = None,
+    usage: Dict | None = None,
 ) -> str:
     role = ROLES[role_key]
     sys_prompt = agent_config.effective_prompt(role_key, role_material)
-    llm = get_llm(role["name"])
+    _cfg = agent_config.load().get(role_key, {})
+    llm = get_llm(role["name"], model=(_cfg.get("model") or None))
     tools = agent_config.effective_tools(role_key)
     if tools and not is_mock():
         llm = llm.bind_tools(tools)
@@ -90,6 +96,8 @@ async def _run_agent(
         + ("\n\n" + intensity_note if intensity_note else "")
     )
 
+    if settings.context_char_limit and settings.context_char_limit > 0 and len(user_content) > settings.context_char_limit:
+        user_content = user_content[: settings.context_char_limit] + "\n……[卷宗材料超出上下文上限，已截断；如需更多细节请用工具查询]"
     messages: List = [SystemMessage(content=sys_prompt)] + list(history)
     # 保证末尾存在一条 user 消息，否则 OpenAI/兼容接口会报 "No user query found"
     messages.append(HumanMessage(content=user_content))
@@ -140,6 +148,10 @@ async def _run_agent(
     for seg in _chunk(full):
         await sink({"kind": "token", "role": role_key, "text": seg, "id": msg_id})
         await asyncio.sleep(0.004)
+    if usage is not None:
+        usage["calls"] = usage.get("calls", 0) + 1
+        usage["in_chars"] = usage.get("in_chars", 0) + sum(len(str(m.content)) for m in messages)
+        usage["out_chars"] = usage.get("out_chars", 0) + len(full)
     return full
 
 
@@ -181,7 +193,9 @@ async def _summarize_note(role_key: str, name: str, text: str, sink: Sink) -> No
             )
             llm = get_llm("书记员", model=settings.intake_model, temperature=0.0)
             resp = await _retry_ainvoke(llm, [HumanMessage(content=prompt)])
-            parsed = _extract_json(_to_str(resp.content)) or {}
+            parsed = _extract_json(_to_str(resp.content))
+            if not isinstance(parsed, dict):
+                parsed = {}
             note = {
                 "claim": str(parsed.get("claim") or "")[:90],
                 "evidence_ids": [
@@ -228,10 +242,20 @@ async def experts_node(state: DebateState, config) -> Dict:
     guidance = brief.get("global_guidance", "")
     case_summary = case.get("summary", json.dumps(case, ensure_ascii=False)[:2000])
     new_round = state.get("round", 0) + 1
-    # 跨轮记忆：把前序轮次的专家主张摘要注入，使多轮辩论真正相互参照；
-    # 仅保留最近 2 轮，控制上下文规模，避免无界增长。
+    # 跨轮记忆：窗口内轮次全文注入；窗口外轮次压缩为滚动摘要（memory_digest），
+    # 不直接丢弃——高轮数辩论仍保留早期主张线索。
+    summaries_all = state.get("round_summaries") or []
+    win = max(0, settings.memory_rounds)
+    kept = summaries_all[-win:] if win else []
+    dropped = summaries_all[:-win] if win and len(summaries_all) > win else []
+    digest = state.get("memory_digest") or ""
+    for d_ in dropped:
+        seg = re.sub(r"\s+", " ", d_)[:150]
+        digest = (digest + " ▸ " + seg)[:900]
     history: List = []
-    for s in (state.get("round_summaries") or [])[-2:]:
+    if digest:
+        history.append(SystemMessage(content="【更早轮次压缩记忆】" + digest))
+    for s in kept:
         history.append(SystemMessage(content="【前序轮次专家意见摘要】\n" + s))
 
     # 中途人工介入：把人类法官发来的意见注入本轮（非阻塞取出，仅一次）
@@ -268,7 +292,8 @@ async def experts_node(state: DebateState, config) -> Dict:
             }
         )
         text = await _run_agent(
-            role_key, material, intensity, guidance, history, sink, msg_id
+            role_key, material, intensity, guidance, history, sink, msg_id,
+            usage=config["configurable"].get("usage"),
         )
         await sink(
             {
@@ -288,8 +313,14 @@ async def experts_node(state: DebateState, config) -> Dict:
         return role_key, text
 
     # 同轮专家相互独立，并行执行以大幅缩短单轮耗时；跨轮记忆由 round_summaries 提供，
-    # 同轮内不再互相可见（避免串行等待）。
-    results = await asyncio.gather(*[_run_one(rk) for rk in order])
+    # 同轮内不再互相可见（避免串行等待）。并行上限可配置（真实 API 限流保护）。
+    _sem = asyncio.Semaphore(max(1, settings.max_concurrency))
+
+    async def _run_one_limited(rk: str):
+        async with _sem:
+            return await _run_one(rk)
+
+    results = await asyncio.gather(*[_run_one_limited(rk) for rk in order])
     for role_key, text in results:
         claims[role_key] = text
 
@@ -297,6 +328,7 @@ async def experts_node(state: DebateState, config) -> Dict:
     round_summary = json.dumps(claims, ensure_ascii=False, indent=1)
     return {
         "round": new_round,
+        "memory_digest": digest,
         "claims": claims,
         "messages": [AIMessage(content=f"[第{new_round}轮辩论结束]", name="system")],
         "round_summaries": [round_summary],
@@ -385,7 +417,8 @@ async def judge_node(state: DebateState, config) -> Dict:
         prompt = (
             "你是审判长。请综合各专家主张与矛盾清单，输出 JSON："
             '{"truth_hypothesis": "...", "evidence_chain": [...], "doubts": [...], '
-            '"recommendation": "...", "disclaimer": "..."}。不要输出其他内容。\n\n'
+            '"recommendation": "...", "next_steps": ["给司法机关的可执行后续流程，3-6条"], '
+            '"disclaimer": "..."}。不要输出其他内容。\n\n'
             f"各专家主张：\n{json.dumps(claims, ensure_ascii=False, indent=2)}\n\n"
             f"矛盾清单：\n{json.dumps(contradictions, ensure_ascii=False, indent=2)}"
         )
@@ -399,6 +432,7 @@ async def judge_node(state: DebateState, config) -> Dict:
                     "disclaimer",
                     "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
                 )
+                verdict.setdefault("next_steps", [])
             else:
                 raise ValueError("审判长未返回有效 JSON")
         except Exception:
@@ -407,6 +441,7 @@ async def judge_node(state: DebateState, config) -> Dict:
                 "evidence_chain": [],
                 "doubts": [],
                 "recommendation": "",
+                "next_steps": [],
                 "disclaimer": "",
             }
 

@@ -25,6 +25,8 @@ class Settings:
     human_in_the_loop: bool = os.getenv("HUMAN_IN_THE_LOOP", "false").lower() == "true"
     # 审判长落槌方式：ai=AI 自动裁决；human=由人类法官最终裁决（辩论末会暂停等待人类）
     judge_mode: str = os.getenv("JUDGE_MODE", "ai")
+    # 人类审判长落槌等待超时（秒）：超时自动采纳 AI 草案并归档；0 = 不限时
+    hitl_timeout: int = int(os.getenv("HITL_TIMEOUT", "300"))
     # 卷宗预处理（意图识别/分派）专用模型：优先选 JSON 输出稳定的模型；留空则用主模型
     intake_model: str = os.getenv("INTAKE_MODEL", "step-3.7-flash")
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
@@ -40,6 +42,21 @@ class Settings:
     # 服务
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
+
+    # 访问口令：为空 = 开放访问（开发模式）；设置后所有页面/接口/WS 均需先登录
+    access_password: str = os.getenv("ACCESS_PASSWORD", "")
+
+    # ---- Agent 工程 ----
+    # 跨轮记忆窗口：注入专家上下文的前序轮次摘要数（对齐 Dify/Coze 的记忆窗口）
+    memory_rounds: int = int(os.getenv("MEMORY_ROUNDS", "2"))
+    # 单次 LLM 调用的最大上下文字符数（用户消息截断保护，0 = 不限制）
+    context_char_limit: int = int(os.getenv("CONTEXT_CHAR_LIMIT", "12000"))
+    # 同轮专家并行上限（真实 API 限流保护）
+    max_concurrency: int = int(os.getenv("MAX_CONCURRENCY", "4"))
+    # 单次 LLM 调用超时秒数（0 = 不限制）
+    llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "180"))
+    # 联网搜索工具开关（Bing 国内源，免密钥）
+    web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
 
     # 数据目录
     data_dir: str = os.getenv(

@@ -33,6 +33,12 @@ def list_cases() -> List[Dict]:
                         "id": c.get("id"),
                         "title": c.get("title"),
                         "summary": c.get("summary", "")[:120],
+                        # 前端案例库用 brief.intake_done 显示「已预处理」标记
+                        "brief": {
+                            "intake_done": bool(
+                                (c.get("brief") or {}).get("intake_done")
+                            )
+                        },
                     }
                 )
             except Exception:
