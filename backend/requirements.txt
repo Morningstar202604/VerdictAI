@@ -1,11 +1,11 @@
-fastapi>=0.115
+fastapi>=0.141.1
 uvicorn[standard]>=0.30
-langgraph>=0.2.70
-langchain-core>=0.3
+langgraph>=1.2.11
+langchain-core>=1.6.1
 langchain-openai>=0.2
 pydantic>=2.7
 python-dotenv>=1.0
 matplotlib>=3.8
-pymupdf>=1.24
-websockets>=12
+pymupdf>=1.28.2
+websockets>=17.1
 python-multipart>=0.0.9
