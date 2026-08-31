@@ -7,5 +7,5 @@ pydantic>=2.7
 python-dotenv>=1.0
 matplotlib>=3.8
 pymupdf>=1.28.2
-websockets>=12
+websockets>=17.1
 python-multipart>=0.0.9
