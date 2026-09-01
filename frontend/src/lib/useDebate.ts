@@ -40,6 +40,12 @@ export function useDebate(caseId: string | null) {
 
   const start = useCallback(() => {
     if (!caseId) return
+    // 启动新辩论前关闭旧连接
+    if (wsRef.current) {
+      wsRef.current.onclose = null
+      wsRef.current.close()
+      wsRef.current = null
+    }
     setRunning(true)
     reset()
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
@@ -51,33 +57,54 @@ export function useDebate(caseId: string | null) {
       setStatus((s) => ({ ...s, connection: 'open' }))
       socket.send(JSON.stringify({ type: 'start', case_id: caseId }))
     }
-
     socket.onmessage = (ev) => {
-      const e = JSON.parse(ev.data)
+      let e: Record<string, unknown>
+      try {
+        e = JSON.parse(ev.data)
+      } catch {
+        return
+      }
       switch (e.kind) {
         case 'session_start':
           setStatus((s) => ({ ...s, phase: 'ready' }))
           break
         case 'round_start':
-          roundRef.current = e.round
-          setStatus((s) => ({ ...s, phase: 'debate', round: e.round, totalRounds: e.max_rounds || s.totalRounds }))
+          roundRef.current = e.round as number
+          setStatus((s) => ({
+            ...s,
+            phase: 'debate',
+            round: e.round as number,
+            totalRounds: (e.max_rounds as number) || s.totalRounds,
+          }))
           break
         case 'agent_start': {
-          const key = `${e.role}-${e.round ?? roundRef.current}`
+          const key = `${e.role}-${(e.round as number) ?? roundRef.current}`
           curKey.current = key
-          setStatus((s) => ({ ...s, speaker: e.role, phase: 'debate' }))
+          setStatus((s) => ({ ...s, speaker: e.role as string, phase: 'debate' }))
           setClaims((prev) => [
             ...prev,
-            { id: key, role_id: e.role, agent: e.name, round: e.round ?? roundRef.current, content: '', cited: [], t: Date.now() },
+            {
+              id: key,
+              role_id: e.role as string,
+              agent: e.name as string,
+              round: (e.round as number) ?? roundRef.current,
+              content: '',
+              cited: [],
+              t: Date.now(),
+            },
           ])
           break
         }
         case 'token':
-          setClaims((prev) => prev.map((c) => (c.id === curKey.current ? { ...c, content: c.content + e.text } : c)))
+          setClaims((prev) =>
+            prev.map((c) => (c.id === curKey.current ? { ...c, content: c.content + (e.text as string) } : c)),
+          )
           break
         case 'tool':
           setClaims((prev) =>
-            prev.map((c) => (c.id === curKey.current ? { ...c, cited: [...c.cited, e.tool] } : c)),
+            prev.map((c) =>
+              c.id === curKey.current ? { ...c, cited: [...c.cited, e.tool as string] } : c,
+            ),
           )
           break
         case 'agent_end':
@@ -87,21 +114,29 @@ export function useDebate(caseId: string | null) {
         case 'round_end':
           break
         case 'critic_end':
-          setContradictions((prev) => [...prev, ...(e.contradictions || [])])
+          setContradictions((prev) => [...prev, ...((e.contradictions as Contradiction[]) || [])])
           break
         case 'verdict':
-          setVerdict(e.verdict)
+          setVerdict(e.verdict as Verdict)
           setStatus((s) => ({ ...s, phase: 'verdict' }))
           break
         case 'awaiting_human':
           setStatus((s) => ({
             ...s,
             phase: 'review',
-            review: { pending: true, round: roundRef.current, question: '请人类法官确认 / 修正裁决' },
+            review: {
+              pending: true,
+              round: roundRef.current,
+              question: '请人类法官确认 / 修正裁决',
+            },
           }))
           break
         case 'human_done':
           setStatus((s) => ({ ...s, phase: 'debate', review: null }))
+          break
+        case 'stopped':
+          setRunning(false)
+          setStatus((s) => ({ ...s, phase: 'idle', review: null }))
           break
         case 'done':
           setRunning(false)
@@ -109,17 +144,23 @@ export function useDebate(caseId: string | null) {
           break
         case 'error':
           setRunning(false)
-          setStatus((s) => ({ ...s, error: e.message, connection: 'closed' }))
+          setStatus((s) => ({ ...s, error: e.message as string, connection: 'closed' }))
           break
       }
     }
-
     socket.onclose = () => setStatus((s) => ({ ...s, connection: 'closed' }))
-    socket.onerror = () => setStatus((s) => ({ ...s, error: 'WebSocket 连接错误', connection: 'closed' }))
+    socket.onerror = () =>
+      setStatus((s) => ({ ...s, error: 'WebSocket 连接错误', connection: 'closed' }))
   }, [caseId, reset])
 
+  const stop = useCallback(() => {
+    wsRef.current?.send(JSON.stringify({ type: 'stop' }))
+  }, [])
+
   const sendReview = useCallback((decision: string, note: string) => {
-    wsRef.current?.send(JSON.stringify({ type: 'human', text: note || decision }))
+    // 后端 human_final_node 识别 "confirm"/"确认"/"ok"/"yes" 为采纳 AI 草案
+    const text = note.trim() || (decision === 'accept' ? 'confirm' : decision)
+    wsRef.current?.send(JSON.stringify({ type: 'human', text, subtype: 'final' }))
   }, [])
 
   const disconnect = useCallback(() => {
@@ -130,8 +171,9 @@ export function useDebate(caseId: string | null) {
   useEffect(() => {
     return () => {
       wsRef.current?.close()
+      wsRef.current = null
     }
   }, [])
 
-  return { claims, contradictions, verdict, status, running, reset, start, sendReview, disconnect }
+  return { claims, contradictions, verdict, status, running, reset, start, stop, sendReview, disconnect }
 }

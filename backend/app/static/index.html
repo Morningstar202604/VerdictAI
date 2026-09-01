@@ -220,6 +220,17 @@
       .rec .body { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
       .rec .rname { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
       .rec .rtag { font-size: 10px; color: #fff; background: var(--navy); padding: 1px 7px; border-radius: 4px; }
+      .rec .rtime { font-size: 10.5px; color: var(--faint); font-weight: 400; margin-left: auto; font-variant-numeric: tabular-nums; }
+      /* 加载骨架屏 */
+      .skeleton { display: flex; gap: 12px; padding: 14px 0; animation: skFade .3s ease; }
+      .skeleton .sk-ava { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: skPulse 1.5s infinite; flex-shrink: 0; }
+      .skeleton .sk-body { flex: 1; }
+      .skeleton .sk-line { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: skPulse 1.5s infinite; margin-bottom: 8px; }
+      .skeleton .sk-line:nth-child(1) { width: 40%; }
+      .skeleton .sk-line:nth-child(2) { width: 90%; }
+      .skeleton .sk-line:nth-child(3) { width: 70%; }
+      @keyframes skPulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      @keyframes skFade { from { opacity: 0; } to { opacity: 1; } }
       .rec .rstance { font-size: 11px; color: var(--muted); margin-top: 2px; }
       .rec .rtext { font-size: 13.5px; line-height: 1.75; color: var(--text-1); margin-top: 7px; white-space: normal; word-break: break-word; }
       .md { word-break: break-word; }
@@ -461,6 +472,95 @@
       body.dark img.chart, body.dark .sandbox-result img { filter: brightness(.92); }
       body.dark .agent-row.speaking { background: #231a1c; }
 
+      /* ==================== 响应式设计 ==================== */
+      @media (max-width: 1200px) {
+        main { grid-template-columns: 280px minmax(0,1fr) 300px; }
+        main.no-left { grid-template-columns: minmax(0,1fr) 300px; }
+        main.no-right { grid-template-columns: 280px minmax(0,1fr); }
+      }
+      @media (max-width: 768px) {
+        header { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+        .brand .title { font-size: 15px; }
+        .brand .sub { display: none; }
+        .controls { gap: 4px; }
+        .controls .badge { font-size: 10px; padding: 3px 7px; }
+        .controls button { padding: 5px 8px; font-size: 11px; }
+        main { grid-template-columns: 1fr !important; height: calc(100vh - 56px); position: relative; }
+        main.no-left, main.no-right { grid-template-columns: 1fr !important; }
+        .left, .right {
+          position: fixed; top: 56px; bottom: 0; width: 85%; max-width: 340px;
+          z-index: 25; overflow-y: auto; transition: transform .3s cubic-bezier(.4,0,.2,1);
+          box-shadow: 0 0 30px rgba(0,0,0,.25);
+        }
+        .left { left: 0; transform: translateX(-105%); }
+        .right { right: 0; transform: translateX(105%); }
+        main.show-left .left, main.show-right .right { transform: translateX(0); }
+        .panel-overlay {
+          display: none; position: fixed; inset: 56px 0 0 0; z-index: 24;
+          background: rgba(0,0,0,.4);
+        }
+        main.show-left .panel-overlay, main.show-right .panel-overlay { display: block; }
+        .center-head { padding: 8px 10px; gap: 4px; flex-wrap: wrap; }
+        .center-head .rail-btn { padding: 4px 7px; font-size: 11px; }
+        .center-head .ch-title { font-size: 13px; }
+        .stepper { display: none; }
+        #debate { padding: 16px 12px 80px; }
+        .thread { max-width: 100%; }
+        .rec { gap: 8px; }
+        .rec .ava { width: 32px; height: 32px; font-size: 13px; }
+        .rec .body { padding: 10px 12px; }
+        .rec .rtext { font-size: 13px; line-height: 1.7; }
+        .landing { padding: 32px 14px 60px; }
+        .hero h1 { font-size: 24px; letter-spacing: 2px; }
+        .cover-desc { font-size: 13px; line-height: 1.8; }
+        .feat-row { grid-template-columns: 1fr; gap: 8px; }
+        .feat { padding: 12px; text-align: left; display: flex; gap: 10px; align-items: flex-start; }
+        .feat .fi { font-size: 22px; margin-bottom: 0; flex-shrink: 0; }
+        .feat b, .feat span { text-align: left; }
+        .roster-grid { grid-template-columns: repeat(2, 1fr); }
+        .composer-bar { flex-wrap: wrap; gap: 6px; }
+        .composer-bar select { flex: 1 1 100%; }
+        .composer-bar .primary { width: 100%; margin-left: 0; }
+        .pdf-drop-main { padding: 28px 16px; }
+        .modal-card { width: 96vw; max-height: 92vh; }
+        .modal-body { padding: 14px 16px; }
+        .tabs { overflow-x: auto; padding: 0 10px; }
+        .tab { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+        .row2 { flex-direction: column; gap: 10px; }
+        .row2 > div { flex: none; width: 100%; }
+        .mobile-nav {
+          display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 35;
+          background: var(--panel); border-top: 1px solid var(--line-strong);
+          padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); justify-content: space-around;
+        }
+        .mobile-nav button {
+          flex: 1; border: none; background: none; padding: 6px 4px; font-size: 10px;
+          color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px;
+        }
+        .mobile-nav button .icon { font-size: 18px; }
+        .mobile-nav button.active { color: var(--navy); }
+        #intervene { position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line-strong); }
+        #intervene input { font-size: 14px; padding: 10px 12px; }
+        .v-tools { flex-wrap: wrap; }
+        .v-tools button { flex: 1 1 45%; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        button:active { transform: scale(.97); }
+      }
+      @media (max-width: 480px) {
+        .hero h1 { font-size: 20px; }
+        .case-title { font-size: 16px; }
+        .verdict { padding: 12px; }
+        .round-sep { font-size: 11px; }
+        .round-sep::before, .round-sep::after { width: 20%; }
+      }
+      @media (min-width: 769px) {
+        .mobile-nav { display: none; }
+        .panel-overlay { display: none !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+
     </style>
   </head>
   <body>
@@ -573,6 +673,7 @@
     </div>
 
     <main id="workspace" class="hidden">
+      <div class="panel-overlay" onclick="closeMobilePanels()"></div>
       <aside class="left">
         <div id="casePanel"></div>
         <div class="card">
@@ -591,6 +692,7 @@
           <span id="phase" class="phase">待命</span>
           <button class="rail-btn" id="btnFocus" onclick="focusMode()" title="隐藏两侧面板，专注笔录">⛶ 聚焦</button>
           <button class="rail-btn" onclick="copyTranscript()" title="复制全部发言到剪贴板">📋 全文</button>
+          <button class="rail-btn" id="btnStop" onclick="stopDebate()" title="停止当前辩论" style="display:none;color:var(--bad);border-color:#f3c2bd">⏹ 停止</button>
           <a href="/static/flow.html" target="_blank" class="linkbtn" style="font-size:11.5px">流程图 ↗</a>
           <button class="rail-btn" id="btnRight" onclick="toggleRail('right')">› 合议</button>
         </div>
@@ -642,6 +744,14 @@
           </div>
       </aside>
     </main>
+
+    <!-- 移动端底部导航 -->
+    <nav class="mobile-nav" id="mobileNav">
+      <button onclick="toggleMobilePanel('left')" id="navLeft"><span class="icon">📋</span>案卷</button>
+      <button onclick="toggleMobilePanel('center')" id="navCenter"><span class="icon">⚖️</span>笔录</button>
+      <button onclick="toggleMobilePanel('right')" id="navRight"><span class="icon">📝</span>合议</button>
+      <button onclick="openSettings()" id="navSettings"><span class="icon">⚙️</span>设置</button>
+    </nav>
 
     <div id="settingsModal" class="modal hidden">
       <div class="modal-card">
@@ -786,6 +896,15 @@
           <p><b style="color:var(--navy)">② 开庭辩论</b>：点击「开庭审理」。专家并行举证、调用工具核验证据，纠错官每轮梳理矛盾推动深入；你随时可在下方输入框「插话」介入，下一轮全体专家都会回应。</p>
           <p><b style="color:var(--navy)">③ 裁决与后续</b>：审判长落槌后可继续「裁决质询」追问理由，勾选「后续流程清单」跟踪执行，一键复制裁决、导出 Markdown / 打印报告，全程自动留档可复盘。</p>
           <p class="muted" style="margin-bottom:0">提示：右上角 🌙 切换深色模式；「⛶ 聚焦」隐藏两侧面板专注笔录；设置里可换引擎、调轮次、配置人类落槌与访问口令。AI 结论仅供辅助参考，最终裁判权始终在人类法官。</p>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+            <b style="color:var(--navy)">⌨ 快捷键</b>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-top:8px;font-size:12px">
+              <div><code style="background:var(--surface-2);padding:1px 6px;border-radius:4px">Esc</code> 关闭弹窗/面板</div>
+              <div><code style="background:var(--surface-2);padding:1px 6px;border-radius:4px">S</code> 停止辩论</div>
+              <div><code style="background:var(--surface-2);padding:1px 6px;border-radius:4px">?</code> 显示帮助</div>
+              <div><code style="background:var(--surface-2);padding:1px 6px;border-radius:4px">1/2/3</code> 移动端切换面板</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1115,6 +1234,28 @@
       function setConn(s){ const dot=$("connDot"),txt=$("connText"); dot.className="dot"+(s==="on"?" on":s==="busy"?" busy":""); txt.textContent=s==="on"?"已连接":s==="busy"?"连接中":"未连接"; }
       function setSpeak(t, live){ const el=$("speak"); el.innerHTML=(live?'<span class="live-dot"></span>':"")+escapeHtml(t||""); }
       function toggleRail(side){ const m=$("workspace"); if(side==="left"){ m.classList.toggle("no-left"); $("btnLeft").textContent=m.classList.contains("no-left")?"案卷 ›":"案卷 ‹"; } else { m.classList.toggle("no-right"); $("btnRight").textContent=m.classList.contains("no-right")?"‹ 合议":"› 合议"; } }
+      function isMobile(){ return window.innerWidth <= 768; }
+      function toggleMobilePanel(side){
+        const m=$("workspace");
+        if(side==="center"){ closeMobilePanels(); return; }
+        const cls = side==="left"?"show-left":"show-right";
+        const other = side==="left"?"show-right":"show-left";
+        m.classList.remove(other);
+        m.classList.toggle(cls);
+        // 更新底部导航高亮
+        document.querySelectorAll(".mobile-nav button").forEach(b=>b.classList.remove("active"));
+        if(m.classList.contains(cls)){
+          $("nav"+(side==="left"?"Left":"Right")).classList.add("active");
+        } else {
+          $("navCenter").classList.add("active");
+        }
+      }
+      function closeMobilePanels(){
+        const m=$("workspace");
+        m.classList.remove("show-left","show-right");
+        document.querySelectorAll(".mobile-nav button").forEach(b=>b.classList.remove("active"));
+        $("navCenter").classList.add("active");
+      }
       function landStart(){
         if(enabledAgents.size===0){ alert("请至少选择一位出庭专家（设置中可调整）。"); return; }
         if(!selectedCase){ alert("请先在左侧选择一个案件（或生成示例案件）再开庭。"); return; }
@@ -1157,19 +1298,40 @@
         const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
         ws=new WebSocket(`${wsProto}//${location.host}/ws/${session}`);
         ws.onopen=()=>{ setConn("on"); hideBanner(); ws.send(JSON.stringify(Object.assign({type:"start",case_id:selectedCase}, intakePayload()))); };
-        ws.onclose=()=>{ setConn("off"); if(!manualClose && wsRetries<6){ showBanner("连接断开，正在重连…（第 "+wsRetries+" 次）"); setTimeout(doConnect, Math.min(2500*wsRetries,30000)); return; } running=false; $("landStart").disabled=false; if(!manualClose) showBanner("连接失败，请刷新页面重试。"); };
+        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开，辩论可能未完成。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#fff;color:#9b2c2c;cursor:pointer;font-weight:600'>重新连接</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
         ws.onerror=()=>{ setConn("off"); console.error("WebSocket error"); };
         ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
       function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(); }
+      function stopDebate(){
+        if(!running || !ws){ return; }
+        if(!confirm("确定要停止当前辩论吗？已生成的发言和裁决将保留。")){ return; }
+        try{ ws.send(JSON.stringify({type:"stop"})); }catch(e){}
+        manualClose=true;
+        try{ ws.close(); }catch(e){}
+        running=false;
+        $("landStart").disabled=false;
+        const btn=$("btnStop"); if(btn) btn.style.display="none";
+        $("intervene").classList.add("hidden");
+        $("ivChips").classList.add("hidden");
+        setPhase("done");
+        setSpeak("辩论已由用户停止", false);
+        toast("辩论已停止");
+      }
+      function retryConnect(){
+        hideBanner();
+        if(confirm("重新连接将从头开始一场新的辩论，之前的发言不会保留。确定继续吗？")){
+          wsRetries=0; manualClose=false; doConnect();
+        }
+      }
       function reset(){ messages=[]; activeRole=null; currentId=null; round=0; serverBrief=null; lastVerdict=null; contraList=[]; recNotes=[]; qaHistory=[]; nsDone=new Set(); $("debate").innerHTML='<div class="empty">⚖️ 准备就绪，等待开庭。</div>'; $("contra").innerHTML='<div class="muted">尚未记录矛盾点。</div>'; $("recording").innerHTML='<div class="muted">辩论开始后，各专家主张将实时记录于此。</div>'; $("verdictBox").innerHTML=""; $("verdictTools").classList.add("hidden"); $("nextSteps").classList.add("hidden"); $("qaBox").classList.add("hidden"); const _jb=$("jumpBottom"); if(_jb) _jb.classList.add("hidden"); $("hitl").innerHTML=""; $("prog").style.width="0%"; setSpeak("", false); $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); $("dlReport").classList.add("hidden"); setPhase("idle"); renderRoster(); }
       function handle(ev){
         switch(ev.kind){
-           case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); break;
+           case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); const _sb=$("btnStop"); if(_sb) _sb.style.display=""; if(!messages.length){ $("debate").innerHTML='<div class="thread"><div class="skeleton"><div class="sk-ava"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div><div style="text-align:center;color:var(--faint);font-size:12px;margin-top:8px">专家们正在阅卷、准备首轮举证…</div></div>'; } break;
           case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary}; break;
-          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true}); renderDebate(); break; }
+          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
           case "round_start": round=ev.round; maxRounds=ev.max_rounds||3; activeRole=null; $("prog").style.width=((round-1)/maxRounds*100)+"%"; renderRoster(); break;
-          case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false}); renderDebate(); renderRoster(); break; }
+          case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false,time:Date.now()}); renderDebate(); renderRoster(); break; }
           case "token": { const m=messages.find(x=>x.id===ev.id); if(m) m.text+=ev.text; scheduleRender(); } break;
           case "tool": { const m=messages.find(x=>x.id===ev.id); if(m) m.tools.push({tool:ev.tool,args:ev.args,result:ev.result}); renderDebate(); } break;
           case "agent_end": { const m=messages.find(x=>x.id===ev.id); if(m) m.done=true; renderDebate(); renderRoster(); break; }
@@ -1185,8 +1347,9 @@
           case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
           case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#b45309", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
           case "usage": lastUsage=ev.usage||null; break;
-          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } break;
-          case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
+          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } break;
+          case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
+          case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
         }
       }
       function cleanText(s){
@@ -1290,13 +1453,14 @@
         requestAnimationFrame(flush);
         setTimeout(flush, 200);
       }
+      function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts); return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0")+":"+d.getSeconds().toString().padStart(2,"0"); }
       function renderDebate(){ const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
         messages.forEach((m,mi)=>{ // 仅 role-round 形式的 id（如 scene-2）渲染轮次分隔；human-<ts> / err-<ts> 不计
           const rk=parseInt(m.id.split("-")[1]); const isRoundId=Number.isInteger(rk)&&rk>=1&&rk<=maxRounds+2;
           if(isRoundId&&rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
            const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escapeHtml(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
           const el=document.createElement("div"); el.className="rec";
-           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span></div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
+           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
           wrap.appendChild(el);
         });
         box.innerHTML=""; box.appendChild(wrap);
@@ -1476,7 +1640,7 @@
         const a = document.createElement("a"); a.href=url; a.download = `审判报告_${((caseDetail&&caseDetail.id)||"case")}.html`; a.click();
         setTimeout(()=>URL.revokeObjectURL(url), 2000);
       }
-      function escape(s){ return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+      function escape(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
       /* 设置 */
       function openSettings(){ $("setMsg").textContent=""; switchTab("engine");
@@ -1757,6 +1921,39 @@
         try { pref = localStorage.getItem("vai_theme") || "light"; } catch(e){}
         applyTheme(pref === "dark");
       })();
+
+      // 键盘快捷键
+      document.addEventListener("keydown", (e) => {
+        // 输入框中不触发全局快捷键
+        const tag = (e.target.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select") return;
+        if (e.key === "Escape") {
+          // 关闭弹窗 / 关闭移动端面板
+          const modals = document.querySelectorAll(".modal:not(.hidden)");
+          if (modals.length) { modals.forEach(m => m.classList.add("hidden")); return; }
+          if (isMobile()) closeMobilePanels();
+        } else if (e.key === "s" && !e.ctrlKey && !e.metaKey) {
+          if (running) stopDebate();
+        } else if (e.key === "?" || e.key === "/") {
+          e.preventDefault();
+          openHelp();
+        } else if (e.key === "1" && isMobile()) {
+          toggleMobilePanel("left");
+        } else if (e.key === "2" && isMobile()) {
+          closeMobilePanels();
+        } else if (e.key === "3" && isMobile()) {
+          toggleMobilePanel("right");
+        }
+      });
+
+      // 窗口大小变化时重置移动端面板状态
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (!isMobile()) closeMobilePanels();
+        }, 200);
+      });
 
       window.addEventListener("beforeunload", () => { manualClose = true; try { if (ws) ws.close(); } catch (e) {} });
       init();

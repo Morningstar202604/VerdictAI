@@ -9,8 +9,6 @@ from typing import Optional
 
 log = logging.getLogger("debate")
 
-from langgraph.types import Command
-
 from app.agents.tools import activate_case
 from app.config import settings
 from app.graph.builder import build_graph
@@ -74,7 +72,6 @@ async def run_debate(
 
     activate_case(case)
     graph = build_graph()
-
     start_ts = time.time()
     round_ts: dict = {}
     event_count = 0
@@ -102,6 +99,9 @@ async def run_debate(
             "thread_id": session_id,
             "sink": sink,
             "human_pop": lambda: manager.pop_human(session_id),
+            # 人类审判长落槌等待回调（替代 LangGraph interrupt()，兼容 Python 3.10）
+            "wait_for_human": lambda timeout=0: manager.wait_for_human(session_id, timeout=timeout),
+            "hitl_timeout": settings.hitl_timeout,
             "note_tasks": [],
             "usage": {"calls": 0, "in_chars": 0, "out_chars": 0},
         }
@@ -142,32 +142,6 @@ async def run_debate(
         await asyncio.gather(
             *config["configurable"].get("note_tasks", []), return_exceptions=True
         )
-
-        # 处理人类审判长落槌中断（仅 judge_mode=human 时触发）
-        count = 0
-        while count < 5:
-            state = await graph.aget_state(config)
-            if not state.next:
-                break
-            await manager.send(
-                session_id,
-                {"kind": "human_reminder", "message": "请人类审判长输入最终裁决以继续"},
-            )
-            human = await manager.wait_for_human(
-                session_id, timeout=float(settings.hitl_timeout or 0)
-            )
-            if human is None:
-                # 超时兜底：自动采纳 AI 草案并归档，避免会话无限挂起
-                await manager.send(
-                    session_id,
-                    {
-                        "kind": "human_timeout",
-                        "message": f"人类审判长 {settings.hitl_timeout} 秒内未落槌，系统已采纳 AI 裁决草案并归档。",
-                    },
-                )
-                human = "confirm"
-            await graph.ainvoke(Command(resume=human), config=config)
-            count += 1
     except Exception as e:
         traceback.print_exc()
         await manager.send(

@@ -63,7 +63,12 @@ def update(payload: dict) -> dict:
         "ollama_model",
     ):
         if f in payload and payload[f] is not None:
-            setattr(settings, f, str(payload[f]))
+            v = str(payload[f])
+            if f == "llm_provider":
+                v = v.strip().lower()
+                if v not in ("mock", "openai", "openai_compatible", "ollama"):
+                    v = "mock"  # 非法值回退到 mock，避免静默使用未知 provider
+            setattr(settings, f, v)
 
     if "temperature" in payload and payload["temperature"] is not None:
         try:
@@ -110,6 +115,14 @@ def update(payload: dict) -> dict:
         settings.code_sandbox_python = (
             str(payload["code_sandbox_python"]).strip() or "python3"
         )
+
+    # 模型相关配置变更后清空 LLM 客户端缓存，避免复用旧连接
+    if any(k in payload for k in ("llm_provider", "llm_api_key", "llm_base_url", "llm_model", "ollama_base_url", "ollama_model", "temperature")):
+        try:
+            from app.models.llm import clear_llm_cache
+            clear_llm_cache()
+        except Exception:
+            pass
 
     _persist()
     return current()

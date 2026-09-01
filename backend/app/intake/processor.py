@@ -311,10 +311,9 @@ async def preprocess(raw: dict, use_llm: bool = True) -> dict:
                     v = extracted.get(k)
                     if v and not case.get(k):
                         case[k] = v
-                        raw[k] = v
                         merged = True
                 if merged:
-                    raw["ai_extracted"] = True
+                    case["ai_extracted"] = True
                 if any(case.get(k) for k in ("persons", "evidence", "timeline")):
                     dossier = _build_dossier_text(case, image_captions)
 

@@ -401,14 +401,31 @@ def _chart_scene(out: str) -> None:
     plt.close(fig)
 
 
+def _parse_amount(s: str) -> float:
+    """宽松解析金额字符串为数值（万元/万美元单位）。区间取最大值。"""
+    import re as _re
+    s = str(s or "").replace("$", "").strip()
+    nums = _re.findall(r"([\d.]+)\s*(万|亿)?", s)
+    if not nums:
+        return 0.0
+    is_range = "→" in s or "至" in s or "~" in s
+    values = []
+    for num, unit in nums:
+        try:
+            n = float(num)
+        except ValueError:
+            continue
+        if unit == "亿":
+            n *= 10000
+        values.append(n)
+    return max(values) if is_range else (sum(values) if values else 0.0)
+
+
 def _chart_motive(out: str) -> None:
     """资金/动机流向图（横向条形 + 金额标注）。"""
     items = CASE.get("finance", [])
     labels = [it["item"] for it in items]
-    amounts = [
-        float(it["amount"].replace("$", "").replace("万", "").replace("→2000", ""))
-        for it in items
-    ]
+    amounts = [_parse_amount(it["amount"]) for it in items]
     # 按粗略金额排序展示
     fig, ax = plt.subplots(figsize=(10, 3.6))
     y = range(len(items))

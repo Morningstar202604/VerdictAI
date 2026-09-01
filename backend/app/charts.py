@@ -13,11 +13,22 @@ from matplotlib.patches import FancyArrowPatch
 
 from app.config import settings
 
-# 注册中文字体，避免图表中文显示为方块
+# 注册中文字体，避免图表中文显示为方块（跨平台：Windows / Linux / macOS）
 for _cand in (
+    # Windows
     "C:/Windows/Fonts/simhei.ttf",
     "C:/Windows/Fonts/msyh.ttc",
     "C:/Windows/Fonts/NotoSansSC-VF.ttf",
+    # Linux common paths
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/truetype/arphic/uming.ttc",
+    # macOS
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
 ):
     if os.path.exists(_cand):
         try:
@@ -49,6 +60,7 @@ def _bar(ax, labels, values, title, color="#1f3a5f"):
 def _amount_value(v) -> float:
     """把「$340 万」「300万→2000万」「2000000」等宽松解析为数值（万元为单位）。
 
+    区间表达式（如 300万→2000万）取最大值而非求和，避免区间被误算为总额。
     解析失败返回 0，调用方据此跳过该项。"""
     if isinstance(v, (int, float)):
         return abs(float(v))
@@ -56,7 +68,8 @@ def _amount_value(v) -> float:
     nums = re.findall(r"([\d.]+)\s*(万|亿)?", s)
     if not nums:
         return 0.0
-    total = 0.0
+    is_range = "→" in s or "至" in s or "~" in s
+    values = []
     for num, unit in nums:
         try:
             n = float(num)
@@ -67,8 +80,11 @@ def _amount_value(v) -> float:
         elif unit == "万" or not unit:
             # 裸数字（如 2000000）按原值折算为万元；带「万」已是万元
             n = n / 10000 if ("." not in num and float(num) > 10000) else n
-        total += n
-    return total
+        values.append(n)
+    if not values:
+        return 0.0
+    # 区间取最大值，单值直接返回
+    return max(values) if is_range else sum(values)
 
 
 def generate_charts(case: dict) -> Dict[str, str]:

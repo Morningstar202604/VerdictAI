@@ -21,7 +21,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [caseData, setCaseData] = useState<Record<string, unknown> | null>(null)
 
-  const { claims, contradictions, verdict, status, running, start, sendReview } = useDebate(selectedId)
+  const { claims, contradictions, verdict, status, running, start, stop, sendReview } = useDebate(selectedId)
 
   useEffect(() => {
     getRoles().then(setRoles)
@@ -62,7 +62,7 @@ export default function App() {
               多智能体法律探案审判系统
             </h1>
             <p className="text-[10px] text-slate-500">
-              Multi-Agent Legal Investigation & Trial · 8 专家辩论纠错收敛真相
+              Multi-Agent Legal Investigation & Trial · 7 专家辩论 · 纠错官 · 审判长收敛
             </p>
           </div>
         </div>
@@ -77,13 +77,23 @@ export default function App() {
               <span className="text-slate-500"> · 第 {status.round}/{status.totalRounds} 轮</span>
             )}
           </div>
-          <button
-            onClick={start}
-            disabled={!selectedId || running}
-            className="rounded-md bg-sky-500 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {running ? '辩论进行中…' : '开始辩论'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={start}
+              disabled={!selectedId || running}
+              className="rounded-md bg-sky-500 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {running ? '辩论进行中…' : '开始辩论'}
+            </button>
+            {running && (
+              <button
+                onClick={stop}
+                className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+              >
+                停止
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

@@ -11,7 +11,7 @@ const POS: Record<string, { x: number; y: number }> = {
   forensic: { x: 80, y: 230 },
   evidence: { x: 80, y: 350 },
   psych: { x: 80, y: 470 },
-  evidence_law: { x: 290, y: 150 },
+  law: { x: 290, y: 150 },
   prosecutor: { x: 290, y: 290 },
   defense: { x: 290, y: 430 },
   judge: { x: 500, y: 290 },
@@ -28,12 +28,12 @@ export default function AgentGraph({ roles, activeId, phase }: Props) {
       </defs>
 
       {roles.map((r) => {
-        const p = POS[r.id]
+        const p = POS[r.key]
         if (!p) return null
-        const active = r.id === activeId
-        const isSystem = r.id === 'judge' || r.id === 'critic'
+        const active = r.key === activeId
+        const isSystem = r.key === 'judge' || r.key === 'critic'
         return (
-          <g key={r.id}>
+          <g key={r.key}>
             <line
               x1={p.x + 40}
               y1={p.y}
@@ -57,7 +57,7 @@ export default function AgentGraph({ roles, activeId, phase }: Props) {
               opacity={active ? 1 : 0.85}
             />
             <text x={p.x} y={p.y + 6} textAnchor="middle" fontSize="18">
-              {r.icon}
+              {r.icon || '◆'}
             </text>
             <text x={p.x + 34} y={p.y - 2} fill="#cbd5e1" fontSize="12" fontWeight={600}>
               {r.name}

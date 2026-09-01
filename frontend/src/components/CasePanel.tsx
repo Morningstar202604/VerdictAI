@@ -10,13 +10,15 @@ interface Props {
 
 export default function CasePanel({ cases, selectedId, onSelect, caseData }: Props) {
   const c = cases.find((x) => x.id === selectedId)
+  const charts = (caseData?.charts as Record<string, string>) || c?.charts || {}
+  const chartEntries = Object.entries(charts).slice(0, 4)
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold tracking-wide text-slate-300">案件卷宗</h2>
         <span className="text-[10px] text-slate-500">CASE FILE</span>
       </div>
-
       <div className="flex flex-wrap gap-2">
         {cases.map((x) => (
           <button
@@ -32,33 +34,34 @@ export default function CasePanel({ cases, selectedId, onSelect, caseData }: Pro
           </button>
         ))}
       </div>
-
       {c && (
         <div className="rounded-lg border border-edge bg-panel/60 p-3 space-y-2">
           <div className="text-sm font-medium text-slate-200">{c.title}</div>
-          <p className="text-xs leading-relaxed text-slate-400">{c.brief}</p>
-          {c.scene_image && (
-            <img
-              src={`${apiBase()}${c.scene_image}`}
-              alt="现场平面图"
-              className="w-full rounded-md border border-edge"
-            />
+          {c.summary && (
+            <p className="text-xs leading-relaxed text-slate-400">{c.summary}</p>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            {c.timeline_image && (
-              <img src={`${apiBase()}${c.timeline_image}`} alt="时间线" className="rounded border border-edge" />
-            )}
-            {c.evidence_image && (
-              <img src={`${apiBase()}${c.evidence_image}`} alt="证据" className="rounded border border-edge" />
-            )}
-          </div>
+          {chartEntries.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {chartEntries.map(([label, url]) => (
+                <div key={label} className="space-y-1">
+                  <div className="text-[10px] text-slate-500">{label}</div>
+                  <img
+                    src={`${apiBase()}${url}`}
+                    alt={label}
+                    className="w-full rounded border border-edge"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
-
       {caseData && (
         <div className="rounded-lg border border-edge bg-panel/60 p-3 text-[11px] leading-relaxed text-slate-400">
           <div className="mb-1 font-semibold text-slate-300">案情详情</div>
-          <pre className="whitespace-pre-wrap font-sans">{JSON.stringify(caseData, null, 2)}</pre>
+          <pre className="whitespace-pre-wrap font-sans max-h-64 overflow-y-auto">
+            {JSON.stringify(caseData, null, 2)}
+          </pre>
         </div>
       )}
     </div>

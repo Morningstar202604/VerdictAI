@@ -46,8 +46,17 @@ export default function VerdictPanel({ verdict, contradictions, status, onReview
 
       {verdict ? (
         <div className="space-y-2.5 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
-          <Field label="真相推定" value={verdict.truth} />
-          <Field label="作案动机" value={verdict.motive} />
+          <Field label="真相推定" value={verdict.truth_hypothesis} />
+          {verdict.next_steps && verdict.next_steps.length > 0 && (
+            <div>
+              <div className="mb-1 text-[11px] font-semibold text-sky-300">后续流程清单</div>
+              <ol className="list-decimal space-y-1 pl-4 text-[12px] text-slate-200">
+                {verdict.next_steps.map((s, i) => (
+                  <li key={i}>{s}</li>
+                ))}
+              </ol>
+            </div>
+          )}
           {verdict.evidence_chain && verdict.evidence_chain.length > 0 && (
             <div>
               <div className="mb-1 text-[11px] font-semibold text-slate-400">证据链</div>

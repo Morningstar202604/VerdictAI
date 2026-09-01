@@ -21,8 +21,24 @@ from app.runtime import current as current_settings, update as update_settings
 from app.ws.manager import manager
 
 log = logging.getLogger("verdictai")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 app = FastAPI(title="VerdictAI", version="0.1.0")
+import time as _time
+_START_TIME = _time.time()
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """全局异常捕获：记录日志并返回友好错误，避免 500 空响应。"""
+    log.exception("未处理异常: %s %s -> %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        {"error": f"服务器内部错误: {type(exc).__name__}", "detail": str(exc)[:200]},
+        status_code=500,
+    )
 
 # ---------------- 访问认证（ACCESS_PASSWORD 为空时完全开放） ----------------
 _AUTH_COOKIE = "vai_auth"
@@ -103,29 +119,58 @@ def login_submit(password: str = Form("")):
         return RedirectResponse("/", status_code=302)
     if password and password == settings.access_password:
         resp = RedirectResponse("/", status_code=302)
-        resp.set_cookie(_AUTH_COOKIE, _auth_token(), max_age=7 * 24 * 3600, httponly=True, samesite="lax")
+        # HTTPS 环境下设置 Secure 标志；HTTP 开发环境不设置以保证 cookie 可用
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        resp.set_cookie(
+            _AUTH_COOKIE, _auth_token(),
+            max_age=7 * 24 * 3600,
+            httponly=True,
+            samesite="lax",
+            secure=is_https,
+        )
         return resp
     return HTMLResponse(_LOGIN_PAGE.replace("{error}", "口令错误，请重试"), status_code=401)
 
 
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8787", "http://127.0.0.1:8787"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 静态资源：生成的图表/图片
+
+@app.middleware("http")
+async def request_size_limit(request, call_next):
+    """限制请求体大小，防止超大 base64 PDF 撑爆内存。"""
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > settings.max_request_size:
+        return JSONResponse(
+            {"error": f"请求体过大（上限 {settings.max_request_size // 1024 // 1024}MB），请压缩或拆分文件"},
+            status_code=413,
+        )
+    return await call_next(request)
+
+# 静态资源：生成的图表/图片（不缓存，因为内容会更新）
 data_dir = os.path.abspath(settings.data_dir)
 app.mount("/static/data", StaticFiles(directory=data_dir), name="data")
 
-# 品牌与界面静态资源（logo 等）
+# 品牌与界面静态资源（logo 等，长缓存）
 assets_dir = os.path.join(os.path.dirname(__file__), "static", "assets")
 os.makedirs(assets_dir, exist_ok=True)
-app.mount("/static/assets", StaticFiles(directory=assets_dir), name="assets")
 
-# 沙箱产物（图表等）对外提供
+class _CachedStaticFiles(StaticFiles):
+    """静态资源带 Cache-Control 头，减少重复下载。"""
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = "public, max-age=86400"  # 24小时
+        return resp
+
+app.mount("/static/assets", _CachedStaticFiles(directory=assets_dir), name="assets")
+
+# 沙箱产物（图表等）对外提供（不缓存）
 sandbox_out_dir = os.path.abspath(settings.sandbox_out_dir)
 os.makedirs(sandbox_out_dir, exist_ok=True)
 app.mount("/sandbox", StaticFiles(directory=sandbox_out_dir), name="sandbox")
@@ -162,8 +207,14 @@ def flow():
 def health():
     return {
         "status": "ok",
+        "version": app.version,
         "provider": settings.llm_provider,
         "mock": settings.llm_provider == "mock",
+        "max_rounds": settings.max_rounds,
+        "max_concurrency": settings.max_concurrency,
+        "active_sessions": len(getattr(manager, "sessions", {})),
+        "auth_enabled": bool(settings.access_password),
+        "uptime": int(_time.time() - _START_TIME),
     }
 
 
@@ -188,13 +239,16 @@ def get_case(case_id: str):
 
 
 @app.get("/api/debates")
-def list_debates():
-    """列出已落盘的辩论记录，供复盘。"""
+def list_debates(limit: int = 50):
+    """列出已落盘的辩论记录，供复盘。默认最多返回最近 50 条。"""
     d = os.path.join(settings.data_dir, "debates")
     if not os.path.isdir(d):
         return []
+    limit = max(1, min(200, int(limit)))
     out = []
     for fn in sorted(os.listdir(d), reverse=True):
+        if len(out) >= limit:
+            break
         if not fn.endswith(".json"):
             continue
         try:
@@ -233,8 +287,15 @@ async def regenerate():
     from app.intake.processor import preprocess
 
     path = generate_case.generate()
-    case = load_case("case_001")
-    # 给示例案件一个新 ID，避免覆盖
+    # 从 generate() 返回的路径读取案件，而非硬编码 case_001
+    try:
+        with open(path, encoding="utf-8") as f:
+            case = json.load(f)
+    except Exception as ex:
+        return JSONResponse({"error": f"示例案件生成失败：{str(ex)[:200]}"}, status_code=500)
+    if not case:
+        return JSONResponse({"error": "示例案件为空"}, status_code=500)
+    # 给示例案件一个新 ID，避免覆盖 case_001
     new_id = "case_" + uuid.uuid4().hex[:8]
     case["id"] = new_id
     case["title"] = case.get("title", "示例案件") + " (副本)"
@@ -308,6 +369,13 @@ def _extract_pdf_text(
     try:
         raw = base64.b64decode(b64_content)
         doc = fitz.open(stream=raw, filetype="pdf")
+        # 检测加密 PDF
+        if doc.is_encrypted:
+            # 尝试空密码解密（很多 PDF 用空密码加密只是限制编辑）
+            if not doc.authenticate(""):
+                doc.close()
+                log.warning("PDF 已加密且无法用空密码解密: %s", filename)
+                return "__ENCRYPTED__"
         pages = []
         truncated_pages = False
         for i, page in enumerate(doc):
@@ -358,9 +426,13 @@ async def upload_case(payload: dict):
     # PDF 文件：从 base64 提取文本并构建案件结构
     if data.get("file_type") == "pdf" and data.get("file_content"):
         pdf_text = _extract_pdf_text(data["file_content"])
+        if pdf_text == "__ENCRYPTED__":
+            return JSONResponse(
+                {"error": "PDF 已加密，请先解除密码保护后再上传"}, status_code=400
+            )
         if not pdf_text:
             return JSONResponse(
-                {"error": "PDF 文本提取失败，请确认文件未加密"}, status_code=400
+                {"error": "PDF 文本提取失败，文件可能是扫描件（图片型 PDF），请粘贴文字内容"}, status_code=400
             )
         case_from_pdf = _text_to_case(pdf_text, data.get("file_name", ""))
         for k, v in case_from_pdf.items():
@@ -600,6 +672,13 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
     if settings.access_password and websocket.cookies.get(_AUTH_COOKIE) != _auth_token():
         await websocket.close(code=4401)
         return
+    # 同一会话重复连接：先关闭旧连接，避免孤儿连接占用资源
+    if session_id in manager.active:
+        try:
+            await manager.active[session_id].close(code=4400)
+        except Exception:
+            pass
+        manager.disconnect(session_id)
     await manager.connect(session_id, websocket)
     debate_task = None
 
@@ -610,9 +689,20 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 msg = await websocket.receive_json()
             except Exception:
                 break
-            if msg.get("type") == "start":
+            msg_type = msg.get("type")
+            if msg_type == "start":
+                # 已有辩论在运行时，先取消再启动新的
+                if debate_task is not None and not debate_task.done():
+                    debate_task.cancel()
+                    try:
+                        await debate_task
+                    except Exception:
+                        pass
                 case_id = msg.get("case_id", "case_001")
                 case = load_case(case_id)
+                if case is None:
+                    await manager.send(session_id, {"kind": "error", "message": f"案件 {case_id} 不存在"})
+                    continue
                 agents = msg.get("agents") or None
                 overrides = {
                     k: msg[k]
@@ -627,7 +717,16 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 debate_task = asyncio.create_task(
                     run_debate(case, session_id, agents, overrides or None)
                 )
-            elif msg.get("type") == "human":
+            elif msg_type == "stop":
+                if debate_task is not None and not debate_task.done():
+                    debate_task.cancel()
+                    try:
+                        await debate_task
+                    except Exception:
+                        pass
+                    await manager.send(session_id, {"kind": "stopped", "message": "辩论已被用户停止"})
+                debate_task = None
+            elif msg_type == "human":
                 await manager.push_human(
                     session_id, msg.get("text", ""), msg.get("subtype", "intervene")
                 )
