@@ -1,18 +1,22 @@
 from __future__ import annotations
-
+import contextvars
 import json
 import os
 import re
 import subprocess
 import time
 from typing import Dict, List
-
 from langchain_core.tools import tool
-
 from app.config import settings
 
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
 _base_checked = False
+
+# 使用 contextvars 而非全局变量存储当前案件，避免并发辩论时互相覆盖。
+# 每个 asyncio Task 有独立上下文，activate_case 设置的值只在当前 Task 链中可见。
+_active_case_var: contextvars.ContextVar[Dict] = contextvars.ContextVar(
+    "active_case", default={}
+)
 
 
 def _ensure_base() -> None:
@@ -25,7 +29,6 @@ def _ensure_base() -> None:
         import matplotlib  # noqa: F401
         import numpy  # noqa: F401
         import pandas  # noqa: F401
-
         return
     except Exception:
         try:
@@ -48,19 +51,20 @@ def _ensure_base() -> None:
             pass
 
 
-# 工具层：各智能体可调用的能力。运行前通过 activate_case 注入当前卷宗。
-_ACTIVE_CASE: Dict = {}
+def activate_case(case: Dict) -> contextvars.Token:
+    """设置当前辩论的案件上下文，返回 token 用于恢复。
+    使用 contextvars 保证并发辩论互不干扰。"""
+    return _active_case_var.set(dict(case or {}))
 
 
-def activate_case(case: Dict) -> None:
-    _ACTIVE_CASE.clear()
-    _ACTIVE_CASE.update(case or {})
+def _get_case() -> Dict:
+    return _active_case_var.get()
 
 
 @tool
 def read_evidence(evidence_id: str) -> str:
     """读取指定物证/书证编号的详细内容。输入证据编号，如 'E-03'。"""
-    items = _ACTIVE_CASE.get("evidence", [])
+    items = _get_case().get("evidence", [])
     for e in items:
         if e.get("id") == evidence_id:
             return json.dumps(e, ensure_ascii=False)
@@ -70,14 +74,14 @@ def read_evidence(evidence_id: str) -> str:
 @tool
 def timeline_check() -> str:
     """返回本案关键时间线，用于核对各专家推断是否矛盾。"""
-    return json.dumps(_ACTIVE_CASE.get("timeline", []), ensure_ascii=False, indent=2)
+    return json.dumps(_get_case().get("timeline", []), ensure_ascii=False, indent=2)
 
 
 @tool
 def list_contradictions() -> str:
     """列出当前已记录的矛盾点清单。"""
     return json.dumps(
-        _ACTIVE_CASE.get("contradictions", []), ensure_ascii=False, indent=2
+        _get_case().get("contradictions", []), ensure_ascii=False, indent=2
     )
 
 
@@ -85,9 +89,9 @@ def list_contradictions() -> str:
 def search_case_law(keyword: str) -> str:
     """检索与关键词相关的法条或类案要旨。三级检索：本案卷宗法条 → 用户自定义知识库 → 内置法条库。输入法律关键词，如 '非法证据排除'。"""
     from app.legal.knowledge import search_knowledge
-
     parts: List[str] = []
-    laws = _ACTIVE_CASE.get("statutes", [])
+    case = _get_case()
+    laws = case.get("statutes", [])
     hits = [l for l in laws if keyword in (l.get("topic", "") + l.get("text", ""))]
     if hits:
         parts.append("【本案卷宗法条】\n" + json.dumps(hits, ensure_ascii=False, indent=2))
@@ -116,7 +120,6 @@ def web_search(query: str) -> str:
         return "联网搜索未启用（设置 → Agent 工程）。可依据卷宗与知识库作答。"
     import urllib.parse
     import urllib.request
-
     url = "https://cn.bing.com/search?q=" + urllib.parse.quote(query) + "&count=8"
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
@@ -147,7 +150,11 @@ def web_search(query: str) -> str:
 
 @tool
 def run_code(code: str) -> str:
-    """在受控沙箱中执行 Python 代码并返回标准输出与错误。用于对证据数据做统计、比对、时间线推算；也可生成图表（matplotlib，Agg 后端），保存到环境变量 SANDBOX_OUT 指向的目录，返回中会附带图片链接，将在笔录中渲染。"""
+    """在受控沙箱中执行 Python 代码并返回标准输出与错误。用于对证据数据做统计、比对、时间线推算；也可生成图表（matplotlib，Agg 后端），保存到环境变量 SANDBOX_OUT 指向的目录，返回中会附带图片链接，将在笔录中渲染。
+
+    安全说明：沙箱使用 Python -I 隔离模式（忽略 PYTHONPATH 和用户 site-packages），
+    但仍可访问网络和本地文件系统。请勿在不可信环境中暴露此工具。
+    """
     if not settings.code_sandbox_enabled:
         return "代码沙箱未启用。请在「设置 → 运行环境」中开启「启用 Python 代码沙箱」。"
     _ensure_base()
@@ -199,6 +206,9 @@ def install_package(package: str) -> str:
     pkg = (package or "").strip()
     if not pkg:
         return "请提供包名，例如 numpy、pandas、matplotlib。"
+    # 基本的包名安全校验：只允许字母、数字、下划线、连字符、点
+    if not re.match(r"^[a-zA-Z0-9_\-\.]+$", pkg):
+        return f"包名格式不合法：{pkg}"
     try:
         proc = subprocess.run(
             [settings.code_sandbox_python, "-m", "pip", "install", "--quiet", pkg],
@@ -271,7 +281,6 @@ def tools_for_role(role_key: str):
     names = builtin_tool_names(role_key)
     try:
         from app.agents import agent_config
-
         cfg = agent_config.load().get(role_key, {})
         if cfg.get("tools") is not None:
             names = list(cfg["tools"])

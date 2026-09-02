@@ -134,20 +134,37 @@ def list_knowledge() -> list[dict]:
 
 
 def search_knowledge(keyword: str, limit: int = 6) -> list[dict]:
-    """关键词检索：命中 keywords 或出现在标题/正文中的条目。"""
+    """关键词检索：支持多关键词（空格/逗号分隔），按相关度排序。
+    评分权重：关键词精确命中 > 标题命中 > 正文命中；多关键词命中累加。"""
     kw = (keyword or "").strip().lower()
     if not kw:
         return []
+    # 拆分多关键词：空格、逗号、顿号分隔
+    import re as _re
+    terms = [t for t in _re.split(r"[\s,，、;；]+", kw) if t and len(t) >= 1]
+    if not terms:
+        terms = [kw]
     scored = []
     for e in list_knowledge():
         hay_kw = " ".join(e.get("keywords", [])).lower()
-        hay_tx = (e.get("title", "") + e.get("text", "")).lower()
+        hay_title = e.get("title", "").lower()
+        hay_text = e.get("text", "").lower()
         score = 0
-        if kw in hay_kw:
-            score += 2
-        if kw in hay_tx:
-            score += 1
+        hit_terms = 0
+        for t in terms:
+            if t in hay_kw:
+                score += 3  # 关键词字段命中（最高权重）
+                hit_terms += 1
+            if t in hay_title:
+                score += 2  # 标题命中
+                hit_terms += 1
+            if t in hay_text:
+                score += 1  # 正文命中
+                hit_terms += 1
         if score:
+            # 多关键词全部命中额外加分
+            if hit_terms >= len(terms) * 2:
+                score += 2
             scored.append((score, e))
     scored.sort(key=lambda x: -x[0])
     return [e for _, e in scored[:limit]]

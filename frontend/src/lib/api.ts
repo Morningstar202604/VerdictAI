@@ -1,20 +1,26 @@
-const BASE = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8787'
+// 默认使用同源（后端直接托管前端时）；开发时可用 VITE_API_BASE 覆盖
+const BASE = (import.meta.env.VITE_API_BASE as string) || ''
 
 export interface Role {
-  id: string
+  key: string
   name: string
   color: string
-  icon: string
-  focus: string
+  stance: string
+  duty: string
+  group: string
+  enabled: boolean
+  order: number
+  tools: string[]
+  model?: string | null
+  icon?: string
 }
 
 export interface CaseSummary {
   id: string
   title: string
-  brief: string
-  scene_image?: string
-  timeline_image?: string
-  evidence_image?: string
+  summary?: string
+  brief?: { intake_done?: boolean } | string
+  charts?: Record<string, string>
 }
 
 export interface Claim {
@@ -40,11 +46,12 @@ export interface ReviewRequest {
 }
 
 export interface Verdict {
-  truth?: string
-  motive?: string
+  truth_hypothesis?: string
   evidence_chain?: string[]
   doubts?: string[]
   recommendation?: string
+  next_steps?: string[]
+  disclaimer?: string
 }
 
 export interface TrialEvent {
@@ -54,12 +61,14 @@ export interface TrialEvent {
 
 export async function getRoles(): Promise<Role[]> {
   const r = await fetch(`${BASE}/api/roles`)
-  return r.json()
+  const data = await r.json()
+  return data.roles || data
 }
 
 export async function getCases(): Promise<CaseSummary[]> {
   const r = await fetch(`${BASE}/api/cases`)
-  return r.json()
+  const data = await r.json()
+  return data.cases || data
 }
 
 export async function getCase(id: string): Promise<unknown> {

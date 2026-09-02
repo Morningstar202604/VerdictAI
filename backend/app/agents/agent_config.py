@@ -67,7 +67,7 @@ def load() -> dict:
         return defaults
     for k, v in saved.items():
         if k in defaults:
-            for field in ("enabled", "order", "system_prompt", "tools"):
+            for field in ("enabled", "order", "system_prompt", "tools", "model"):
                 if field in v:
                     defaults[k][field] = v[field]
     return defaults
@@ -82,6 +82,7 @@ def save(data: dict) -> dict:
             "order": int(v.get("order", 99)),
             "system_prompt": v.get("system_prompt"),
             "tools": v.get("tools"),
+            "model": v.get("model"),
         }
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(clean, f, ensure_ascii=False, indent=2)

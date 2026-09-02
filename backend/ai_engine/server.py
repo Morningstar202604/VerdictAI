@@ -320,12 +320,27 @@ class Case:
 # ----------------------------- 会话状态 -----------------------------
 
 LOCK = threading.Lock()
+_MAX_CASES = 50  # 最多跟踪的案件数，超出后淘汰最旧的，防止内存无限增长
 STATE: Dict[str, Any] = {
     "rounds_by_case": {},   # {case_hash: {role: round_no}} —— 按案件隔离，支持并发辩论
     "critic_by_case": {},   # {case_hash: critic_calls}
     "names": [],
     "last_case": None,
+    "last_verdict": None,
+    "_case_order": [],      # 按插入顺序记录 case_hash，用于 LRU 淘汰
 }
+
+
+def _touch_case(case_hash: str) -> None:
+    """更新案件访问顺序，并在超限时淘汰最旧案件的状态。"""
+    order = STATE["_case_order"]
+    if case_hash in order:
+        order.remove(case_hash)
+    order.append(case_hash)
+    while len(order) > _MAX_CASES:
+        old = order.pop(0)
+        STATE["rounds_by_case"].pop(old, None)
+        STATE["critic_by_case"].pop(old, None)
 
 
 def _refresh_case(material: str, hash_basis: str = "") -> Case:
@@ -420,6 +435,7 @@ def _round_for(case_hash: str, role: str, messages: List[dict]) -> int:
     """
     sc = _summary_count(messages)
     with LOCK:
+        _touch_case(case_hash)
         if sc < 2:
             STATE["rounds_by_case"].setdefault(case_hash, {})[role] = sc + 1
             return sc + 1
@@ -433,6 +449,7 @@ def _reset_critic(case_hash: str, messages: List[dict]) -> None:
     """新辩论（第 1 轮专家请求）时归零该案件的纠错官轮次计数。"""
     if _summary_count(messages) == 0:
         with LOCK:
+            _touch_case(case_hash)
             STATE["critic_by_case"][case_hash] = 0
 
 
@@ -728,6 +745,7 @@ def _critic_json() -> dict:
     case: Optional[Case] = STATE.get("last_case")
     case_hash = getattr(case, "hash", "") if case else ""
     with LOCK:
+        _touch_case(case_hash)
         rnd = STATE["critic_by_case"].get(case_hash, 0) + 1
         STATE["critic_by_case"][case_hash] = rnd
     issues: List[dict] = []

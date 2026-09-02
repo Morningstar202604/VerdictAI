@@ -6,7 +6,6 @@ import re
 from typing import Any, Awaitable, Callable, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langgraph.types import interrupt
 
 from app.agents.roles import ROLES, build_system_prompt
 from app.agents.tools import tools_for_role
@@ -454,15 +453,28 @@ async def judge_node(state: DebateState, config) -> Dict:
 
 # ------------------------- 节点 5：人类审判长落槌 -------------------------
 async def human_final_node(state: DebateState, config) -> Dict:
+    """人类审判长落槌节点。
+    不使用 LangGraph 的 interrupt()（该 API 在 Python 3.10 async 环境下不可用），
+    改为通过 config 中的 wait_for_human 回调阻塞等待人类输入，超时自动采纳 AI 草案。"""
     sink: Sink = config["configurable"]["sink"]
+    wait_for_human = config["configurable"].get("wait_for_human")
+    hitl_timeout = config["configurable"].get("hitl_timeout", 300)
     draft = state.get("verdict") or {}
     await sink({"kind": "awaiting_human", "final": True, "draft": draft})
-    value = interrupt(
-        {
-            "question": "请人类审判长落槌：可直接输入最终裁决（JSON 或自然语言）；输入 confirm 采纳 AI 草案。"
-        }
-    )
-    human_input = value if isinstance(value, str) else str(value)
+
+    human_input: str
+    if wait_for_human:
+        human_input = await wait_for_human(timeout=float(hitl_timeout or 0))
+        if human_input is None:
+            await sink({
+                "kind": "human_timeout",
+                "message": f"人类审判长 {hitl_timeout} 秒内未落槌，系统已采纳 AI 裁决草案并归档。",
+            })
+            human_input = "confirm"
+    else:
+        # 无等待回调（如直接调用图而非通过 runner），直接采纳草案
+        human_input = "confirm"
+
     await sink({"kind": "human_done", "input": human_input, "final": True})
 
     if human_input.strip().lower() in ("confirm", "确认", "ok", "yes"):

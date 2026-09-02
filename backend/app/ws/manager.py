@@ -53,7 +53,7 @@ class ConnectionManager:
         """阻塞等待人类落槌。timeout>0 时限时等待，超时返回 None（由调用方兜底）。"""
         q = self.final_queues.get(session_id)
         if q is None:
-            return ""
+            return None
         try:
             if timeout and timeout > 0:
                 return await asyncio.wait_for(q.get(), timeout=timeout)

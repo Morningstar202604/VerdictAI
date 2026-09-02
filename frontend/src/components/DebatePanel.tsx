@@ -12,7 +12,7 @@ export default function DebatePanel({ claims, roles }: Props) {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [claims])
 
-  const roleMap = Object.fromEntries(roles.map((r) => [r.id, r]))
+  const roleMap = Object.fromEntries(roles.map((r) => [r.key, r]))
 
   return (
     <div className="flex h-full flex-col">
@@ -38,7 +38,7 @@ export default function DebatePanel({ claims, roles }: Props) {
               style={{ borderLeft: `3px solid ${color}` }}
             >
               <div className="mb-1 flex items-center gap-2 text-xs">
-                <span className="text-sm">{r?.icon || '•'}</span>
+                <span className="text-sm">{r?.icon || '◆'}</span>
                 <span className="font-semibold" style={{ color }}>
                   {name}
                 </span>

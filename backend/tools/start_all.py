@@ -1,44 +1,86 @@
 # -*- coding: utf-8 -*-
-"""VerdictAI 一键启动/停止（Windows，全程无命令行窗口）。
-
+"""VerdictAI 一键启动/停止（跨平台：Windows / Linux / macOS）。
 启动：python tools/start_all.py          # 已在运行的服务自动跳过
 停止：python tools/start_all.py stop     # 停止后端与引擎
-
 组件：
   后端  http://localhost:8787  （_serve.py 监管，崩溃自动重启）
   引擎  http://127.0.0.1:9100  （ai_engine/engine_serve.py 监管，崩溃自动重启）
 """
 import os
+import socket
 import subprocess
 import sys
 import time
-
 import urllib.request
 
 CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/
+# 优先使用项目虚拟环境，回退到当前解释器
 PY = os.path.join(CWD, ".venv", "Scripts", "python.exe")
+if not os.path.exists(PY):
+    PY = os.path.join(CWD, ".venv", "bin", "python")
 if not os.path.exists(PY):
     PY = sys.executable
 
-CREATE_NO_WINDOW = 0x08000000
+IS_WIN = sys.platform == "win32"
+CREATE_NO_WINDOW = 0x08000000 if IS_WIN else 0
+
 COMPONENTS = [
     {"name": "backend", "port": 8787, "url": "http://localhost:8787/api/health",
-     "script": os.path.join(CWD, "_serve.py")},
+     "script": os.path.join(CWD, "_serve.py"),
+     "marker": "_serve.py"},
     {"name": "engine", "port": 9100, "url": "http://127.0.0.1:9100/healthz",
-     "script": os.path.join(CWD, "ai_engine", "engine_serve.py")},
+     "script": os.path.join(CWD, "ai_engine", "engine_serve.py"),
+     "marker": "engine_serve.py"},
 ]
 
 
-def port_listener(port: int):
-    out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
-    for line in out.splitlines():
-        if f":{port} " in line and "LISTENING" in line:
-            return int(line.split()[-1])
-    return None
+def port_in_use(port: int) -> bool:
+    """检查端口是否被占用（跨平台，不依赖 netstat）。"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def find_processes_by_marker(marker: str):
+    """查找命令行中包含指定 marker 的进程 PID 列表（跨平台）。"""
+    pids = []
+    try:
+        if IS_WIN:
+            out = subprocess.run(
+                ["wmic", "process", "where", f"name='python.exe'",
+                 "get", "processid,commandline"],
+                capture_output=True, text=True, timeout=10,
+            ).stdout
+            for line in out.splitlines():
+                if marker.lower() in line.lower():
+                    parts = line.strip().split()
+                    if parts and parts[-1].isdigit():
+                        pids.append(int(parts[-1]))
+        else:
+            # Linux/macOS: 使用 ps
+            out = subprocess.run(
+                ["ps", "aux"], capture_output=True, text=True, timeout=10,
+            ).stdout
+            for line in out.splitlines():
+                if marker in line and "grep" not in line:
+                    parts = line.split()
+                    if len(parts) > 1 and parts[1].isdigit():
+                        pids.append(int(parts[1]))
+    except Exception:
+        pass
+    return pids
 
 
 def kill_pid(pid: int):
-    subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
+    try:
+        if IS_WIN:
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                           capture_output=True, timeout=5)
+        else:
+            subprocess.run(["kill", "-9", str(pid)],
+                           capture_output=True, timeout=5)
+    except Exception:
+        pass
 
 
 def alive(url: str) -> bool:
@@ -54,12 +96,13 @@ def start():
         if alive(comp["url"]):
             print(f"[{comp['name']}] 已在运行（端口 {comp['port']}），跳过")
             continue
-        pid = port_listener(comp["port"])
-        if pid:
-            kill_pid(pid)  # 端口被残留进程占用：清掉再启动
+        # 端口被残留进程占用：清掉再启动
+        if port_in_use(comp["port"]):
+            for pid in find_processes_by_marker(comp["marker"]):
+                kill_pid(pid)
             time.sleep(1.5)
         log_path = os.path.join(CWD, f"{comp['name']}.log")
-        log = open(log_path, "a")
+        log = open(log_path, "a", encoding="utf-8")
         subprocess.Popen(
             [PY, "-u", comp["script"]],
             cwd=CWD,
@@ -74,25 +117,28 @@ def start():
         if all(alive(c["url"]) for c in COMPONENTS):
             break
     for comp in COMPONENTS:
-        print(f"[{comp['name']}] {'✓ ' + comp['url'] if alive(comp['url']) else '✗ 未就绪，请查看 ' + comp['name'] + '.log'}")
+        status = "✓ " + comp["url"] if alive(comp["url"]) else "✗ 未就绪，请查看 " + comp["name"] + ".log"
+        print(f"[{comp['name']}] {status}")
     print("\n打开 http://localhost:8787 即可使用。")
 
 
 def stop():
     for comp in COMPONENTS:
-        # 先杀监听进程；守护进程检测到子进程退出会重启，因此连守护进程一起结束
-        pid = port_listener(comp["port"])
-        if pid:
+        # 杀掉所有匹配的进程（守护进程 + 子进程）
+        for pid in find_processes_by_marker(comp["marker"]):
             kill_pid(pid)
-        out = subprocess.run(
-            ["wmic", "process", "where", f"name='python.exe'", "get", "processid,commandline"],
-            capture_output=True, text=True,
-        ).stdout
-        for line in out.splitlines():
-            low = line.lower()
-            marker = "_serve.py" if comp["name"] == "backend" else "engine_serve.py"
-            if marker in low and line.strip().split()[-1].isdigit():
-                kill_pid(int(line.strip().split()[-1]))
+        # uvicorn 子进程可能不包含 marker，再按端口清理
+        if port_in_use(comp["port"]):
+            # Windows 下用 netstat 找 PID
+            if IS_WIN:
+                try:
+                    out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5).stdout
+                    for line in out.splitlines():
+                        if f":{comp['port']} " in line and "LISTENING" in line:
+                            pid = int(line.split()[-1])
+                            kill_pid(pid)
+                except Exception:
+                    pass
         print(f"[{comp['name']}] 已停止")
     print("完成。")
 
