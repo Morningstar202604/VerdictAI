@@ -221,8 +221,6 @@ def _extract_json(text: str) -> Optional[dict | list]:
 
 
 async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
-    if is_mock():
-        return None
     prompt = (
         "你是一个严格的 JSON 生成器。只输出一个 JSON 对象，禁止任何额外文字、"
         '禁止 markdown 代码块、禁止对引号做转义（直接输出 {"key":"value"} 形式）。\n'
@@ -232,7 +230,13 @@ async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
         '"intent_tags":["标签1","标签2"],'
         '"reasoning_intensity":"low|medium|high",'
         '"global_guidance":"给所有专家的总体分析提示词（200字内：分析重点、应避免的偏差、需特别核验的事项）",'
-        '"summary":"对材料分类概括后的问题摘要（300字内：事实梗概+核心争议+关键疑点）"}\n\n'
+        '"summary":"对材料分类概括后的问题摘要（300字内：事实梗概+核心争议+关键疑点）",'
+        '"extracted":{"persons":[{"name":"涉案人员姓名","role":"身份/角色","desc":"与案件的关系或描述"}],'
+        '"evidence":[{"id":"E-01","type":"物证/书证/笔录等","desc":"证据描述（含保管链、可靠性提示）"}],'
+        '"timeline":[{"time":"时间","event":"事件","source":"来源"}],'
+        '"statutes":[{"topic":"法条主题","text":"条文要点"}],'
+        '"finance":[{"item":"项目","amount":"金额描述","date":"日期","note":"备注"}]'
+        "}}\n\n"
         f"案件材料：\n{dossier}"
     )
     last = None
@@ -256,7 +260,7 @@ async def _extract_images(case: dict) -> List[str]:
     for im in imgs:
         name = im.get("name", "图片")
         data_url = im.get("data_url") or im.get("content") or ""
-        if not data_url or is_mock():
+        if not data_url:
             captions.append(f"{name}：（图片已附，待专家结合视觉/工具分析）")
             continue
         try:
@@ -283,8 +287,13 @@ async def _extract_images(case: dict) -> List[str]:
 
 
 async def preprocess(raw: dict, use_llm: bool = True) -> dict:
-    """卷宗预处理：意图识别 + 思考强度 + 提示词 + 分类概括 + 分角色分发。"""
-    case = dict(raw)
+    """卷宗预处理：意图识别 + 思考强度 + 提示词 + 分类概括 + 分角色分发。
+
+    注意：抽取到的人员/证据/时间线等结构会回写到传入的 raw（同一对象），
+    调用方（如上传接口）应在调用后把 raw 持久化到案件文件，前端案卷与
+    图表才能展示抽取结果；只读场景（开庭时补跑预处理）不受影响。
+    """
+    case = raw
     image_captions = await _extract_images(case) if use_llm else []
     dossier = _build_dossier_text(case, image_captions)
 

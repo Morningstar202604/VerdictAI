@@ -7,6 +7,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# ── 全局常量 ──────────────────────────────────────────────────────────────────
+# 图表/文档处理上限
+MAX_CHARTS_PER_CASE = 4
+MAX_PDF_PAGES = 50
+MAX_PDF_CHARS = 60000
+# 辩论轮次上限
+MAX_ROUNDS = 6
+# 并发与上下文
+MAX_CONCURRENCY = 7
+MAX_MEMORY_ROUNDS = 6
+MIN_CONTEXT_CHAR_LIMIT = 1000
+DEFAULT_CONTEXT_CHAR_LIMIT = 12000
+# HITL 超时下限（秒）
+MIN_HITL_TIMEOUT = 10
+DEFAULT_HITL_TIMEOUT = 300
+# 请求体大小下限（字节）
+MIN_REQUEST_SIZE = 1024 * 1024
+
+
 @dataclass
 class Settings:
     # 模型供应商: openai | openai_compatible | ollama | mock
@@ -48,6 +67,9 @@ class Settings:
     context_char_limit: int = int(os.getenv("CONTEXT_CHAR_LIMIT", "12000"))
     max_concurrency: int = int(os.getenv("MAX_CONCURRENCY", "4"))
     llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "180"))
+    # 单次 LLM 调用最大输出 token 数（思维链类模型 reasoning_content 占用 token，
+    # 若限制过小会导致 JSON/长分析被截断），0 表示交给平台默认
+    llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "0"))
     web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
     # 数据目录
     data_dir: str = os.getenv(
@@ -65,18 +87,18 @@ class Settings:
         if self.llm_provider.lower() not in valid_providers:
             warnings.warn(f"未知 LLM_PROVIDER='{self.llm_provider}'，已回退为 mock")
             self.llm_provider = "mock"
-        self.max_rounds = max(1, min(6, int(self.max_rounds)))
+        self.max_rounds = max(1, min(MAX_ROUNDS, int(self.max_rounds)))
         self.temperature = max(0.0, min(2.0, float(self.temperature)))
         if self.judge_mode not in ("ai", "human"):
             self.judge_mode = "ai"
-        if self.hitl_timeout != 0 and self.hitl_timeout < 10:
-            self.hitl_timeout = 300
+        if self.hitl_timeout != 0 and self.hitl_timeout < MIN_HITL_TIMEOUT:
+            self.hitl_timeout = DEFAULT_HITL_TIMEOUT
         self.port = max(1, min(65535, int(self.port)))
-        self.memory_rounds = max(0, min(6, int(self.memory_rounds)))
-        self.max_concurrency = max(1, min(7, int(self.max_concurrency)))
-        if self.context_char_limit != 0 and self.context_char_limit < 1000:
-            self.context_char_limit = 12000
-        self.max_request_size = max(1024 * 1024, int(self.max_request_size))
+        self.memory_rounds = max(0, min(MAX_MEMORY_ROUNDS, int(self.memory_rounds)))
+        self.max_concurrency = max(1, min(MAX_CONCURRENCY, int(self.max_concurrency)))
+        if self.context_char_limit != 0 and self.context_char_limit < MIN_CONTEXT_CHAR_LIMIT:
+            self.context_char_limit = DEFAULT_CONTEXT_CHAR_LIMIT
+        self.max_request_size = max(MIN_REQUEST_SIZE, int(self.max_request_size))
         if not os.path.isabs(self.data_dir):
             self.data_dir = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), "..", self.data_dir)

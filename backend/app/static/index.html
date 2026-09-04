@@ -43,7 +43,7 @@
       body { background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; font-size: 14px; }
 
       header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 22px;
-        border-bottom: 1px solid var(--line-strong); background: var(--panel); position: sticky; top: 0; z-index: 30; }
+        border-bottom: 1px solid var(--line-strong); background: var(--panel); position: sticky; top: 0; z-index: 50; }
       .brand { display: flex; align-items: center; gap: 13px; }
       .emblem { width: 36px; height: 36px; border-radius: 8px; color: #fff; display: grid; place-items: center;
         font-family: var(--serif); font-size: 20px; font-weight: 700; border: 1px solid var(--navy-deep);
@@ -331,8 +331,9 @@
       .copy-btn:hover { color: var(--navy); border-color: var(--navy); }
       .rec .body { position: relative; }
       .jump-bottom { position: absolute; bottom: 74px; left: 50%; transform: translateX(-50%); z-index: 20;
-        background: var(--accent); color: #fff; border: none; border-radius: 999px; padding: 7px 16px; font-size: 12px;
-        box-shadow: 0 6px 18px rgba(20,30,45,.3); }
+        background: color-mix(in srgb, var(--accent) 88%, #fff 12%); color: #fff; border: none; border-radius: 999px; padding: 7px 16px; font-size: 12px;
+        box-shadow: 0 6px 18px rgba(20,30,45,.35); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer; }
+      .jump-bottom:hover { background: var(--accent); transform: translateX(-50%) translateY(-1px); }
       .iv-chips { display: flex; gap: 6px; padding: 7px 2px 2px; flex-wrap: wrap; }
       .chip-mini { font-size: 11px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 999px; padding: 3px 10px; cursor: pointer; transition: .15s; }
       .chip-mini:hover { color: var(--navy); border-color: var(--navy); }
@@ -568,17 +569,17 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.2.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>
       <div class="controls">
         <span id="modelBadge" class="badge">模型: …</span>
         <span id="connBadge" class="badge"><span id="connDot" class="dot"></span><span id="connText">未连接</span></span>
-        <button class="ghost" onclick="openHelp()" title="使用指南">❓ 帮助</button>
-        <button class="ghost" id="btnTheme" onclick="toggleTheme()" title="切换明暗主题">🌙</button>
-        <button class="ghost" onclick="goHome()">🏛 新庭审</button>
-        <button class="ghost" onclick="openSettings()">⚙ 设置</button>
+        <button class="ghost" onclick="openHelp()" title="使用指南" aria-label="打开使用指南">❓ 帮助</button>
+        <button class="ghost" id="btnTheme" onclick="toggleTheme()" title="切换明暗主题" aria-label="切换明暗主题">🌙</button>
+        <button class="ghost" onclick="goHome()" aria-label="新建庭审">🏛 新庭审</button>
+        <button class="ghost" onclick="openSettings()" aria-label="打开设置">⚙ 设置</button>
       </div>
     </header>
 
@@ -622,10 +623,10 @@
         <div class="composer">
           <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…"></textarea>
           <div class="composer-bar">
-            <button class="ghost" onclick="document.getElementById('fileInput').click()">📎 上传 JSON 卷宗</button>
+            <button class="ghost" onclick="document.getElementById('fileInput').click()" aria-label="上传 JSON 卷宗文件">📎 上传 JSON 卷宗</button>
             <input id="fileInput" type="file" accept=".json,application/json" onchange="uploadCase(event)" />
-            <select id="landCase" onchange="onPickCase(this)"></select>
-            <button id="landStart" class="primary" onclick="landStart()">开庭审理 →</button>
+            <select id="landCase" onchange="onPickCase(this)" aria-label="选择案件"></select>
+            <button id="landStart" class="primary" onclick="landStart()" aria-label="开庭审理">开庭审理 →</button>
           </div>
         </div>
 
@@ -668,7 +669,7 @@
           <span class="linkbtn" onclick="openSettings(); switchTab('board')">在设置中调整出场顺序与每位专家的策略 →</span>
         </div>
 
-        <div class="cover-foot">当前审理引擎：<span id="landModel">…</span>　·　<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="openSettings()">修改引擎设置</button></div>
+        <div class="cover-foot">当前审理引擎：<span id="landModel">…</span>　·　<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="openSettings()" aria-label="修改引擎设置">修改引擎设置</button></div>
       </div>
     </div>
 
@@ -684,26 +685,26 @@
 
       <section class="center">
         <div class="center-head">
-          <button class="rail-btn" id="btnLeft" onclick="toggleRail('left')">案卷 ‹</button>
+          <button class="rail-btn" id="btnLeft" onclick="toggleRail('left')" aria-label="打开左侧案卷面板">案卷 ‹</button>
           <span class="ch-title">庭审笔录</span>
           <div id="stepper" class="stepper">
             <span data-s="open">受理</span><i>›</i><span data-s="debate">辩论</span><i>›</i><span data-s="verdict">裁决</span><i>›</i><span data-s="done">归档</span>
           </div>
           <span id="phase" class="phase">待命</span>
-          <button class="rail-btn" id="btnFocus" onclick="focusMode()" title="隐藏两侧面板，专注笔录">⛶ 聚焦</button>
-          <button class="rail-btn" onclick="copyTranscript()" title="复制全部发言到剪贴板">📋 全文</button>
-          <button class="rail-btn" id="btnStop" onclick="stopDebate()" title="停止当前辩论" style="display:none;color:var(--bad);border-color:#f3c2bd">⏹ 停止</button>
-          <a href="/static/flow.html" target="_blank" class="linkbtn" style="font-size:11.5px">流程图 ↗</a>
-          <button class="rail-btn" id="btnRight" onclick="toggleRail('right')">› 合议</button>
+          <button class="rail-btn" id="btnFocus" onclick="focusMode()" title="隐藏两侧面板，专注笔录" aria-label="聚焦模式：隐藏两侧面板">⛶ 聚焦</button>
+          <button class="rail-btn" onclick="copyTranscript()" title="复制全部发言到剪贴板" aria-label="复制全文">📋 全文</button>
+          <button class="rail-btn" id="btnStop" onclick="stopDebate()" title="停止当前辩论" style="display:none;color:var(--bad);border-color:#f3c2bd" aria-label="停止辩论">⏹ 停止</button>
+          <a href="/static/flow.html" target="_blank" class="linkbtn" style="font-size:11.5px" aria-label="查看流程图">流程图 ↗</a>
+          <button class="rail-btn" id="btnRight" onclick="toggleRail('right')" aria-label="打开右侧合议面板">› 合议</button>
         </div>
         <div class="progress"><div id="prog" style="width:0%"></div></div>
         <div id="speak" class="speak"></div>
         <div id="debate"><div class="empty">⚖️ 庭审尚未开始<br/>选择案件后点击「开庭审理」，专家们的每一句发言、每一次工具调用，都会实时落在这里。</div></div>
         <div id="intervene" class="intervene hidden">
           <input id="ivInput" placeholder="中途介入：向合议庭插话（将在下一轮生效）…" />
-          <button class="primary" onclick="sendIntervene()">插话</button>
+          <button class="primary" onclick="sendIntervene()" aria-label="向合议庭插话">插话</button>
         </div>
-        <button id="jumpBottom" class="jump-bottom hidden" onclick="$('debate').scrollTop=$('debate').scrollHeight; this.classList.add('hidden');">↓ 回到最新发言</button>
+        <button id="jumpBottom" class="jump-bottom hidden" onclick="$('debate').scrollTop=$('debate').scrollHeight; this.classList.add('hidden');" aria-label="滚动到最新发言">↓ 回到最新发言</button>
         <div id="ivChips" class="iv-chips hidden">
           <span class="chip-mini" onclick="fillIv('请补充核对关键证据的保管链与原始载体是否完整')">保管链</span>
           <span class="chip-mini" onclick="fillIv('请评估替代解释与第三人介入的可能性')">替代解释</span>
@@ -724,10 +725,10 @@
             <div class="sec-title">审判长裁决</div>
             <div id="verdictBox"></div>
             <div id="verdictTools" class="v-tools hidden">
-              <button class="ghost" onclick="copyVerdict()">📋 复制裁决</button>
-              <button class="ghost" onclick="downloadMarkdown()">⬇ 导出 MD</button>
-              <button class="ghost" onclick="printReport()">🖨 打印/PDF</button>
-              <button class="ghost" id="btnSpeak" onclick="speakVerdict()">🔊 朗读</button>
+              <button class="ghost" onclick="copyVerdict()" aria-label="复制裁决结果到剪贴板">📋 复制裁决</button>
+              <button class="ghost" onclick="downloadMarkdown()" aria-label="导出裁决结果为 Markdown 文件">⬇ 导出 MD</button>
+              <button class="ghost" onclick="printReport()" aria-label="打印裁决报告或导出 PDF">🖨 打印/PDF</button>
+              <button class="ghost" id="btnSpeak" onclick="speakVerdict()" aria-label="朗读裁决结果">🔊 朗读</button>
             </div>
             <div id="nextSteps" class="next-steps hidden"></div>
             <div id="qaBox" class="qa hidden">
@@ -736,32 +737,32 @@
               <div id="qaList"></div>
               <div class="qa-row">
                 <input id="qaInput" placeholder="如：为什么E-02被认定为关键疑点？" onkeydown="if(event.key==='Enter')askVerdict()" />
-                <button class="primary" onclick="askVerdict()">提问</button>
+                <button class="primary" onclick="askVerdict()" aria-label="提交质询问题">提问</button>
               </div>
             </div>
             <div id="hitl"></div>
-            <button id="dlReport" class="ghost hidden" style="width:100%;margin-top:10px" onclick="downloadReport()">⬇ 下载审判报告</button>
+            <button id="dlReport" class="ghost hidden" style="width:100%;margin-top:10px" onclick="downloadReport()" aria-label="下载完整审判报告">⬇ 下载审判报告</button>
           </div>
       </aside>
     </main>
 
     <!-- 移动端底部导航 -->
     <nav class="mobile-nav" id="mobileNav">
-      <button onclick="toggleMobilePanel('left')" id="navLeft"><span class="icon">📋</span>案卷</button>
-      <button onclick="toggleMobilePanel('center')" id="navCenter"><span class="icon">⚖️</span>笔录</button>
-      <button onclick="toggleMobilePanel('right')" id="navRight"><span class="icon">📝</span>合议</button>
-      <button onclick="openSettings()" id="navSettings"><span class="icon">⚙️</span>设置</button>
+      <button onclick="toggleMobilePanel('left')" id="navLeft" aria-label="打开案卷面板"><span class="icon">📋</span>案卷</button>
+      <button onclick="toggleMobilePanel('center')" id="navCenter" aria-label="打开笔录面板"><span class="icon">⚖️</span>笔录</button>
+      <button onclick="toggleMobilePanel('right')" id="navRight" aria-label="打开合议面板"><span class="icon">📝</span>合议</button>
+      <button onclick="openSettings()" id="navSettings" aria-label="打开设置"><span class="icon">⚙️</span>设置</button>
     </nav>
 
     <div id="settingsModal" class="modal hidden">
       <div class="modal-card">
-        <div class="modal-head"><span>合议庭设置</span><button class="ghost" onclick="closeSettings()">✕</button></div>
+        <div class="modal-head"><span>合议庭设置</span><button class="ghost" onclick="closeSettings()" aria-label="关闭设置面板">✕</button></div>
         <div class="tabs">
           <div class="tab on" data-tab="engine" onclick="switchTab('engine')">审理引擎</div>
           <div class="tab" data-tab="env" onclick="switchTab('env')">运行环境</div>
           <div class="tab" data-tab="board" onclick="switchTab('board')">合议庭组成</div>
           <div class="tab" data-tab="agents" onclick="switchTab('agents')">专家配置</div>
-          <div class="tab" data-tab="library" onclick="switchTab('library')">案例库</div>
+          <div class="tab" data-tab="library" onclick="switchTab('library'); refreshCaseLibrary(); refreshDebates()">案例库</div>
           <div class="tab" data-tab="kb" onclick="switchTab('kb'); loadKnowledge()">知识库</div>
           <div class="tab" data-tab="agent" onclick="switchTab('agent')">Agent 工程</div>
         </div>
@@ -794,6 +795,10 @@
             </div>
             <label class="mini" style="margin-top:8px">卷宗预处理模型（意图识别/分派，留空用主模型）</label>
             <input id="s_intake" placeholder="如 step-3.7-flash（JSON 输出更稳）" autocomplete="off" />
+            <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+              <button class="ghost" onclick="testSettings()" id="btnTest" aria-label="测试 API 连接">🔌 测试连接</button>
+              <span id="testResult" class="muted" style="font-size:12px"></span>
+            </div>
             <div class="muted" style="margin-top:4px">无论哪种模式，辩论中途你都可以随时「插话」介入下一轮。</div>
           </div>
           <div class="tabpane" id="tab-env">
@@ -804,12 +809,12 @@
             <div class="sec-title" style="margin-top:14px">安装更多环境（用户可扩展）</div>
             <div class="row2">
               <input id="s_pkg" placeholder="包名，如 scipy / openpyxl / seaborn" autocomplete="off" />
-              <button class="ghost" onclick="installPkg()">安装</button>
+              <button class="ghost" onclick="installPkg()" aria-label="安装 Python 包">安装</button>
             </div>
             <pre id="pkgOut" class="md" style="background:#0f1722;color:#d7e2ee;padding:10px 12px;border-radius:8px;max-height:160px;overflow:auto;margin-top:8px;white-space:pre-wrap;display:none"></pre>
             <div class="sec-title" style="margin-top:14px">试跑代码（验证沙箱）</div>
             <textarea id="s_try" rows="5" placeholder="在此粘贴 Python 试跑，例如：&#10;import matplotlib&#10;matplotlib.use('Agg')&#10;import matplotlib.pyplot as plt&#10;plt.plot([1,2,3],[3,1,2]); plt.savefig(os.environ['SANDBOX_OUT']+'/demo.png')" style="width:100%;font-family:var(--mono);font-size:12px;line-height:1.5;border:1px solid var(--line-strong);border-radius:8px;padding:9px;background:var(--surface);color:#1f2730"></textarea>
-            <div style="margin-top:8px"><button class="ghost" onclick="runTry()">运行</button> <span class="muted" style="font-size:11px">（图表将显示在下方；保存到 SANDBOX_OUT 目录）</span></div>
+            <div style="margin-top:8px"><button class="ghost" onclick="runTry()" aria-label="运行沙箱测试代码">运行</button> <span class="muted" style="font-size:11px">（图表将显示在下方；保存到 SANDBOX_OUT 目录）</span></div>
             <div id="tryOut" class="md sandbox-result" style="margin-top:10px"></div>
             <div class="disc" style="margin-top:10px">说明：沙箱以 <code>-I</code> 隔离模式、60 秒超时执行 LLM 生成的代码；首次使用会尽力安装基础库（numpy/pandas/matplotlib）。图表保存到沙箱目录后将以图片形式渲染在笔录中。证据/法条等工具调用结果同样以「沙箱」块展示。</div>
           </div>
@@ -821,8 +826,8 @@
           <div class="tabpane" id="tab-agents">
             <div class="muted" style="margin-bottom:6px">编辑每位专家的<b>系统提示词</b>与<b>可用工具</b>。留空则使用内置策略。配置可导出备份或在部署间迁移。</div>
             <div class="row2" style="margin-bottom:8px">
-              <button class="ghost" onclick="exportAgentConfig()">⬇ 导出配置</button>
-              <button class="ghost" onclick="document.getElementById('cfgImportFile').click()">⬆ 导入配置</button>
+              <button class="ghost" onclick="exportAgentConfig()" aria-label="导出专家配置">⬇ 导出配置</button>
+              <button class="ghost" onclick="document.getElementById('cfgImportFile').click()" aria-label="导入专家配置">⬆ 导入配置</button>
               <input id="cfgImportFile" type="file" accept=".json" style="display:none" onchange="importAgentConfig(event)" />
             </div>
             <div id="agentList"></div>
@@ -842,38 +847,38 @@
             <div class="muted" style="margin-bottom:8px">一键应用一组专家策略与总体指导语。应用后立即持久化，下一场审理生效。</div>
             <div class="row2" style="margin-bottom:8px">
               <select id="s_preset" style="flex:1"></select>
-              <button class="primary" onclick="applyPreset()">应用模板</button>
+              <button class="primary" onclick="applyPreset()" aria-label="应用专家策略模板">应用模板</button>
             </div>
             <div class="row2" style="margin-bottom:6px">
               <input id="presetName" placeholder="把当前专家策略另存为模板…" style="flex:1" />
-              <button class="ghost" onclick="savePreset()">另存当前</button>
-              <button class="ghost danger" onclick="deletePreset()">删除所选</button>
+              <button class="ghost" onclick="savePreset()" aria-label="另存当前专家策略为模板">另存当前</button>
+              <button class="ghost danger" onclick="deletePreset()" aria-label="删除当前选中的专家策略模板">删除所选</button>
             </div>
             <div id="presetMsg" class="muted" style="min-height:16px"></div>
           </div>
           <div class="tabpane" id="tab-kb">
             <div class="muted" style="margin-bottom:10px">垂直领域知识库：内置<strong>真实法条</strong>（刑法/刑诉法/民法典）与<strong>证据审查要旨</strong>（三性、保管链、电子数据），也可添加你自己的类案要旨、院内规范。专家的「检索法条」工具按 <b>本案卷宗 → 本知识库</b> 顺序引用——<b>命中才引用，检索不到绝不编造法号</b>。</div>
             <div class="row2" style="margin-bottom:10px">
-              <input id="kbSearch" placeholder="检索：如 证明标准 / 保管链 / 三性 / 违约 / 排除" onkeydown="if(event.key==='Enter')loadKnowledge()" />
-              <button class="ghost" onclick="loadKnowledge()">检索</button>
+              <input id="kbSearch" placeholder="检索：如 证明标准 / 保管链 / 三性 / 违约 / 排除" oninput="kbSearchInput()" onkeydown="if(event.key==='Enter')loadKnowledge()" />
+              <button class="ghost" onclick="loadKnowledge()" aria-label="检索知识库">检索</button>
             </div>
             <div id="kbList" class="kb-list"><div class='muted'>加载中…</div></div>
             <div class="sec-title" style="margin-top:16px">新增自定义条目</div>
             <input id="kbTitle" placeholder="标题，如：本院类案裁判要旨（盗窃既遂采失控说）" style="margin-bottom:8px" />
             <input id="kbKw" placeholder="触发关键词，逗号分隔：既遂,失控说,盗窃" style="margin-bottom:8px" />
             <textarea id="kbText" rows="3" placeholder="正文内容（要旨/规则/条文摘录）…" style="margin-bottom:10px"></textarea>
-            <button class="primary" onclick="addKnowledge()">加入知识库</button>
+            <button class="primary" onclick="addKnowledge()" aria-label="将当前案件加入知识库">加入知识库</button>
           </div>
           <div class="tabpane" id="tab-library">
             <div class="muted" style="margin-bottom:10px">案例库：所有上传/生成的案件。可删除、查看详情、或点击标题在落地页选中。</div>
             <div class="row2" style="margin-bottom:10px">
-              <button class="ghost" onclick="refreshCaseLibrary()">刷新列表</button>
-              <button class="primary" onclick="generateSampleCase(this)">生成示例案件</button>
+              <button class="ghost" onclick="refreshCaseLibrary()" aria-label="刷新案例库列表">刷新列表</button>
+              <button class="ghost" onclick="generateSampleCase(this)" aria-label="从示例生成一个测试案件">生成示例案件</button>
             </div>
             <div id="libList" class="lib-list"></div>
             <div class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
             <div class="row2" style="margin-bottom:10px">
-              <button class="ghost" onclick="refreshDebates()">刷新复盘</button>
+              <button class="ghost" onclick="refreshDebates()" aria-label="刷新案件复盘列表">刷新复盘</button>
             </div>
             <div id="debateList" class="lib-list"></div>
           </div>
@@ -881,8 +886,8 @@
         <div class="modal-foot">
           <span id="setMsg" class="muted"></span>
           <div>
-            <button class="ghost" onclick="closeSettings()">取消</button>
-            <button class="primary" onclick="saveSettings()">保存并应用</button>
+            <button class="ghost" onclick="closeSettings()" aria-label="取消并关闭设置">取消</button>
+            <button class="primary" onclick="saveSettings()" aria-label="保存设置并应用">保存并应用</button>
           </div>
         </div>
       </div>
@@ -890,7 +895,7 @@
 
     <div id="helpModal" class="modal hidden">
       <div class="modal-card" style="width:min(560px,94vw)">
-        <div class="modal-head"><span>使用指南 · 三步开庭</span><button class="ghost" onclick="closeHelp()">✕</button></div>
+        <div class="modal-head"><span>使用指南 · 三步开庭</span><button class="ghost" onclick="closeHelp()" aria-label="关闭使用指南">✕</button></div>
         <div class="modal-body" style="line-height:1.9;font-size:13px">
           <p style="margin-top:0"><b style="color:var(--navy)">① 提交卷宗</b>：拖入 PDF 判决书/起诉书/侦查报告，或直接粘贴案件描述、选择案例库。AI 自动识别意图并把材料分派给 7 位专家。</p>
           <p><b style="color:var(--navy)">② 开庭辩论</b>：点击「开庭审理」。专家并行举证、调用工具核验证据，纠错官每轮梳理矛盾推动深入；你随时可在下方输入框「插话」介入，下一轮全体专家都会回应。</p>
@@ -924,15 +929,23 @@
       async function init() {
         try { settingsCache = await (await fetch("/api/settings")).json(); } catch(e){ settingsCache={}; }
         applyModelBadge();
-        try { const ac = await (await fetch("/api/agent-config")).json(); ac.agents.forEach(a => agentsCfg[a.key]=a); } catch(e){}
+        try { const ac = await (await fetch("/api/agent-config")).json(); ac.agents.forEach(a => agentsCfg[a.key]=a); } catch(e){ toast("加载专家配置失败"); }
         roleMap = {}; Object.values(agentsCfg).forEach(a => roleMap[a.key]=a);
-        const cases = (await (await fetch("/api/cases")).json()).cases;
+        let cases = [];
+        try { cases = (await (await fetch("/api/cases")).json()).cases; } catch(e) { toast("加载案例列表失败: "+e.message); cases=[]; }
+        // 标题去重：若存在同名案件，自动追加 ID 后辍以便区分
+        const _titleCount={}; cases.forEach(c=>{_titleCount[c.title]=(_titleCount[c.title]||0)+1;});
+        const _titleDup={}; cases.forEach(c=>{if(_titleCount[c.title]>1)_titleDup[c.id]=c.title;});
         const land = $("landCase");
-        cases.forEach(c => { const o=document.createElement("option"); o.value=c.id; o.textContent=c.title; land.appendChild(o); });
+        land.innerHTML="";
+        cases.forEach(c => {
+          const label = _titleDup[c.id] ? c.title+" ["+c.id.slice(-4)+"]" : c.title;
+          const o=document.createElement("option"); o.value=c.id; o.textContent=label; land.appendChild(o);
+        });
         selectedCase = cases[0]?.id || "case_001"; land.value = selectedCase;
         land.onchange = () => { selectedCase = land.value; loadCase(); };
         Object.values(agentsCfg).filter(a=>a.enabled).forEach(a => enabledAgents.add(a.key));
-        renderCaseChips(cases);
+        renderCaseChips(cases, _titleDup);
         renderLandRoster();
         await loadCase();
       }
@@ -945,10 +958,10 @@
 
       function sortedAgents() { return Object.values(agentsCfg).slice().sort((a,b)=>a.order-b.order); }
       function isDebatable(k){ return k!=="judge" && k!=="critic"; }
-      function renderCaseChips(cases){
+      function renderCaseChips(cases, _titleDup){
         const box=$("caseChips"); if(!box) return; box.innerHTML="";
-        cases.slice(0,6).forEach(c=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=c.title; b.onclick=()=>{ const land=$("landCase"); land.value=c.id; selectedCase=c.id; loadCase(); }; box.appendChild(b); });
-        const set=document.createElement("button"); set.className="chip"; set.textContent="⚙ 设置"; set.onclick=()=>openSettings(); box.appendChild(set);
+        cases.slice(0,6).forEach(c=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=_titleDup&&_titleDup[c.id] ? c.title+" ["+c.id.slice(-4)+"]" : c.title; b.setAttribute("aria-label","选择案件："+b.textContent); b.onclick=()=>{ const land=$("landCase"); land.value=c.id; selectedCase=c.id; loadCase(); }; box.appendChild(b); });
+        const set=document.createElement("button"); set.className="chip"; set.textContent="⚙ 设置"; set.setAttribute("aria-label","打开设置"); set.onclick=()=>openSettings(); box.appendChild(set);
       }
       function renderLandRoster(){
         const box=$("landRoster"); if(!box) return; box.innerHTML="";
@@ -964,14 +977,21 @@
       function onPickCase(sel){ selectedCase=sel.value; loadCase(); }
       function hideLanding(){ $("landing").classList.add("hidden"); $("workspace").classList.remove("hidden"); }
 
-      async function loadCase() { caseDetail = await (await fetch("/api/cases/"+selectedCase)).json(); renderCase(); }
+      async function loadCase() {
+        try {
+          caseDetail = await (await fetch("/api/cases/"+selectedCase)).json();
+          renderCase();
+        } catch(e) {
+          toast("加载案件失败: "+e.message);
+        }
+      }
       async function regen(btn) {
         btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
         try { const d=await (await fetch("/api/cases/generate",{method:"POST"})).json();
           const cases=(await (await fetch("/api/cases")).json()).cases; const land=$("landCase"); land.innerHTML="";
           cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
           selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
-        } catch(e){ alert("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
+        } catch(e){ toast("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
       }
       async function uploadCase(evt) {
         const file = evt.target.files[0]; if(!file) return;
@@ -980,7 +1000,7 @@
           const text = await file.text(); const data = JSON.parse(text);
           showPdfDropMain(false);
           await startPreprocessing(data, file.name);
-        } catch(err){ alert("上传失败："+err.message); }
+        } catch(err){ toast("上传失败："+err.message); }
         evt.target.value="";
       }
 
@@ -993,7 +1013,7 @@
       function showPdfDropMain(show) { const el=$("pdfDropMain"); if(el) el.classList.toggle("hidden",!show); }
 
       async function uploadPdfFile(file) {
-        if (!file.name.toLowerCase().endsWith(".pdf")) { alert("请选择 PDF 文件"); return; }
+        if (!file.name.toLowerCase().endsWith(".pdf")) { toast("请选择 PDF 文件"); return; }
         const infoEl=$("pdfFileInfoMain");
         if(infoEl){ infoEl.innerHTML=`<span style="font-size:20px">📄</span><span class="fname">${escape(file.name)}</span><span class="fsize">${(file.size/1024).toFixed(0)} KB</span><span class="fok">✓ 已选择</span>`; infoEl.classList.remove("hidden"); }
         showPdfDropMain(false);
@@ -1026,20 +1046,14 @@
         // 第1步：文档解析（客户端，几乎瞬间）
         await animateStep(0, "正在读取文件…");
         const t0=Date.now();
-        await sleep(300);
-
-        // 如果是文本输入（非PDF），先构建case
         if (!caseData.file_type && caseData.summary) {
           setPpStep(0,"done",`文本已解析 · ${caseData.summary.length} 字`);
         } else {
           setPpStep(0,"done",`PDF 文本提取完成 · ${(caseData.file_name||"").split(".").pop().toUpperCase()}`);
         }
 
-        // 第2-4步：调用后端 AI（实际是同一个请求，但前端逐步展示）
-        await animateStep(1, `正在调用 ${modelName} 识别意图…`);
-        await sleep(200);
-
-        // 发送到后端（AI 在这里做真正的推理）
+        // 调用后端 AI 做真正的推理（意图识别 + 强度评估 + 提示词生成 + 材料分派全在一次性请求中完成）
+        await animateStep(1, `正在调用 ${modelName} 进行深度分析…`);
         const t1=Date.now();
         let d;
         try {
@@ -1054,25 +1068,21 @@
         const b=d.case.brief||{};
 
         // 展示真实结果
-        setPpStep(1,"done",`意图识别完成 · ${elapsed}s · "${(b.intent||"").slice(0,30)}"`);
-        await sleep(200);
+        setPpStep(1,"done",`AI 分析完成 · ${elapsed}s · "${(b.intent||"").slice(0,30)}"`);
 
         setPpStep(2,"done",`强度: ${({low:"低",medium:"中",high:"高"}[b.reasoning_intensity]||b.reasoning_intensity||"—")}`);
-        await sleep(150);
 
         setPpStep(3,"done",`提示词已生成 · ${(b.global_guidance||"").length} 字`);
-        await sleep(150);
 
         const roleCount = b.per_role_material ? Object.keys(b.per_role_material).length : 0;
         setPpStep(4,"done",`已分发到 ${roleCount} 位专家`);
-
-        // 显示真实结果
-        await sleep(300);
         showPreprocessingResult(d.case, fileName, elapsed);
         // 刷新案件列表
         const cases=(await(await fetch("/api/cases")).json()).cases;
+        const _tc={}; cases.forEach(c=>{_tc[c.title]=(_tc[c.title]||0)+1;});
+        const _td={}; cases.forEach(c=>{if(_tc[c.title]>1)_td[c.id]=c.title;});
         const land=$("landCase"); land.innerHTML="";
-        cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
+        cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=_td[c.id]?c.title+" ["+c.id.slice(-4)+"]":c.title;land.appendChild(o);});
         selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
       }
 
@@ -1257,8 +1267,8 @@
         $("navCenter").classList.add("active");
       }
       function landStart(){
-        if(enabledAgents.size===0){ alert("请至少选择一位出庭专家（设置中可调整）。"); return; }
-        if(!selectedCase){ alert("请先在左侧选择一个案件（或生成示例案件）再开庭。"); return; }
+        if(enabledAgents.size===0){ toast("请先在设置中至少选择一位出庭专家"); return; }
+        if(!selectedCase){ toast("请先选择一个案件（或生成示例案件）再开庭"); return; }
         applyMode();
         // 将落地页的预处理结果同步到工作区
         const b = (caseDetail && caseDetail.brief) || {};
@@ -1303,9 +1313,9 @@
         ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
       function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(); }
-      function stopDebate(){
+      async function stopDebate(){
         if(!running || !ws){ return; }
-        if(!confirm("确定要停止当前辩论吗？已生成的发言和裁决将保留。")){ return; }
+        if(!await confirmDialog("确定要停止当前辩论吗？已生成的发言和裁决将保留。")){ return; }
         try{ ws.send(JSON.stringify({type:"stop"})); }catch(e){}
         manualClose=true;
         try{ ws.close(); }catch(e){}
@@ -1318,9 +1328,9 @@
         setSpeak("辩论已由用户停止", false);
         toast("辩论已停止");
       }
-      function retryConnect(){
+      async function retryConnect(){
         hideBanner();
-        if(confirm("重新连接将从头开始一场新的辩论，之前的发言不会保留。确定继续吗？")){
+        if(await confirmDialog("重新连接将从头开始一场新的辩论，之前的发言不会保留。确定继续吗？")){
           wsRetries=0; manualClose=false; doConnect();
         }
       }
@@ -1447,11 +1457,12 @@
       }
       let _renderQueued = false;
       function scheduleRender(){ // token 事件每秒可达上百次，逐次全量重绘会卡死主线程；按动画帧合并。
-        // rAF 在页面不可见时会被浏览器暂停，故叠加 200ms 定时兜底，避免后台切回时看起来"冻结"。
+        // 单专家顺序发言时，token 间隔约 4ms；16ms 刷新间隔可做到接近逐字显示，
+        // 叠加 80ms 兜底确保后台切回时看起来流畅不冻结。
         if(_renderQueued) return; _renderQueued = true;
         const flush = () => { if(!_renderQueued) return; _renderQueued = false; renderDebate(); };
         requestAnimationFrame(flush);
-        setTimeout(flush, 200);
+        setTimeout(flush, 80);
       }
       function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts); return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0")+":"+d.getSeconds().toString().padStart(2,"0"); }
       function renderDebate(){ const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
@@ -1655,7 +1666,7 @@
         $("settingsModal").classList.remove("hidden");
       }
       function closeSettings(){ $("settingsModal").classList.add("hidden"); }
-      function switchTab(name){ document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name)); document.querySelectorAll(".tabpane").forEach(p=>p.classList.toggle("on",p.id==="tab-"+name)); }
+      function switchTab(name){ document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name)); document.querySelectorAll(".tabpane").forEach(p=>p.classList.toggle("on",p.id==="tab-"+name)); if(name==="board") renderBoard(); if(name==="agents") renderAgentConfig(); }
       function syncSettingsFields(){ const p=$("s_provider").value, local=p==="ollama", mock=p==="mock";
         if(local){ $("s_base").value=settingsCache.ollama_base_url||"http://localhost:11434/v1"; $("s_model").value=settingsCache.ollama_model||"qwen2.5:14b"; $("s_key").value=""; $("s_key").disabled=true; $("s_key").style.opacity=.4; $("lblKey").textContent="API Key（本地无需）"; $("lblBase").textContent="Ollama Base URL"; $("lblModel").textContent="Ollama 模型"; }
         else if(mock){ ["s_base","s_key","s_model"].forEach(id=>{$(id).value="";$(id).disabled=true;$(id).style.opacity=.4;}); $("lblBase").textContent="API Base URL"; $("lblKey").textContent="API Key"; $("lblModel").textContent="模型名称"; }
@@ -1680,6 +1691,21 @@
           const r=await fetch("/api/sandbox/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
           const d=await r.json(); out.innerHTML = (d.result!=null)? renderSandbox(d.result) : ("<span class='muted'>"+(d.error||("HTTP "+r.status))+"</span>");
         } catch(e){ out.innerHTML="<span class='muted'>请求失败: "+escape(e.message)+"</span>"; }
+      }
+      async function testSettings(){
+        const p=$("s_provider").value;
+        const payload={ llm_provider:p };
+        if(p==="ollama"){ payload.ollama_base_url=$("s_base").value.trim(); payload.ollama_model=$("s_model").value.trim(); }
+        else if(p==="openai_compatible"||p==="openai"){ payload.llm_base_url=$("s_base").value.trim(); payload.llm_api_key=$("s_key").value.trim(); payload.llm_model=$("s_model").value.trim(); }
+        const btn=$("btnTest"); btn.disabled=true; btn.textContent="测试中…"; $("testResult").textContent="";
+        try {
+          const r=await fetch("/api/settings/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+          const d=await r.json();
+          const el=$("testResult");
+          if(d.ok){ el.innerHTML=`✅ <b>${d.model||p}</b> · ${d.elapsed_s??0}s · <span style="color:var(--success)">${d.message||"连接正常"}</span>`; }
+          else { el.innerHTML=`❌ ${escape(d.error||"未知错误")}`; }
+        } catch(e){ $("testResult").innerHTML=`❌ 请求失败: ${escape(e.message)}`; }
+        finally { btn.disabled=false; btn.textContent="🔌 测试连接"; }
       }
       async function saveSettings(){
         const p=$("s_provider").value;
@@ -1765,7 +1791,7 @@
       }
       async function deletePreset(){
         const name=$("s_preset").value; if(!name) return;
-        if(!confirm("删除模板「"+name+"」？")) return;
+        if(!await confirmDialog("删除模板「"+name+"」？")) return;
         try {
           const r=await fetch("/api/presets/"+encodeURIComponent(name),{method:"DELETE"});
           const d=await r.json().catch(()=>({}));
@@ -1775,6 +1801,8 @@
       }
 
       // ---------- 知识库 ----------
+      let kbDebounce=null;
+      function kbSearchInput(){ clearTimeout(kbDebounce); kbDebounce=setTimeout(loadKnowledge, 320); }
       async function loadKnowledge(){
         const box=$("kbList"); if(!box) return;
         const q=($("kbSearch")||{}).value||"";
@@ -1789,7 +1817,7 @@
             el.innerHTML=`<div class="kb-title">${escapeHtml(e.title)}</div><div class="kb-meta">${escapeHtml(e.category||"")}${kws}</div><div class="kb-text md">${escapeHtml(e.text||"")}</div>`;
             if(e.source==="custom"){
               const btn=document.createElement("button"); btn.className="ghost danger"; btn.textContent="删除"; btn.style.marginTop="8px"; btn.style.fontSize="11px";
-              btn.onclick=async()=>{ if(!confirm("删除该自定义条目？")) return; await fetch("/api/knowledge/"+e.id,{method:"DELETE"}); loadKnowledge(); };
+              btn.onclick=async()=>{ if(!await confirmDialog("删除该自定义条目？")) return; await fetch("/api/knowledge/"+e.id,{method:"DELETE"}); loadKnowledge(); };
               el.appendChild(btn);
             } else {
               const tag=document.createElement("span"); tag.className="badge"; tag.textContent="内置"; tag.style.marginTop="8px"; tag.style.fontSize="10px";
@@ -1819,6 +1847,7 @@
         } catch(e){ box.innerHTML="<div class='muted' style='color:var(--bad)'>加载失败: "+escape(e.message)+"</div>"; }
         refreshDebates();
       }
+      function fmtDateTime(ts){ if(!ts) return ""; const d=new Date(ts); if(isNaN(d.getTime())) return String(ts); const p=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
       async function refreshDebates(){
         const box=$("debateList"); if(!box) return; box.innerHTML="<div class='muted'>加载中…</div>";
         let list=[]; try{ list=await (await fetch("/api/debates")).json(); }catch(e){ list=[]; }
@@ -1828,7 +1857,7 @@
           const el=document.createElement("div"); el.className="lib-item";
           const t=escape((d.truth||"无结论").slice(0,70));
           const u=(d.usage&&d.usage.calls)?(" · 推理 "+d.usage.calls+" 次"):"";
-          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(d.case_title||"案件")}</div><div class="lib-meta">${d.started_at||""} · ${d.rounds||0}轮 · ${d.model||""}${u}</div></div><div class="lib-sub" style="margin:4px 0">${t}</div>`;
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(d.case_title||"案件")}</div><div class="lib-meta">${fmtDateTime(d.started_at)||""} · ${d.rounds||0}轮 · ${d.model||""}${u}</div></div><div class="lib-sub" style="margin:4px 0">${t}</div>`;
           const btn=document.createElement("button"); btn.className="ghost"; btn.textContent="打开复盘"; btn.style.marginTop="6px";
           btn.onclick=()=>openReplay(d.session_id);
           el.appendChild(btn); box.appendChild(el);
@@ -1838,11 +1867,11 @@
         closeSettings();
         manualClose = true; try { if (ws && ws.readyState <= 1) ws.close(); } catch(e){}
         running = false; wsRetries = 0; $("landStart").disabled = false;
-        let rec=null; try{ rec=await (await fetch("/api/debates/"+sid)).json(); }catch(e){ return; }
+        let rec=null; try{ rec=await (await fetch("/api/debates/"+sid)).json(); }catch(e){ toast("加载复盘记录失败"); return; }
         if(!rec || !Array.isArray(rec.events)){ toast("复盘记录不可用"); return; }
         hideLanding();
         // 载入案件卷宗，保证复盘视图与报告正确
-        if(rec.case_id){ try{ const c=await (await fetch("/api/cases/"+rec.case_id)).json(); if(c && c.id){ selectedCase=c.id; caseDetail=c; renderCase(); } }catch(e){} }
+        if(rec.case_id){ try{ const c=await (await fetch("/api/cases/"+rec.case_id)).json(); if(c && c.id){ selectedCase=c.id; caseDetail=c; renderCase(); } }catch(e){ toast("加载复盘案件失败"); } }
         reset();
         rec.events.forEach(ev=>handle(ev));
         setPhase("done");
@@ -1867,7 +1896,7 @@
         } catch(e){ toast("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
       }
       async function deleteCase(id){
-        if(!confirm("确定删除案件 "+id+"？此操作不可恢复。")) return;
+        if(!await confirmDialog("确定删除案件 "+id+"？此操作不可恢复。")) return;
         try {
           const r=await fetch("/api/cases/"+id,{method:"DELETE"}); if(!r.ok) throw new Error("HTTP "+r.status);
           toast("已删除: "+id); await refreshCaseLibrary();
@@ -1876,12 +1905,24 @@
         } catch(e){ toast("删除失败: "+e.message); }
       }
       function viewCase(id){
-        // 在落地页选中并加载详情
+        // "查看"= 选中案件并直接进入工作区研读卷宗（与落地页停留区分开）
         selectCaseFromLib(id);
         closeSettings();
+        hideLanding();
+        $("landStart").disabled = false;
+        toast("已载入案件卷宗，可点击「开庭审理」开始辩论");
       }
       function selectCaseFromLib(id){
-        selectedCase=id; const land=$("landCase"); if(land) land.value=id; loadCase();
+        selectedCase=id;
+        const land=$("landCase");
+        if(land){
+          // 落地页下拉只预载了部分案件；从案例库选中新上传/新生成的案件时动态补齐选项，保证 value 能设置成功
+          if(!Array.from(land.options).some(o=>o.value===id)){
+            const o=document.createElement("option"); o.value=id; o.textContent=id; land.appendChild(o);
+          }
+          land.value=id;
+        }
+        loadCase();
       }
 
       let _focused = false;
@@ -1921,6 +1962,34 @@
         try { pref = localStorage.getItem("vai_theme") || "light"; } catch(e){}
         applyTheme(pref === "dark");
       })();
+
+      // 全局错误处理
+      window.addEventListener('unhandledrejection', e => {
+        console.error('[UnhandledRejection]', e.reason);
+        e.preventDefault();
+        toast("⚠️ 系统错误: "+(e.reason?.message||String(e.reason)));
+      });
+      window.addEventListener('error', e => {
+        console.error('[GlobalError]', e.message, e.filename+':'+e.lineno);
+        toast("⚠️ 系统错误，请刷新页面");
+      });
+
+      // 轻量级 confirm modal
+      function confirmDialog(msg){
+        return new Promise(resolve=>{
+          const overlay=document.createElement("div"); overlay.className="modal"; overlay.innerHTML=`
+            <div class="modal-card" style="width:min(400px,90vw)">
+              <div class="modal-head"><span>确认操作</span><button class="ghost" onclick="this.closest('.modal').remove();resolve(false)" style="font-size:16px" aria-label="关闭确认弹窗">✕</button></div>
+              <div class="modal-body"><p style="margin:0;line-height:1.7">${escapeHtml(msg)}</p></div>
+              <div class="modal-foot"><div style="margin-left:auto"><button class="ghost" id="cd-no" aria-label="取消操作">取消</button><button class="primary" id="cd-yes" aria-label="确认操作">确认</button></div></div>
+            </div>`;
+          document.body.appendChild(overlay);
+          const close=()=>{ overlay.remove(); };
+          overlay.querySelector("#cd-no").onclick=()=>{ close(); resolve(false); };
+          overlay.querySelector("#cd-yes").onclick=()=>{ close(); resolve(true); };
+          overlay.addEventListener("click",e=>{ if(e.target===overlay){ close(); resolve(false); }});
+        });
+      }
 
       // 键盘快捷键
       document.addEventListener("keydown", (e) => {

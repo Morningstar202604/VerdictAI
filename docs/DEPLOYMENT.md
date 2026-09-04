@@ -19,6 +19,7 @@
 | `CONTEXT_CHAR_LIMIT` | `12000` | Max characters per LLM call (0 = unlimited) |
 | `MAX_CONCURRENCY` | `4` | Parallel expert cap per round |
 | `LLM_TIMEOUT` | `180` | Per-call timeout in seconds (0 = unlimited) |
+| `LLM_MAX_TOKENS` | `0` | Max output tokens per call (reasoning-chain models truncate JSON if too low; 4000–8000 recommended) |
 | `WEB_SEARCH_ENABLED` | `true` | Enable the Bing-CN web search tool |
 
 ## One-Command Start / Stop
@@ -120,19 +121,54 @@ server {
 }
 ```
 
-## Docker (Coming Soon)
+## Docker Deployment
+
+Two services, orchestrated by `docker-compose.yml` at the repo root:
+
+| Service | Image | Exposed Port | Purpose |
+|---|---|---|---|
+| `backend` | `backend/Dockerfile` (python:3.11-slim) | `8787` | FastAPI app + built-in UI + static assets |
+| `frontend` | `frontend/Dockerfile` (node:20 → nginx:1.27) | `8080` | React build served by nginx, reverses `/api` `/ws` `/static` `/sandbox` to backend |
+
+The backend image installs `fonts-noto-cjk` so matplotlib charts render Chinese correctly.
+
+### 1. Quick Start
 
 ```bash
-docker build -t verdictai .
-docker run -d \
-  -p 8787:8787 \
-  -e LLM_PROVIDER=openai_compatible \
-  -e LLM_API_KEY=your-key \
-  -e LLM_BASE_URL=https://api.example.com/v1 \
-  -e LLM_MODEL=gpt-4o-mini \
-  -v verdictai-data:/app/backend/data \
-  verdictai
+git clone https://github.com/Morningstar202604/VerdictAI.git
+cd VerdictAI
+
+cp backend/.env.example backend/.env      # fill in LLM_API_KEY etc.
+docker compose up -d --build
 ```
+
+Then open:
+- **React frontend**: http://<server>:8080
+- **Backend built-in UI**: http://<server>:8787
+
+Persistent data (case library, debate records, generated charts) lives in `./backend/data`, mounted into the container at `/app/data`.
+
+### 2. Manage
+
+```bash
+docker compose ps            # status
+docker compose logs -f backend
+docker compose restart backend
+docker compose down          # stop (data persists in ./backend/data)
+```
+
+### 3. Upgrade
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+### 4. Notes
+
+- **API keys never enter the image**: `env_file: ./backend/.env` is injected at runtime; `.env` is git- and docker-ignored.
+- **Single backend worker by design**: debate sessions are in-process state; keep 1 replica unless you add a shared store.
+- **CORS**: the React frontend is same-origin through nginx, so no extra CORS config is needed.
 
 ## Performance Notes
 

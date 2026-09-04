@@ -185,6 +185,8 @@ python tools/start_all.py
 # stop everything: python tools/start_all.py stop
 ```
 
+**Production (Docker)**: `docker compose up -d --build` at the repo root → React frontend on `:8080`, backend built-in UI on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 **Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
 
 ## 🔌 Connect a Real LLM

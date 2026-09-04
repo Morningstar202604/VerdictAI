@@ -4,14 +4,15 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 
-from fastapi import FastAPI, WebSocket, Form
+from fastapi import FastAPI, Request, WebSocket, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.config import settings
+from app.config import settings, MAX_PDF_PAGES, MAX_PDF_CHARS
 from app.data import generate_case
 from app.data.store import list_cases, load_case, validate_id
 from app.agents.roles import role_list
@@ -27,7 +28,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-app = FastAPI(title="VerdictAI", version="0.1.0")
+app = FastAPI(title="VerdictAI", version="0.2.0")
 import time as _time
 _START_TIME = _time.time()
 
@@ -112,7 +113,7 @@ def login_page():
 
 
 @app.post("/login")
-def login_submit(password: str = Form("")):
+def login_submit(request: Request, password: str = Form("")):
     from fastapi.responses import HTMLResponse, RedirectResponse
 
     if not settings.access_password:
@@ -212,7 +213,7 @@ def health():
         "mock": settings.llm_provider == "mock",
         "max_rounds": settings.max_rounds,
         "max_concurrency": settings.max_concurrency,
-        "active_sessions": len(getattr(manager, "sessions", {})),
+        "active_sessions": len(manager.active),
         "auth_enabled": bool(settings.access_password),
         "uptime": int(_time.time() - _START_TIME),
     }
@@ -298,7 +299,22 @@ async def regenerate():
     # 给示例案件一个新 ID，避免覆盖 case_001
     new_id = "case_" + uuid.uuid4().hex[:8]
     case["id"] = new_id
-    case["title"] = case.get("title", "示例案件") + " (副本)"
+    # 标题去重：以原题去掉"(副本…)"后缀为基底，统计已有同源副本数，递增编号
+    base = re.sub(r"\s*\(副本\d*\)\s*$", "", case.get("title", "示例案件"))
+    existing = 0
+    try:
+        for fn in os.listdir(os.path.join(data_dir, "cases")):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(data_dir, "cases", fn), encoding="utf-8") as f:
+                    if (json.load(f).get("title") or "").startswith(base):
+                        existing += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    case["title"] = base + (" (副本)" if existing <= 1 else f" (副本{existing})")
     try:
         case["brief"] = await preprocess(case)
     except Exception:
@@ -319,6 +335,41 @@ def post_settings(payload: dict):
     return update_settings(payload)
 
 
+@app.post("/api/settings/test")
+def test_settings(payload: dict):
+    """测试 LLM 连接是否可用，返回连通状态和耗时。"""
+    import time as _time
+    provider = (payload or {}).get("llm_provider", "openai_compatible").strip().lower()
+    api_key = (payload or {}).get("llm_api_key", "").strip()
+    base_url = (payload or {}).get("llm_base_url", "").strip() or None
+    model = (payload or {}).get("llm_model", "").strip() or "gpt-4o-mini"
+    result: dict = {"ok": False, "model": model, "provider": provider}
+    if not api_key:
+        result["error"] = "API Key 为空"
+        return result
+    if provider == "mock":
+        result["ok"] = True
+        result["message"] = "Mock 模式：离线模拟，无需联网"
+        return result
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        t0 = _time.time()
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "回复：ok"}],
+            max_tokens=4,
+            timeout=15.0,
+        )
+        elapsed = round(_time.time() - t0, 2)
+        used_model = resp.model or model
+        text = (resp.choices[0].message.content or "").strip()
+        result.update({"ok": True, "model": used_model, "elapsed_s": elapsed, "message": text})
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {e}"
+    return result
+
+
 @app.get("/api/agent-config")
 def get_agent_config():
     return {"agents": agent_config.effective_list()}
@@ -326,7 +377,11 @@ def get_agent_config():
 
 @app.post("/api/agent-config")
 def post_agent_config(payload: dict):
-    data = payload.get("agents", payload) if isinstance(payload, dict) else {}
+    data = payload.get("agents", payload) if isinstance(payload, dict) else payload
+    # 兼容三种提交形状：{agents:{key:cfg}}（设置页保存）、
+    # {agents:[{key:cfg},...]}（导出/导入文件）、{key:cfg}（直接对象）
+    if isinstance(data, list):
+        data = {it.get("key"): it for it in data if isinstance(it, dict) and it.get("key")}
     return {"agents": agent_config.save(data)}
 
 
@@ -353,7 +408,7 @@ def sandbox_run(payload: dict):
 
 
 def _extract_pdf_text(
-    b64_content: str, max_pages: int = 50, max_chars: int = 60000
+    b64_content: str, max_pages: int = MAX_PDF_PAGES, max_chars: int = MAX_PDF_CHARS
 ) -> str:
     """从 base64 编码的 PDF 中提取文本。
 
@@ -374,7 +429,7 @@ def _extract_pdf_text(
             # 尝试空密码解密（很多 PDF 用空密码加密只是限制编辑）
             if not doc.authenticate(""):
                 doc.close()
-                log.warning("PDF 已加密且无法用空密码解密: %s", filename)
+                log.warning("PDF 已加密且无法用空密码解密")
                 return "__ENCRYPTED__"
         pages = []
         truncated_pages = False
@@ -444,6 +499,23 @@ async def upload_case(payload: dict):
     data["id"] = cid
     cases_dir = os.path.join(data_dir, "cases")
     os.makedirs(cases_dir, exist_ok=True)
+    # 标题去重：避免同名案件在列表中混淆
+    _base = re.sub(r"\s*\(副本\d*\)\s*$", "", data.get("title", "上传案件"))
+    _existing = 0
+    try:
+        for _fn in os.listdir(cases_dir):
+            if not _fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(cases_dir, _fn), encoding="utf-8") as _f:
+                    if (json.load(_f).get("title") or "").startswith(_base) and json.load(_f).get("id") != cid:
+                        _existing += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    if _existing >= 1:
+        data["title"] = _base + f" (副本{_existing})"
     try:
         data["brief"] = await preprocess(data)
     except Exception as ex:
@@ -464,6 +536,8 @@ async def upload_case(payload: dict):
 @app.delete("/api/cases/{case_id}")
 async def delete_case(case_id: str):
     """删除案件（案例库管理）。"""
+    import shutil
+
     if not validate_id(case_id):
         return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
     cases_dir = os.path.join(data_dir, "cases")
@@ -471,6 +545,9 @@ async def delete_case(case_id: str):
     if not os.path.exists(path):
         return JSONResponse({"error": "案件不存在"}, status_code=404)
     os.remove(path)
+    assets_dir = os.path.join(cases_dir, "assets", case_id)
+    if os.path.exists(assets_dir):
+        shutil.rmtree(assets_dir)
     return {"deleted": case_id}
 
 
