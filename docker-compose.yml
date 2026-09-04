@@ -1,0 +1,41 @@
+# ===== VerdictAI 生产部署 =====
+# 用法：
+#   cp backend/.env.example backend/.env   # 填写 LLM 密钥等配置
+#   docker compose up -d --build
+# 访问：前端(React) http://<server>:8080   后端(自带UI) http://<server>:8787
+services:
+  backend:
+    build: ./backend
+    container_name: verdictai-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # 容器内固定数据目录（app/config.py 相对路径基准 /app）
+      DATA_DIR: /app/data
+      SANDBOX_OUT_DIR: /app/data/sandbox_out
+    volumes:
+      # 案例库 / 辩论记录 / 图表资产持久化
+      - ./backend/data:/app/data
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8787/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: verdictai-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+      # 仅开发调试用：若不需要 React 前端，可移除本服务，直接访问 8787
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

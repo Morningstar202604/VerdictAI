@@ -1,0 +1,13 @@
+# 忽略本地环境与数据，避免层体积膨胀/泄密
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+data/
+dogfood-output/
+*_test.py
+test-data/
+.pytest_cache/

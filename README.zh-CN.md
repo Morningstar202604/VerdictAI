@@ -182,6 +182,8 @@ python tools/start_all.py
 # 停止：python tools/start_all.py stop
 ```
 
+**生产部署（Docker）**：根目录 `docker compose up -d --build` → React 前端 `:8080` / 后端自带 UI `:8787`，详见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+
 **打开 http://localhost:8787** → 拖入 PDF 卷宗（或粘贴案情/选示例）→ 看 AI 解析出结构化案卷 → 点击「开庭审理」→ 实时观看 7 位 AI 专家辩论。
 
 ## 🔌 接入真实大模型
