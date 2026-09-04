@@ -36,7 +36,15 @@
 ## ✨ What Makes VerdictAI Different?
 
 | | Traditional AI Q&A | **VerdictAI** |
-|---|-## 📸 Screenshots
+|---|---|---|
+| Approach | Single model, single answer | **7 specialized agents** debate & challenge each other |
+| Output | One-shot text | **Multi-round deliberation** + contradiction detection |
+| Transparency | Black box | **Full event stream** — every token, tool call, agent status |
+| Citations | Hallucinated | **Real statutes & precedent digests** — retrieved from a built-in knowledge base, never fabricated |
+| Documents | Unstructured uploads | **AI document understanding** — people / evidence / timeline / statutes auto-extracted from plain PDFs |
+| Verdict | "AI says so" | **Structured verdict** with evidence chain, open questions and an executable next-steps checklist |
+
+## 📸 Screenshots
 
 | | |
 |---|---|
@@ -44,14 +52,6 @@
 | *Case intake — PDF upload, roster, AI extraction* | *Live trial — 7 experts, human intervention, usage stats* |
 | ![Verdict & post-verdict workflow](docs/screenshots/verdict-workflow.png) | ![Dark mode](docs/screenshots/dark-mode.png) |
 | *Verdict, Q&A, executable next-steps checklist* | *Dark theme, full transcript* |
-
---|---|
-| Approach | Single model, single answer | **7 specialized agents** debate & challenge each other |
-| Output | One-shot text | **Multi-round deliberation** + contradiction detection |
-| Transparency | Black box | **Full event stream** — every token, tool call, agent status |
-| Citations | Hallucinated | **Real statutes & precedent digests** — retrieved from a built-in knowledge base, never fabricated |
-| Documents | Unstructured uploads | **AI document understanding** — people / evidence / timeline / statutes auto-extracted from plain PDFs |
-| Verdict | "AI says so" | **Structured verdict** with evidence chain, open questions and an executable next-steps checklist |
 
 ## 🎯 Features
 
