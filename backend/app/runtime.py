@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from app.config import settings
+from app.config import settings, MAX_ROUNDS
 
 ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 
@@ -22,6 +22,7 @@ _MAP = {
     "context_char_limit": "CONTEXT_CHAR_LIMIT",
     "max_concurrency": "MAX_CONCURRENCY",
     "llm_timeout": "LLM_TIMEOUT",
+    "llm_max_tokens": "LLM_MAX_TOKENS",
     "web_search_enabled": "WEB_SEARCH_ENABLED",
     "intake_model": "INTAKE_MODEL",
     "code_sandbox_enabled": "CODE_SANDBOX_ENABLED",
@@ -46,6 +47,7 @@ def current() -> dict:
         "context_char_limit": settings.context_char_limit,
         "max_concurrency": settings.max_concurrency,
         "llm_timeout": settings.llm_timeout,
+        "llm_max_tokens": settings.llm_max_tokens,
         "web_search_enabled": settings.web_search_enabled,
         "intake_model": settings.intake_model,
         "code_sandbox_enabled": settings.code_sandbox_enabled,
@@ -78,7 +80,7 @@ def update(payload: dict) -> dict:
 
     if "max_rounds" in payload and payload["max_rounds"] is not None:
         try:
-            settings.max_rounds = max(1, min(10, int(payload["max_rounds"])))
+            settings.max_rounds = max(1, min(MAX_ROUNDS, int(payload["max_rounds"])))
         except (TypeError, ValueError):
             pass
 
@@ -96,7 +98,7 @@ def update(payload: dict) -> dict:
             pass
     if "web_search_enabled" in payload and payload["web_search_enabled"] is not None:
         settings.web_search_enabled = bool(payload["web_search_enabled"])
-    for _f in ("memory_rounds", "context_char_limit", "max_concurrency", "llm_timeout"):
+    for _f in ("memory_rounds", "context_char_limit", "max_concurrency", "llm_timeout", "llm_max_tokens"):
         if _f in payload and payload[_f] is not None:
             try:
                 setattr(settings, _f, max(0, min(50000, int(payload[_f]))))
@@ -158,6 +160,7 @@ def _persist() -> None:
         "CONTEXT_CHAR_LIMIT": str(settings.context_char_limit),
         "MAX_CONCURRENCY": str(settings.max_concurrency),
         "LLM_TIMEOUT": str(settings.llm_timeout),
+        "LLM_MAX_TOKENS": str(settings.llm_max_tokens),
         "WEB_SEARCH_ENABLED": "true" if settings.web_search_enabled else "false",
         "INTAKE_MODEL": settings.intake_model,
         "CODE_SANDBOX_ENABLED": "true" if settings.code_sandbox_enabled else "false",

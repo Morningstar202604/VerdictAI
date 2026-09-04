@@ -49,6 +49,10 @@ export default function CasePanel({ cases, selectedId, onSelect, caseData }: Pro
                     src={`${apiBase()}${url}`}
                     alt={label}
                     className="w-full rounded border border-edge"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
                   />
                 </div>
               ))}

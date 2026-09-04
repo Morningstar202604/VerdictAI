@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from typing import Any, Awaitable, Callable, Dict, List
 
@@ -14,6 +15,8 @@ from app.config import settings
 from app.intake.processor import _extract_json
 from app.models.llm import get_llm, is_mock
 from app.models.state import DebateState
+
+log = logging.getLogger("debate.nodes")
 
 # 参与辩论的专家（审判长作为收敛节点单独处理）
 DEBATE_ROLES = [
@@ -313,15 +316,35 @@ async def experts_node(state: DebateState, config) -> Dict:
             )
         return role_key, text
 
-    # 同轮专家相互独立，并行执行以大幅缩短单轮耗时；跨轮记忆由 round_summaries 提供，
-    # 同轮内不再互相可见（避免串行等待）。并行上限可配置（真实 API 限流保护）。
-    _sem = asyncio.Semaphore(max(1, settings.max_concurrency))
+    # 同轮专家按辩论顺序依次发言，每人完成后才启动下一位；跨轮记忆由 round_summaries 提供。
+    # 单个专家失败（如该角色指定的模型不可用/超时）只影响本人：降级为兜底意见
+    # 并继续其余专家，绝不中断整场辩论或产生无人消费的孤儿任务。
 
     async def _run_one_limited(rk: str):
-        async with _sem:
+        try:
             return await _run_one(rk)
+        except asyncio.CancelledError:
+            raise
+        except Exception as ex:
+            log.warning("expert %s round %s failed: %s", rk, new_round, ex)
+            await sink(
+                {
+                    "kind": "agent_error",
+                    "role": rk,
+                    "name": ROLES.get(rk, {}).get("name", rk),
+                    "message": str(ex)[:200],
+                    "id": f"{rk}-{new_round}",
+                }
+            )
+            return rk, (
+                f"（{ROLES.get(rk, {}).get('name', rk)}本轮分析失败："
+                f"{str(ex)[:150]}，建议人工复核其证据推导。）"
+            )
 
-    results = await asyncio.gather(*[_run_one_limited(rk) for rk in order])
+    results = []
+    for rk in order:
+        r = await _run_one_limited(rk)
+        results.append(r)
     for role_key, text in results:
         claims[role_key] = text
 
@@ -411,6 +434,12 @@ async def judge_node(state: DebateState, config) -> Dict:
                 "口供存在矛盾",
             ],
             "doubts": ["被告供述与监控时间冲突", "物证保管链存在瑕疵"],
+            "next_steps": [
+                "对关键生物检材（凶器DNA）补充复核鉴定",
+                "调取监控原始载体并核验完整性（哈希比对）",
+                "就口供与监控时间冲突补充讯问并固定笔录",
+                "补全证据保管链记录后由人类法官复核定罪",
+            ],
             "recommendation": "建议补充DNA复核与监控原始数据，再由人类法官作出最终裁判。",
             "disclaimer": "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
         }

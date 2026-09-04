@@ -11,5 +11,5 @@
     "declaration": true,
     "outDir": "./node_modules/.tmp/tsnode"
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "package.json"]
 }

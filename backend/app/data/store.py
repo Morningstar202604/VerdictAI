@@ -33,6 +33,10 @@ def list_cases() -> List[Dict]:
                         "id": c.get("id"),
                         "title": c.get("title"),
                         "summary": c.get("summary", "")[:120],
+                        # 列表统计：人员/证据/时间线数量，供前端案例库直接展示
+                        "persons": c.get("persons") or [],
+                        "evidence": c.get("evidence") or [],
+                        "timeline": c.get("timeline") or [],
                         # 前端案例库用 brief.intake_done 显示「已预处理」标记
                         "brief": {
                             "intake_done": bool(
