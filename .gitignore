@@ -50,6 +50,11 @@ _criticlat*.py
 _speedtest.py
 _c.js
 
+# Runtime QA evidence (regenerable via make_pdf.py)
+backend/dogfood-output/test-data/*.pdf
+# Runtime-created upload-test assets
+backend/data/cases/assets/test_case_upload/
+
 # Secrets backup (never commit)
 backend/.env.backup-*
 backend/.env.*.bak
