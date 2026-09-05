@@ -228,7 +228,7 @@ def _extract_json(text: str) -> Optional[dict | list]:
     return best[1] if best else None
 
 
-async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
+async def _intake_llm(dossier: str, retries: int = 3, cfg: dict = None) -> Optional[dict]:
     prompt = (
         "你是一个严格的 JSON 生成器。只输出一个 JSON 对象，禁止任何额外文字、"
         '禁止 markdown 代码块、禁止对引号做转义（直接输出 {"key":"value"} 形式）。\n'
@@ -249,7 +249,12 @@ async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
     )
     for _ in range(retries):
         try:
-            llm = get_llm("分案法官", model=settings.intake_model, temperature=0.1)
+            llm = get_llm(
+                "分案法官",
+                model=(cfg or {}).get("intake_model") or settings.intake_model,
+                temperature=0.1,
+                cfg=cfg,
+            )
             resp = await llm.ainvoke([{"role": "user", "content": prompt}])
             text = resp.content if hasattr(resp, "content") else str(resp)
             obj = _extract_json(text)
@@ -292,8 +297,11 @@ async def _extract_images(case: dict) -> List[str]:
     return captions
 
 
-async def preprocess(raw: dict, use_llm: bool = True) -> dict:
+async def preprocess(raw: dict, use_llm: bool = True, cfg: dict = None) -> dict:
     """卷宗预处理：意图识别 + 思考强度 + 提示词 + 分类概括 + 分角色分发。
+
+    cfg 为辩论配置快照：开庭补跑预处理时传入，模型选择与辩论保持一致；
+    上传等辩论外调用不传，沿用全局 settings。
 
     注意：抽取到的人员/证据/时间线等结构会回写到传入的 raw（同一对象），
     调用方（如上传接口）应在调用后把 raw 持久化到案件文件，前端案卷与
@@ -310,7 +318,7 @@ async def preprocess(raw: dict, use_llm: bool = True) -> dict:
     summary = case.get("summary", "")
 
     if use_llm:
-        res = await _intake_llm(dossier)
+        res = await _intake_llm(dossier, cfg=cfg)
         if res:
             intent = res.get("intent") or intent
             intent_tags = res.get("intent_tags") or []

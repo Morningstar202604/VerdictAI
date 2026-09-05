@@ -110,3 +110,30 @@ class Settings:
 
 
 settings = Settings()
+
+
+# 辩论运行期会读到的全部可变配置。辩论开场拍快照（debate_snapshot），
+# 之后 settings 再被 POST /api/settings 修改也只影响新辩论，
+# 正在进行的会话完全不受干扰（见 CONTRIBUTING「Session config」）。
+_SNAPSHOT_FIELDS = (
+    "llm_provider",
+    "llm_api_key",
+    "llm_base_url",
+    "llm_model",
+    "ollama_base_url",
+    "ollama_model",
+    "temperature",
+    "max_rounds",
+    "judge_mode",
+    "hitl_timeout",
+    "memory_rounds",
+    "context_char_limit",
+    "llm_timeout",
+    "llm_max_tokens",
+    "web_search_enabled",
+    "intake_model",
+)
+
+
+def debate_snapshot() -> dict:
+    return {k: getattr(settings, k) for k in _SNAPSHOT_FIELDS}

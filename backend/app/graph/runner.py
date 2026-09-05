@@ -7,7 +7,7 @@ import time
 from typing import Optional
 
 from app.agents.tools import activate_case
-from app.config import settings
+from app.config import debate_snapshot, settings
 from app.data.store import atomic_write_json
 from app.graph.builder import build_graph
 from app.intake.processor import build_role_material, preprocess
@@ -26,11 +26,15 @@ async def run_debate(
         await manager.send(session_id, {"kind": "error", "message": "案件不存在或已被删除，请刷新后重新选择。"})
         return
 
+    # 开场拍配置快照：本场辩论全程只读快照，POST /api/settings 的后续变更
+    # 只影响新辩论，不干扰进行中的会话（并发会话互不污染）。
+    cfg = debate_snapshot()
+
     # 存量案件可能没有 brief（如直接放入 cases 目录、或旧版本生成）：
     # 开庭时自动补跑一次卷宗预处理，保证专家拿到结构化分案材料。
     if not (case.get("brief") or {}).get("intake_done"):
         try:
-            case["brief"] = await preprocess(case)
+            case["brief"] = await preprocess(case, cfg=cfg)
         except Exception as ex:
             case["brief"] = {"intake_done": False, "error": str(ex)[:300]}
 
@@ -51,7 +55,7 @@ async def run_debate(
     resolved_judge_mode = (
         overrides.get("judge_mode")
         if overrides and overrides.get("judge_mode")
-        else settings.judge_mode
+        else cfg["judge_mode"]
     )
     if overrides:
         changed = False
@@ -97,11 +101,12 @@ async def run_debate(
     config = {
         "configurable": {
             "thread_id": session_id,
+            "cfg": cfg,
             "sink": sink,
             "human_pop": lambda: manager.pop_human(session_id),
             # 人类审判长落槌等待回调（替代 LangGraph interrupt()，兼容 Python 3.10）
             "wait_for_human": lambda timeout=0: manager.wait_for_human(session_id, timeout=timeout),
-            "hitl_timeout": settings.hitl_timeout,
+            "hitl_timeout": cfg["hitl_timeout"],
             "note_tasks": [],
             "usage": {"calls": 0, "in_chars": 0, "out_chars": 0},
         }
@@ -109,7 +114,7 @@ async def run_debate(
     inputs = {
         "case_id": case.get("id"),
         "case": case,
-        "max_rounds": settings.max_rounds,
+        "max_rounds": cfg["max_rounds"],
         "judge_mode": resolved_judge_mode,
         "agents": agents or [],
     }
@@ -163,7 +168,7 @@ async def run_debate(
             session_id,
             elapsed,
             event_count,
-            settings.llm_model,
+            cfg["llm_model"],
         )
         # 用量统计随辩论落盘，供复盘与成本评估
         try:
@@ -181,7 +186,7 @@ async def run_debate(
                 "started_at": time.strftime(
                     "%Y-%m-%dT%H:%M:%SZ", time.gmtime(start_ts)
                 ),
-                "model": settings.llm_model,
+                "model": cfg["llm_model"],
                 "rounds": sum(1 for e in transcript if e.get("kind") == "round_start"),
                 "final_verdict": final_verdict,
                 "events": transcript,

@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from app.agents.roles import ROLES
 from app.agents import agent_config
-from app.config import settings
+from app.config import debate_snapshot, settings
 from app.intake.processor import _extract_json
 from app.models.llm import get_llm, is_mock
 from app.models.state import DebateState
@@ -31,6 +31,12 @@ DEBATE_ROLES = [
 Sink = Callable[[Dict], Awaitable[None]]
 
 
+def _session_cfg(config) -> dict:
+    """取本场辩论的配置快照；未经 runner 直接调用图时回退拍一份当前值。"""
+    cfg = config["configurable"].get("cfg")
+    return cfg if isinstance(cfg, dict) and cfg else debate_snapshot()
+
+
 def _to_str(content) -> str:
     if isinstance(content, str):
         return content
@@ -39,14 +45,18 @@ def _to_str(content) -> str:
     return str(content)
 
 
-async def _retry_ainvoke(llm, messages, retries: int = 3, base: float = 1.5):
+async def _retry_ainvoke(
+    llm, messages, retries: int = 3, base: float = 1.5, timeout: int = None
+):
     """对 JSON 关键的 LLM 调用做指数退避重试，吸收瞬时限流（如 1302）。
-    settings.llm_timeout > 0 时单次调用限时，防止引擎挂死拖垮整场辩论。"""
+    timeout 优先取辩论配置快照；未传时回退全局 settings，防引擎挂死拖垮辩论。"""
+    if timeout is None:
+        timeout = settings.llm_timeout
     last: Exception | None = None
     for i in range(retries):
         try:
-            if settings.llm_timeout and settings.llm_timeout > 0:
-                return await asyncio.wait_for(llm.ainvoke(messages), timeout=settings.llm_timeout)
+            if timeout and timeout > 0:
+                return await asyncio.wait_for(llm.ainvoke(messages), timeout=timeout)
             return await llm.ainvoke(messages)
         except Exception as e:  # noqa: BLE001
             last = e
@@ -76,13 +86,15 @@ async def _run_agent(
     sink: Sink,
     msg_id: str | None = None,
     usage: Dict | None = None,
+    cfg: dict | None = None,
 ) -> str:
+    cfg = cfg or {}
     role = ROLES[role_key]
     sys_prompt = agent_config.effective_prompt(role_key, role_material)
     _cfg = agent_config.load().get(role_key, {})
-    llm = get_llm(role["name"], model=(_cfg.get("model") or None))
+    llm = get_llm(role["name"], model=(_cfg.get("model") or None), cfg=cfg)
     tools = agent_config.effective_tools(role_key)
-    if tools and not is_mock():
+    if tools and not is_mock(cfg):
         llm = llm.bind_tools(tools)
 
     intensity_note = {
@@ -97,16 +109,17 @@ async def _run_agent(
         + ("\n\n" + intensity_note if intensity_note else "")
     )
 
-    if settings.context_char_limit and settings.context_char_limit > 0 and len(user_content) > settings.context_char_limit:
-        user_content = user_content[: settings.context_char_limit] + "\n……[卷宗材料超出上下文上限，已截断；如需更多细节请用工具查询]"
+    context_limit = cfg.get("context_char_limit", settings.context_char_limit)
+    if context_limit and context_limit > 0 and len(user_content) > context_limit:
+        user_content = user_content[:context_limit] + "\n……[卷宗材料超出上下文上限，已截断；如需更多细节请用工具查询]"
     messages: List = [SystemMessage(content=sys_prompt)] + list(history)
     # 保证末尾存在一条 user 消息，否则 OpenAI/兼容接口会报 "No user query found"
     messages.append(HumanMessage(content=user_content))
     full = ""
 
-    if tools and not is_mock():
+    if tools and not is_mock(cfg):
         for _ in range(4):
-            resp = await _retry_ainvoke(llm, messages)
+            resp = await _retry_ainvoke(llm, messages, timeout=cfg.get("llm_timeout"))
             if getattr(resp, "tool_calls", None):
                 messages.append(resp)
                 for tc in resp.tool_calls:
@@ -143,7 +156,7 @@ async def _run_agent(
     else:
         # 无工具角色：直接一次性生成（不依赖模型流式能力，跨模型更稳；
         # 仍按 token 分片下发以保留逐字显示效果）
-        resp = await _retry_ainvoke(llm, messages)
+        resp = await _retry_ainvoke(llm, messages, timeout=cfg.get("llm_timeout"))
         full = _to_str(resp.content)
     if not full.strip():
         role = ROLES.get(role_key, {})
@@ -174,12 +187,15 @@ _DOUBT_KW = (
 )
 
 
-async def _summarize_note(role_key: str, name: str, text: str, sink: Sink) -> None:
+async def _summarize_note(
+    role_key: str, name: str, text: str, sink: Sink, cfg: dict | None = None
+) -> None:
     """在专家发言后台异步生成一条「合议记录」：核心主张 / 证据 / 疑点 / 指向。
     非阻塞（fire-and-forget），AI 失败时回退到确定性抽取，保证右侧面板总有内容。"""
+    cfg = cfg or {}
     try:
         note: Dict[str, Any] = {}
-        if is_mock():
+        if is_mock(cfg):
             note = {
                 "claim": (text or "").strip().split("\n")[0][:90],
                 "evidence_ids": _DEVID_RE.findall(text or ""),
@@ -194,8 +210,15 @@ async def _summarize_note(role_key: str, name: str, text: str, sink: Sink) -> No
                 '"implicates":["本案人物，如周明远，没有则空数组"]}\n\n'
                 f"专家身份：{name}\n发言内容：\n{text}"
             )
-            llm = get_llm("书记员", model=settings.intake_model, temperature=0.0)
-            resp = await _retry_ainvoke(llm, [HumanMessage(content=prompt)])
+            llm = get_llm(
+                "书记员",
+                model=cfg.get("intake_model") or settings.intake_model,
+                temperature=0.0,
+                cfg=cfg,
+            )
+            resp = await _retry_ainvoke(
+                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            )
             parsed = _extract_json(_to_str(resp.content))
             if not isinstance(parsed, dict):
                 parsed = {}
@@ -238,6 +261,7 @@ async def _summarize_note(role_key: str, name: str, text: str, sink: Sink) -> No
 # ------------------------- 节点 1：多专家发言 -------------------------
 async def experts_node(state: DebateState, config) -> Dict:
     sink: Sink = config["configurable"]["sink"]
+    cfg = _session_cfg(config)
     case = state.get("case", {})
     brief = case.get("brief") or {}
     per_role = brief.get("per_role_material") or {}
@@ -248,7 +272,7 @@ async def experts_node(state: DebateState, config) -> Dict:
     # 跨轮记忆：窗口内轮次全文注入；窗口外轮次压缩为滚动摘要（memory_digest），
     # 不直接丢弃——高轮数辩论仍保留早期主张线索。
     summaries_all = state.get("round_summaries") or []
-    win = max(0, settings.memory_rounds)
+    win = max(0, int(cfg.get("memory_rounds", settings.memory_rounds)))
     kept = summaries_all[-win:] if win else []
     dropped = summaries_all[:-win] if win and len(summaries_all) > win else []
     digest = state.get("memory_digest") or ""
@@ -297,6 +321,7 @@ async def experts_node(state: DebateState, config) -> Dict:
         text = await _run_agent(
             role_key, material, intensity, guidance, history, sink, msg_id,
             usage=config["configurable"].get("usage"),
+            cfg=cfg,
         )
         await sink(
             {
@@ -311,7 +336,9 @@ async def experts_node(state: DebateState, config) -> Dict:
         note_tasks = config["configurable"].get("note_tasks")
         if note_tasks is not None:
             note_tasks.append(
-                asyncio.create_task(_summarize_note(role_key, role["name"], text, sink))
+                asyncio.create_task(
+                    _summarize_note(role_key, role["name"], text, sink, cfg)
+                )
             )
         return role_key, text
 
@@ -362,11 +389,12 @@ async def experts_node(state: DebateState, config) -> Dict:
 # ------------------------- 节点 2：纠错 / 质疑 -------------------------
 async def critic_node(state: DebateState, config) -> Dict:
     sink: Sink = config["configurable"]["sink"]
+    cfg = _session_cfg(config)
     await sink({"kind": "critic_start"})
     claims = state.get("claims", {})
 
     new_contradictions: List[Dict] = []
-    if is_mock():
+    if is_mock(cfg):
         if state.get("round", 0) < state.get("max_rounds", 3):
             new_contradictions.append(
                 {
@@ -379,9 +407,11 @@ async def critic_node(state: DebateState, config) -> Dict:
         prompt = agent_config.prompt_for_critic(
             json.dumps(claims, ensure_ascii=False, indent=2)
         )
-        llm = get_llm("纠错官")
+        llm = get_llm("纠错官", cfg=cfg)
         try:
-            resp = await _retry_ainvoke(llm, [HumanMessage(content=prompt)])
+            resp = await _retry_ainvoke(
+                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            )
             parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, list):
                 new_contradictions = parsed
@@ -406,6 +436,7 @@ async def critic_node(state: DebateState, config) -> Dict:
 # ------------------------- 节点 3：审判长收敛 / 裁决 -------------------------
 async def judge_node(state: DebateState, config) -> Dict:
     sink: Sink = config["configurable"]["sink"]
+    cfg = _session_cfg(config)
     await sink({"kind": "judge_start"})
     claims = state.get("claims", {})
     contradictions = state.get("contradictions", [])
@@ -423,7 +454,7 @@ async def judge_node(state: DebateState, config) -> Dict:
         await sink({"kind": "judge_end", "consensus": False})
         return {"consensus": False, "log": [{"event": "judge", "consensus": False}]}
 
-    if is_mock():
+    if is_mock(cfg):
         verdict = {
             "truth_hypothesis": "基于现有卷宗，真相推定：案件存在多种可能，需在关键证据（凶器DNA、被告时间线）上进一步确认。",
             "evidence_chain": [
@@ -451,9 +482,11 @@ async def judge_node(state: DebateState, config) -> Dict:
             f"各专家主张：\n{json.dumps(claims, ensure_ascii=False, indent=2)}\n\n"
             f"矛盾清单：\n{json.dumps(contradictions, ensure_ascii=False, indent=2)}"
         )
-        llm = get_llm("审判长")
+        llm = get_llm("审判长", cfg=cfg)
         try:
-            resp = await _retry_ainvoke(llm, [HumanMessage(content=prompt)])
+            resp = await _retry_ainvoke(
+                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            )
             parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, dict):
                 verdict = parsed
