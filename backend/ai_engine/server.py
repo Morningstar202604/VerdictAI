@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.4.0")
+app = FastAPI(title="VerdictAI Local Engine", version="0.4.1")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
@@ -197,6 +197,7 @@ class Case:
         self.round = 1
         self.prev_self = ""
         self.prev_others: Dict[str, str] = {}
+        self.human_note = ""  # 最近一条人类法官介入（本轮陈述需显式回应）
         self._derive()
 
     # ---------- 派生事实 ----------
@@ -215,7 +216,11 @@ class Case:
                 if ("DNA" in e.desc or "皮屑" in e.desc) and any(k in e.desc for k in ("未知", "未命中", "未比中", "未比对")):
                     self.dna_unknown.append({"name": "未知来源生物检材", "matched": True, "note": f"{e.id}：{e.desc[:40]}"})
                     break
-        self.insurance = [f for f in self.finance if "保险" in f["item"] or "保险" in f["note"] or "受益" in f["note"]]
+        self.insurance = [
+            f for f in self.finance
+            # 覆盖常见中文写法：投保财产险/保额提升/赔付理赔——只认「保险」二字会漏
+            if any(k in (f["item"] + f["note"]) for k in ("保险", "投保", "保额", "受益", "赔付", "理赔"))
+        ]
         self.transfer = [
             f for f in self.finance
             if "转账" in f["item"] or "账户" in f["item"] or "收款" in f["item"] or "来源存疑" in f["note"] or "当晚" in f["note"]
@@ -341,6 +346,7 @@ def _touch_case(case_hash: str) -> None:
         old = order.pop(0)
         STATE["rounds_by_case"].pop(old, None)
         STATE["critic_by_case"].pop(old, None)
+        STATE["critic_emitted_by_case"].pop(old, None)
 
 
 def _refresh_case(material: str, hash_basis: str = "") -> Case:
@@ -417,6 +423,20 @@ def _prev_from_history(messages: List[dict], role: str, case: Case) -> None:
             case.prev_others[k] = v
 
 
+def _human_intervention(messages: List[dict]) -> str:
+    """取最近一条人类法官介入（【人类法官介入】前缀的 user 消息）。
+
+    后端把它注入了对话历史，但只有真实 LLM 会"自然读到"；
+    本地引擎必须显式解析并在陈述里回应，否则介入形同虚设。"""
+    out = ""
+    for m in messages:
+        if m.get("role") == "user":
+            t = _text_of(m.get("content"))
+            if "【人类法官介入】" in t:
+                out = t.split("【人类法官介入】", 1)[-1].strip()
+    return out
+
+
 def _summary_count(messages: List[dict]) -> int:
     """请求里【前序轮次专家意见摘要】的条数（后端每轮注入最近 2 条）。"""
     n = 0
@@ -467,6 +487,21 @@ def _crossref_opening(case: Case, round_no: int) -> str:
         ref += f"，并针对纠错官指出的「{case.known_contradictions[0][:40]}」"
     ref += "，本轮进一步核验如下：\n\n"
     return ref
+
+
+def _human_response(case: Case) -> str:
+    """人类法官介入的显式回应块：没有介入时为空，介入后每位专家必须先表态。"""
+    if not case.human_note:
+        return ""
+    t = case.human_note
+    keys = [k for k in ("监控", "缺失", "剪辑", "DNA", "保管链", "时间线", "资金", "动机", "通讯") if k in t]
+    focus = "、".join(keys[:3]) or "该指示涉及的事项"
+    return (
+        f"#### ⓪ 人类法官指示的核验重点\n\n"
+        f"收到人类法官指示「{t[:60]}」。本轮已优先核查{focus}："
+        f"相关判断均对照卷宗证据编号给出；在案无法核实的部分，已在疑点中"
+        f"明确列为补充侦查事项，不做臆断。\n\n"
+    )
 
 
 _CRIMINAL_REF = [
@@ -612,7 +647,7 @@ def _statement(role: str, case: Case, round_no: int, tool_note: str) -> str:
         if case.edited:
             gaps.append(f"调取原始载体，修复 {case.edited[0].id} 缺失时段")
         body = (
-            f"#### ① 指控逻辑链\n\n"
+            "#### ① 指控逻辑链\n\n"
             + " → ".join(f"第{i + 1}环:{s}" for i, s in enumerate(case.chain_step()[:4]))
             + (f"\n\n其中 {case.hot[0][:60]} 是链条的关键支点。" if case.hot else "")
             + (f"\n\n> 法律依据：{_statute_refs(case)[0]}" if _statute_refs(case) else "")
@@ -651,7 +686,7 @@ def _statement(role: str, case: Case, round_no: int, tool_note: str) -> str:
             f"#### ③ 收敛判断\n\n{'尚未收敛，需下一轮聚焦核心矛盾' if case.known_contradictions else '可以收敛进入裁决'}"
         )
 
-    return f"{opening}{body}{tn}{depth_note}".strip()
+    return f"{opening}{_human_response(case)}{body}{tn}{depth_note}".strip()
 
 
 # ----------------------------- 工具调用 -----------------------------
@@ -748,6 +783,7 @@ def _critic_json() -> dict:
         _touch_case(case_hash)
         rnd = STATE["critic_by_case"].get(case_hash, 0) + 1
         STATE["critic_by_case"][case_hash] = rnd
+        emitted: List[str] = STATE.setdefault("critic_emitted_by_case", {}).setdefault(case_hash, [])
     issues: List[dict] = []
     if case:
         pool: List[Tuple[str, List[str]]] = []
@@ -759,11 +795,18 @@ def _critic_json() -> dict:
             pool.append((f"{case.flawed[0].id} 保管链瑕疵未回溯补证，物证指向性结论为时尚早", ["evidence", "law", "prosecutor"]))
         for c in case.alibi_conflicts:
             pool.append((c[:70], ["scene", "psych"]))
-        if not pool:
-            pool.append(("各专家对关键证据的交叉验证仍不充分，存在以推定代证明的风险", ["evidence", "psych"]))
-        start = (rnd - 1) * 2
-        for issue, parties in (pool * 3)[start:start + 2]:
+        # 只提尚未处理过的矛盾：让辩论逐轮消化矛盾并收敛，
+        # 而不是同一批问题在轮次间原地循环
+        fresh = [p for p in pool if p[0] not in emitted]
+        for issue, parties in fresh[:2]:
+            emitted.append(issue)
             issues.append({"round": rnd, "issue": issue[:90], "parties": parties})
+        if not fresh:
+            issues.append({
+                "round": rnd,
+                "issue": "前述矛盾点已逐项排入核验计划，剩余分歧集中在补证时序与证明标准评估，建议审判长评估收敛",
+                "parties": ["judge"],
+            })
     if not issues:
         issues.append({
             "round": rnd,
@@ -780,8 +823,18 @@ def _judge_json(case: Case) -> dict:
     if not doubts:
         doubts = list(case.alibi_conflicts)
     motive = "、".join(f["item"] for f in (case.insurance + case.transfer)[:2]) if (case.insurance or case.transfer) else "待查利益线索"
+    # 案件性质决定叙事模型：命案/盗窃/民事各用各的话术，避免张冠李戴。
+    # 除意图标签外同时扫案件文本——存量案件的意图可能是旧版引擎生成的。
+    intent = case.intent or ""
+    case_text = (case.raw or "")[:2000]
+    if any(k in intent + case_text for k in ("盗窃", "窃取", "侵占", "职务侵占")):
+        model = "熟悉现场与值守规律的人员作案"
+    elif any(k in intent for k in ("合同", "违约")):
+        model = "违约事实与原因力比例的综合认定"
+    else:
+        model = "熟人预谋作案"
     hypo = (
-        "真相推定：在案证据更支持「熟人预谋作案」模型——"
+        "真相推定：在案证据更支持「" + model + "」——"
         + f"动机层面存在{motive}；"
         + (f"手段层面 {case.weapon.id} 与致伤方式吻合；" if case.weapon else "")
         + (f"条件层面 {case.edited[0].id} 缺失时段提供了行为窗口；" if case.edited else "")
@@ -1024,7 +1077,7 @@ def _intake_json(dossier: str) -> dict:
     if "案件材料：" in dossier:
         dossier = dossier.split("案件材料：", 1)[-1]
     summary = _section(dossier, "案件概要") or dossier[:300]
-    CRIMINAL_KW = ("命案", "死亡", "尸体", "杀人", "他杀", "死于", "凶", "blood", "murder", "homicide", "arson", "body was found")
+    CRIMINAL_KW = ("命案", "死亡", "尸体", "杀人", "他杀", "死于", "凶", "盗窃", "窃取", "抢劫", "blood", "murder", "homicide", "arson", "theft", "body was found")
     CIVIL_KW = ("合同", "违约", "纠纷", "欠款", "breach", "contract")
     low = dossier.lower()
     if any(k in low for k in CRIMINAL_KW):
@@ -1151,6 +1204,7 @@ async def chat(request: Request):
         STATE["last_case"] = case
         STATE["names"] = list(dict.fromkeys(STATE["names"] + case.names))[:12]
     _prev_from_history(messages, role, case)
+    case.human_note = _human_intervention(messages)
 
     if has_tool_msg:
         # 工具回环：上一条是工具返回，给最终结论
