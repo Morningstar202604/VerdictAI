@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Dict, List
+from typing import Dict
 
 import matplotlib
 from matplotlib import font_manager

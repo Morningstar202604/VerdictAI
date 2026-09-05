@@ -1,0 +1,7 @@
+# 0.2.1 起生效的 lint 基线：只启用正确性类规则（pycodestyle 错误子集 + Pyflakes）。
+# 存量风格类问题（PEP 585/604 注解旧写法、宽泛 except、try-except-pass 等）体量较大，
+# 后续按批次单独纳入，避免与功能改动混在同一提交里。
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

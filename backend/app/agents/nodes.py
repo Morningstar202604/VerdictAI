@@ -8,8 +8,7 @@ from typing import Any, Awaitable, Callable, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.agents.roles import ROLES, build_system_prompt
-from app.agents.tools import tools_for_role
+from app.agents.roles import ROLES
 from app.agents import agent_config
 from app.config import settings
 from app.intake.processor import _extract_json

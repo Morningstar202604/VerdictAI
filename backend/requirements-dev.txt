@@ -1,0 +1,5 @@
+# 开发/CI 检查套件专用（运行时不需要）。
+# CONTRIBUTING 规定推送前跑 pytest 与 ruff check app/，本文件使该规定可安装、可执行；
+# CI 的 backend job 同时安装 requirements.txt 与本文件。
+pytest>=8.0
+ruff>=0.6

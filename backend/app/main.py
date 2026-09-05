@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time as _time
 import uuid
 
 from fastapi import FastAPI, Request, WebSocket, Form
@@ -29,7 +30,6 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="VerdictAI", version="0.2.0")
-import time as _time
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)

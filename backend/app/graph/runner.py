@@ -7,13 +7,13 @@ import os
 import time
 from typing import Optional
 
-log = logging.getLogger("debate")
-
 from app.agents.tools import activate_case
 from app.config import settings
 from app.graph.builder import build_graph
 from app.intake.processor import build_role_material, preprocess
 from app.ws.manager import manager
+
+log = logging.getLogger("debate")
 
 
 async def run_debate(

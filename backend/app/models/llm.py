@@ -1,13 +1,12 @@
 from __future__ import annotations
 import asyncio
-from typing import Any, AsyncIterator, List, Optional
+from typing import Any, AsyncIterator, List
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     BaseMessage,
     HumanMessage,
-    SystemMessage,
 )
 from langchain_core.outputs import ChatGeneration, ChatResult
 from app.config import settings

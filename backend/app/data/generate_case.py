@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.patches import Rectangle
 
+from app.config import settings
+
 # 选择系统中存在的中文字体，避免图表中文乱码
 _CANDIDATES = [
     "Microsoft YaHei",
@@ -24,9 +26,6 @@ _FONT = next((c for c in _CANDIDATES if c in _AVAIL), None)
 if _FONT:
     plt.rcParams["font.sans-serif"] = [_FONT]
     plt.rcParams["axes.unicode_minus"] = False
-
-
-from app.config import settings
 
 
 CASE = {

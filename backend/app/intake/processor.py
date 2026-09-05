@@ -5,7 +5,7 @@ import json
 from typing import Dict, List, Optional
 
 from app.config import settings
-from app.models.llm import get_llm, is_mock
+from app.models.llm import get_llm
 
 # 每个角色在现实中应重点看到的材料类型（用于分案分发）
 ROLE_FOCUS: Dict[str, str] = {
@@ -247,7 +247,6 @@ async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
         "}}\n\n"
         f"案件材料：\n{dossier}"
     )
-    last = None
     for _ in range(retries):
         try:
             llm = get_llm("分案法官", model=settings.intake_model, temperature=0.1)
@@ -256,7 +255,6 @@ async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
             obj = _extract_json(text)
             if isinstance(obj, dict) and obj:
                 return obj
-            last = text
         except Exception:
             await asyncio.sleep(1)
     return None
