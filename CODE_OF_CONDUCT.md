@@ -1,0 +1,7 @@
+# Contributor Covenant Code of Conduct
+
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation. We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
+
+Examples of behavior that contribute to a positive environment include showing empathy and kindness toward others, being respectful of differing opinions, giving and gracefully accepting constructive feedback, and focusing on what is best for the overall community. Unacceptable behavior includes sexualized language or imagery, trolling, insulting or derogatory comments and personal or political attacks, public or private harassment, and publishing others' private information without explicit permission.
+
+This Code of Conduct applies within all community spaces, and also when an individual is officially representing the community in public spaces. Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement; all complaints will be reviewed and investigated promptly and fairly, and community leaders are obligated to respect the privacy and security of the reporter.
