@@ -52,8 +52,6 @@ _c.js
 
 # Runtime QA evidence (regenerable via make_pdf.py)
 backend/dogfood-output/test-data/*.pdf
-# Runtime-created upload-test assets
-backend/data/cases/assets/test_case_upload/
 
 # Secrets backup (never commit)
 backend/.env.backup-*
@@ -64,5 +62,6 @@ backend/data/agent_config.json
 backend/data/knowledge_base.json
 backend/data/presets.json
 
-# Runtime-generated case charts (regenerated per case)
-backend/data/cases/assets/case_*/
+# Runtime-generated case charts (regenerated per case; generate_case.py
+# redraws the template charts on every call, so tracked copies go stale)
+backend/data/cases/assets/

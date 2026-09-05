@@ -27,9 +27,9 @@ Open `http://localhost:8787` to test.
 
 ## Code Style
 
-- Python: Follow PEP 8. Use `ruff` for linting.
-- Frontend: Vanilla JS, no build step required.
-- Run `ruff check app/` before committing.
+- Python: Follow PEP 8. `ruff` (baseline config: `backend/ruff.toml`) and `pytest` (tests: `backend/tests/`) run in CI; dev-only dependencies live in `backend/requirements-dev.txt`.
+- Frontend: two deliverables — the built-in single-file UI `backend/app/static/index.html` (vanilla JS, no build step; CI syntax-checks it) and the React/Vite app in `frontend/` (`npm run build`, also run by CI).
+- Run `ruff check app/` and `pytest` from `backend/` before committing.
 
 ## Project Layout
 

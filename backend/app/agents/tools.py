@@ -92,7 +92,7 @@ def search_case_law(keyword: str) -> str:
     parts: List[str] = []
     case = _get_case()
     laws = case.get("statutes", [])
-    hits = [l for l in laws if keyword in (l.get("topic", "") + l.get("text", ""))]
+    hits = [law for law in laws if keyword in (law.get("topic", "") + law.get("text", ""))]
     if hits:
         parts.append("【本案卷宗法条】\n" + json.dumps(hits, ensure_ascii=False, indent=2))
     kb = search_knowledge(keyword, limit=4)
