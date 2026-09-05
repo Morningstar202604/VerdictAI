@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
+import secrets
 import time as _time
 import uuid
 
@@ -43,12 +46,62 @@ async def global_exception_handler(request, exc):
 
 # ---------------- 访问认证（ACCESS_PASSWORD 为空时完全开放） ----------------
 _AUTH_COOKIE = "vai_auth"
+# 会话令牌：{过期时间戳}.{HMAC 签名}。密钥每次进程启动随机生成——
+# 重启后旧会话失效需重新登录；签名使令牌无法伪造，过期时间无法延长；
+# 全部比较走 compare_digest，避免时序侧信道。
+_SESSION_SECRET_BYTES = secrets.token_bytes(32)
+SESSION_TTL_SECONDS = 7 * 24 * 3600
+_LOGIN_MAX_FAILS = 5
+_LOGIN_LOCK_SECONDS = 900
+_login_fails: dict = {}
 
 
-def _auth_token() -> str:
-    import hashlib
+def _issue_session_token(expiry: float = None) -> str:
+    # 整数时间戳：令牌里 "." 是分隔符，过期值不能带小数点
+    if expiry is None:
+        expiry = int(_time.time()) + SESSION_TTL_SECONDS
+    sig = hmac.new(_SESSION_SECRET_BYTES, msg=str(int(expiry)).encode(), digestmod=hashlib.sha256)
+    return f"{int(expiry)}.{sig.hexdigest()}"
 
-    return hashlib.sha256(("verdictai:" + settings.access_password).encode()).hexdigest()
+
+def _verify_session(token: str | None) -> bool:
+    if not token or "." not in token:
+        return False
+    expiry_str, _, sig = token.partition(".")
+    try:
+        expiry = float(expiry_str)
+    except ValueError:
+        return False
+    expected = hmac.new(
+        _SESSION_SECRET_BYTES, msg=expiry_str.encode(), digestmod=hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return False
+    return expiry > _time.time()
+
+
+def _login_locked_until(ip: str) -> float:
+    entry = _login_fails.get(ip)
+    if entry and entry["locked_until"] > _time.time():
+        return entry["locked_until"]
+    return 0.0
+
+
+def _record_login_fail(ip: str) -> None:
+    entry = _login_fails.setdefault(ip, {"count": 0, "locked_until": 0.0})
+    entry["count"] += 1
+    if entry["count"] >= _LOGIN_MAX_FAILS:
+        entry["locked_until"] = _time.time() + _LOGIN_LOCK_SECONDS
+        entry["count"] = 0
+    # 防止字典被海量伪造 IP 撑爆
+    if len(_login_fails) > 10000:
+        now = _time.time()
+        for k in [k for k, v in _login_fails.items() if v["locked_until"] < now]:
+            _login_fails.pop(k, None)
+
+
+def _record_login_success(ip: str) -> None:
+    _login_fails.pop(ip, None)
 
 
 _EXEMPT_PREFIXES = ("/login", "/static/assets/", "/api/health", "/favicon")
@@ -59,7 +112,7 @@ async def access_gate(request, call_next):
     pwd = settings.access_password
     path = request.url.path
     if pwd and not any(path.startswith(pfx) or path == pfx for pfx in _EXEMPT_PREFIXES):
-        if request.cookies.get(_AUTH_COOKIE) != _auth_token():
+        if not _verify_session(request.cookies.get(_AUTH_COOKIE)):
             from fastapi.responses import RedirectResponse
 
             if path.startswith("/api/"):
@@ -118,18 +171,33 @@ def login_submit(request: Request, password: str = Form("")):
 
     if not settings.access_password:
         return RedirectResponse("/", status_code=302)
-    if password and password == settings.access_password:
+    ip = request.client.host if request.client else "unknown"
+    locked_until = _login_locked_until(ip)
+    if locked_until:
+        remaining = int(locked_until - _time.time())
+        return HTMLResponse(
+            _LOGIN_PAGE.replace("{error}", f"失败次数过多，请 {remaining} 秒后重试"),
+            status_code=429,
+        )
+    # 常数时间比较，避免时序侧信道逐位猜口令
+    ok = bool(password) and hmac.compare_digest(
+        password.encode(), settings.access_password.encode()
+    )
+    if ok:
+        _record_login_success(ip)
         resp = RedirectResponse("/", status_code=302)
         # HTTPS 环境下设置 Secure 标志；HTTP 开发环境不设置以保证 cookie 可用
         is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
         resp.set_cookie(
-            _AUTH_COOKIE, _auth_token(),
-            max_age=7 * 24 * 3600,
+            _AUTH_COOKIE,
+            _issue_session_token(),
+            max_age=SESSION_TTL_SECONDS,
             httponly=True,
             samesite="lax",
             secure=is_https,
         )
         return resp
+    _record_login_fail(ip)
     return HTMLResponse(_LOGIN_PAGE.replace("{error}", "口令错误，请重试"), status_code=401)
 
 
@@ -154,11 +222,15 @@ async def request_size_limit(request, call_next):
         )
     return await call_next(request)
 
-# 静态资源：生成的图表/图片（不缓存，因为内容会更新）
-# data/ 整体不入版本控制，新克隆不存在该目录，而 StaticFiles 挂载要求目录必须已存在
+# 静态资源：只暴露案件图表资产目录（浏览器渲染卷宗图表必需）。
+# data/ 下的辩论记录、agent_config、knowledge_base、presets 等私有
+# 存储不再有任何 URL 可直达；图表 URL 前缀 /static/data/cases/assets/
+# 与历史辩论记录保持兼容。
 data_dir = os.path.abspath(settings.data_dir)
 os.makedirs(data_dir, exist_ok=True)
-app.mount("/static/data", StaticFiles(directory=data_dir), name="data")
+case_assets_dir = os.path.join(data_dir, "cases", "assets")
+os.makedirs(case_assets_dir, exist_ok=True)
+app.mount("/static/data/cases/assets", StaticFiles(directory=case_assets_dir), name="data")
 
 # 品牌与界面静态资源（logo 等，长缓存）
 assets_dir = os.path.join(os.path.dirname(__file__), "static", "assets")
@@ -756,7 +828,9 @@ def remove_knowledge(entry_id: str):
 @app.websocket("/ws/{session_id}")
 async def ws_endpoint(websocket: WebSocket, session_id: str):
     # 访问口令启用时，WebSocket 同样校验登录 cookie（ accept 前拒绝，避免产生半开连接）
-    if settings.access_password and websocket.cookies.get(_AUTH_COOKIE) != _auth_token():
+    if settings.access_password and not _verify_session(
+        websocket.cookies.get(_AUTH_COOKIE)
+    ):
         await websocket.close(code=4401)
         return
     # session_id 会作为辩论记录文件名落盘，与 REST 端点同等校验，杜绝路径穿越
