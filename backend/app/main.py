@@ -53,7 +53,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="VerdictAI", version="0.3.0")
+app = FastAPI(title="VerdictAI", version="0.4.0")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)

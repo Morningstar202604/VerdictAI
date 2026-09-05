@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0] - 2026-09-06
+### Added
+- 沙箱 Docker 容器后端（CODE_SANDBOX_BACKEND=auto/subprocess/docker，CODE_SANDBOX_DOCKER_IMAGE）：auto 优先一次性容器（断网、512MB 内存、1 核、pids 上限，仅挂载产物目录），Docker/镜像未就绪时降级本机子进程，不现场拉镜像；install_package 在容器模式说明镜像预置约定。
+- tools/backup.py 数据备份：案件/辩论/知识库/配置打包 zip，--keep 修剪旧份，--out 指向外部存储；配合计划任务构成最小备份方案。
+- 后端文件日志 RotatingFileHandler（1MB×5 份轮转，DATA_DIR/logs/）。
+### Changed
+- list_cases/list_debates 摘要按文件 (mtime,size) 增量缓存，记录上百份时列表不再全量解析；辩论列表按 started_at 真实时间倒序（原为文件名排序，uuid 无时间含义）。
+
 ## [0.3.0] - 2026-09-06
 ### Fixed
 - /static/data 收敛为仅挂载 cases/assets：辩论全记录、agent_config、知识库、presets 不再有任何 URL 可直达（图表 URL 前缀保持兼容）。
