@@ -11,6 +11,7 @@ from app.config import settings
 
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
 _base_checked = False
+_docker_ok: bool | None = None
 
 # 沙箱/pip 子进程不得继承敏感配置：专家生成的代码是任意代码，环境里的
 # LLM 密钥、访问口令一旦可见即可被读取外传。新增敏感配置项时必须使用
@@ -176,25 +177,103 @@ def web_search(query: str) -> str:
     return f"联网检索「{query}」结果：" + nl + nl.join(out)
 
 
+def _docker_available() -> bool:
+    global _docker_ok
+    if _docker_ok is None:
+        import shutil
+
+        _docker_ok = shutil.which("docker") is not None
+        if _docker_ok:
+            try:
+                subprocess.run(
+                    ["docker", "info", "--format", "ok"],
+                    capture_output=True,
+                    timeout=15,
+                    check=True,
+                )
+            except Exception:
+                _docker_ok = False
+    return _docker_ok
+
+
+def _docker_command(code: str, out_dir: str) -> list:
+    """一次性容器执行：断网 + 内存/CPU/进程数上限；仅挂载产物目录，
+    环境只注入 SANDBOX_OUT 与 matplotlib 后端，宿主变量一概不进入。"""
+    return [
+        "docker", "run", "--rm",
+        "--network=none",
+        "--memory=512m", "--cpus=1", "--pids-limit", "128",
+        "-v", f"{out_dir}:/sandbox_out",
+        "-e", "SANDBOX_OUT=/sandbox_out",
+        "-e", "MPLBACKEND=Agg",
+        settings.code_sandbox_docker_image,
+        "python", "-I", "-c", code,
+    ]
+
+
+def _image_available() -> bool:
+    """配置的镜像是否已在本地（缺镜像时 auto 应降级而非现场拉取拖慢辩论）。"""
+    try:
+        subprocess.run(
+            ["docker", "image", "inspect", settings.code_sandbox_docker_image],
+            capture_output=True,
+            timeout=15,
+            check=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _effective_backend() -> str:
+    """解析实际沙箱后端：docker | subprocess | unavailable | image-missing。"""
+    backend = settings.code_sandbox_backend
+    if backend == "subprocess":
+        return "subprocess"
+    if not _docker_available():
+        return "unavailable" if backend == "docker" else "subprocess"
+    if not _image_available():
+        return "image-missing" if backend == "docker" else "subprocess"
+    return "docker"
+
+
 @tool
 def run_code(code: str) -> str:
     """在受控沙箱中执行 Python 代码并返回标准输出与错误。用于对证据数据做统计、比对、时间线推算；也可生成图表（matplotlib，Agg 后端），保存到环境变量 SANDBOX_OUT 指向的目录，返回中会附带图片链接，将在笔录中渲染。
 
-    安全说明：沙箱使用 Python -I 隔离模式（忽略 PYTHONPATH 和用户 site-packages），
-    并从环境剥离敏感配置（LLM_*/ACCESS_* 前缀）；但仍可访问网络和本地文件系统。
-    请勿在不可信环境中暴露此工具。
+    安全说明：默认优先使用一次性 Docker 容器（断网、512MB 内存、1 核），
+    无 Docker 或镜像未就绪时降级为本机 Python -I 隔离模式；两种模式均从
+    环境剥离敏感配置（LLM_*/ACCESS_* 前缀）。容器模式无网络，请勿尝试联网。
     """
     if not settings.code_sandbox_enabled:
         return "代码沙箱未启用。请在「设置 → 运行环境」中开启「启用 Python 代码沙箱」。"
-    _ensure_base()
+    eff = _effective_backend()
+    if eff == "unavailable":
+        return (
+            "沙箱后端配置为 docker 但本机不可用：请安装并启动 Docker，"
+            "或把 CODE_SANDBOX_BACKEND 改为 subprocess。"
+        )
+    if eff == "image-missing":
+        return (
+            f"镜像 {settings.code_sandbox_docker_image} 不存在：请先执行 "
+            f"docker pull {settings.code_sandbox_docker_image}，或把 "
+            "CODE_SANDBOX_BACKEND 改为 auto/subprocess。"
+        )
+    use_docker = eff == "docker"
     out_dir = settings.sandbox_out_dir
     os.makedirs(out_dir, exist_ok=True)
     t0 = time.time()
     before = {f: os.path.getmtime(os.path.join(out_dir, f)) for f in os.listdir(out_dir)}
-    env = _sandbox_env({"SANDBOX_OUT": out_dir, "MPLBACKEND": "Agg"})
+    if use_docker:
+        cmd = _docker_command(code, out_dir)
+        env = _sandbox_env()  # 容器内变量由 -e 显式注入，docker CLI 不需要宿主配置
+    else:
+        _ensure_base()
+        cmd = [settings.code_sandbox_python, "-I", "-c", code]
+        env = _sandbox_env({"SANDBOX_OUT": out_dir, "MPLBACKEND": "Agg"})
     try:
         proc = subprocess.run(
-            [settings.code_sandbox_python, "-I", "-c", code],
+            cmd,
             capture_output=True,
             text=True,
             timeout=60,
@@ -230,6 +309,11 @@ def install_package(package: str) -> str:
     """安装额外的 Python 包到沙箱环境（需要联网），以便专家使用更多能力（如 scipy、openpyxl）。"""
     if not settings.code_sandbox_enabled:
         return "代码沙箱未启用。"
+    if _effective_backend() != "subprocess":
+        return (
+            "沙箱运行于一次性容器：容器内安装不会保留。需要额外依赖时请自定义"
+            " CODE_SANDBOX_DOCKER_IMAGE 镜像预置，或把沙箱后端切为 subprocess。"
+        )
     pkg = (package or "").strip()
     if not pkg:
         return "请提供包名，例如 numpy、pandas、matplotlib。"

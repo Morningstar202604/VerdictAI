@@ -13,6 +13,9 @@ from app.config import settings
 def setup_function():
     settings.code_sandbox_python = sys.executable
     settings.code_sandbox_enabled = True
+    # 本文件测的是宿主环境隔离边界：强制子进程后端，避免本机装了 Docker
+    # 时被 auto 选中而实际跑进容器
+    settings.code_sandbox_backend = "subprocess"
 
 
 def test_sandbox_strips_sensitive_env(monkeypatch):
