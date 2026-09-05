@@ -30,6 +30,7 @@ def atomic_write_json(path: str, data, indent: int | None = 2) -> None:
     resolved = Path(path).resolve()
     root = Path(settings.data_dir).resolve()
     resolved.relative_to(root)
+    resolved.parent.mkdir(parents=True, exist_ok=True)
     tmp = resolved.with_name(resolved.name + ".tmp")
     tmp.write_text(
         json.dumps(data, ensure_ascii=False, indent=indent), encoding="utf-8"
