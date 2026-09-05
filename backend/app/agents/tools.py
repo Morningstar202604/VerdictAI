@@ -12,6 +12,23 @@ from app.config import settings
 _IMG_EXT = (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
 _base_checked = False
 
+# 沙箱/pip 子进程不得继承敏感配置：专家生成的代码是任意代码，环境里的
+# LLM 密钥、访问口令一旦可见即可被读取外传。新增敏感配置项时必须使用
+# 以下前缀之一，或把变量名加进剥离逻辑（见 CONTRIBUTING「Secrets」）。
+_SANDBOX_ENV_DROP_PREFIXES = ("LLM_", "ACCESS_")
+
+
+def _sandbox_env(extra: Dict | None = None) -> Dict:
+    """构造子进程环境：剥离敏感前缀，再叠加调用方需要的显式变量。"""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith(_SANDBOX_ENV_DROP_PREFIXES)
+    }
+    if extra:
+        env.update(extra)
+    return env
+
 # 使用 contextvars 而非全局变量存储当前案件，避免并发辩论时互相覆盖。
 # 每个 asyncio Task 有独立上下文，activate_case 设置的值只在当前 Task 链中可见。
 _active_case_var: contextvars.ContextVar[Dict] = contextvars.ContextVar(
@@ -46,6 +63,7 @@ def _ensure_base() -> None:
                 capture_output=True,
                 text=True,
                 timeout=240,
+                env=_sandbox_env(),
             )
         except Exception:
             pass
@@ -118,15 +136,25 @@ def web_search(query: str) -> str:
     """联网检索公开信息（法条更新、类案报道、公开事实核查）。输入检索词，返回前若干条结果的标题、摘要与链接。"""
     if not settings.web_search_enabled:
         return "联网搜索未启用（设置 → Agent 工程）。可依据卷宗与知识库作答。"
+    import http.client
     import urllib.parse
-    import urllib.request
-    url = "https://cn.bing.com/search?q=" + urllib.parse.quote(query) + "&count=8"
-    req = urllib.request.Request(url, headers={
+
+    # 上游固定为 Bing 国内源，仅查询串动态；显式固定主机避免请求目标被间接改写
+    path = "/search?q=" + urllib.parse.quote(query) + "&count=8"
+    headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         "Accept-Language": "zh-CN,zh;q=0.9",
-    })
+    }
     try:
-        html = urllib.request.urlopen(req, timeout=12).read().decode("utf-8", "ignore")
+        conn = http.client.HTTPSConnection("cn.bing.com", timeout=12)
+        try:
+            conn.request("GET", path, headers=headers)
+            resp = conn.getresponse()
+            if resp.status != 200:
+                return f"联网检索失败（HTTP {resp.status}）。请依据卷宗与知识库继续分析。"
+            html = resp.read().decode("utf-8", "ignore")
+        finally:
+            conn.close()
     except Exception as ex:  # noqa: BLE001
         return f"联网检索失败（网络不可达）：{str(ex)[:120]}。请依据卷宗与知识库继续分析。"
     chunks = html.split('<li class="b_algo"')[1:]
@@ -153,7 +181,8 @@ def run_code(code: str) -> str:
     """在受控沙箱中执行 Python 代码并返回标准输出与错误。用于对证据数据做统计、比对、时间线推算；也可生成图表（matplotlib，Agg 后端），保存到环境变量 SANDBOX_OUT 指向的目录，返回中会附带图片链接，将在笔录中渲染。
 
     安全说明：沙箱使用 Python -I 隔离模式（忽略 PYTHONPATH 和用户 site-packages），
-    但仍可访问网络和本地文件系统。请勿在不可信环境中暴露此工具。
+    并从环境剥离敏感配置（LLM_*/ACCESS_* 前缀）；但仍可访问网络和本地文件系统。
+    请勿在不可信环境中暴露此工具。
     """
     if not settings.code_sandbox_enabled:
         return "代码沙箱未启用。请在「设置 → 运行环境」中开启「启用 Python 代码沙箱」。"
@@ -162,9 +191,7 @@ def run_code(code: str) -> str:
     os.makedirs(out_dir, exist_ok=True)
     t0 = time.time()
     before = {f: os.path.getmtime(os.path.join(out_dir, f)) for f in os.listdir(out_dir)}
-    env = dict(os.environ)
-    env["SANDBOX_OUT"] = out_dir
-    env["MPLBACKEND"] = "Agg"
+    env = _sandbox_env({"SANDBOX_OUT": out_dir, "MPLBACKEND": "Agg"})
     try:
         proc = subprocess.run(
             [settings.code_sandbox_python, "-I", "-c", code],
@@ -215,6 +242,7 @@ def install_package(package: str) -> str:
             capture_output=True,
             text=True,
             timeout=240,
+            env=_sandbox_env(),
         )
     except FileNotFoundError:
         return f"未找到解释器：{settings.code_sandbox_python}"

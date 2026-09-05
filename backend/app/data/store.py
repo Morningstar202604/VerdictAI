@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from app.config import settings
@@ -18,6 +19,22 @@ def cases_dir() -> str:
 
 def validate_id(case_id: str) -> bool:
     return bool(_SAFE_ID.match(case_id))
+
+
+def atomic_write_json(path: str, data, indent: int | None = 2) -> None:
+    """全部 JSON 存储的统一落盘咽喉点：先写临时文件再原子替换。
+
+    进程中断或断电会留下半截文件，而读取侧普遍只容忍 FileNotFoundError，
+    损坏文件会让对应功能整体不可用（如 agent_config.json 损坏会拖垮全部
+    辩论）。写入目标规范化后必须仍落在 DATA_DIR 内，父目录逃逸一律拒绝。"""
+    resolved = Path(path).resolve()
+    root = Path(settings.data_dir).resolve()
+    resolved.relative_to(root)
+    tmp = resolved.with_name(resolved.name + ".tmp")
+    tmp.write_text(
+        json.dumps(data, ensure_ascii=False, indent=indent), encoding="utf-8"
+    )
+    tmp.replace(resolved)
 
 
 def list_cases() -> List[Dict]:

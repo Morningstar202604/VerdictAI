@@ -5,6 +5,7 @@ import os
 
 from app.config import settings
 from app.agents.roles import ROLES, INVESTIGATION_ORDER, TRIAL_ORDER
+from app.data.store import atomic_write_json
 
 CONFIG_PATH = os.path.join(settings.data_dir, "agent_config.json")
 
@@ -65,6 +66,10 @@ def load() -> dict:
             saved = json.load(f)
     except FileNotFoundError:
         return defaults
+    except json.JSONDecodeError:
+        # 配置文件损坏（如历史版本非原子写入被中断）时回退内置默认，
+        # 只影响专家配置的自定义部分；不自动覆盖原文件，便于人工恢复
+        return defaults
     for k, v in saved.items():
         if k in defaults:
             for field in ("enabled", "order", "system_prompt", "tools", "model"):
@@ -74,7 +79,6 @@ def load() -> dict:
 
 
 def save(data: dict) -> dict:
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     clean = {}
     for k, v in data.items():
         clean[k] = {
@@ -84,8 +88,7 @@ def save(data: dict) -> dict:
             "tools": v.get("tools"),
             "model": v.get("model"),
         }
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(clean, f, ensure_ascii=False, indent=2)
+    atomic_write_json(CONFIG_PATH, clean)
     return effective_list()
 
 

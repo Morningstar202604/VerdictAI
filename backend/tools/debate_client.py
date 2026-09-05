@@ -14,21 +14,31 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import http.client
 import json
 import sys
 import time
-import urllib.request
 import uuid
 
 from websockets.client import connect
 
-BASE = "http://localhost:8787"
 WS = "ws://localhost:8787/ws"
+
+
+def _get_json(path: str):
+    """健康检查等本机 REST 探测：目标恒为 127.0.0.1:8787。"""
+    conn = http.client.HTTPConnection("127.0.0.1", 8787, timeout=10)
+    try:
+        conn.request("GET", path)
+        resp = conn.getresponse()
+        return json.loads(resp.read())
+    finally:
+        conn.close()
 
 
 async def run(case_id: str, judge_mode: str | None, intervene: str | None,
               confirm_text: str, timeout: float, quiet: bool, no_confirm: bool = False) -> int:
-    health = json.loads(urllib.request.urlopen(BASE + "/api/health", timeout=10).read())
+    health = _get_json("/api/health")
     print(f"[health] provider={health['provider']} mock={health['mock']}")
 
     session = "cli" + uuid.uuid4().hex[:8]

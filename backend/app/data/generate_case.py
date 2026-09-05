@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import os
 
@@ -12,6 +11,7 @@ from matplotlib import font_manager
 from matplotlib.patches import Rectangle
 
 from app.config import settings
+from app.data.store import atomic_write_json
 
 # 选择系统中存在的中文字体，避免图表中文乱码
 _CANDIDATES = [
@@ -327,8 +327,7 @@ ASSETS_REL = "assets"
 
 
 def _save_case(path: str) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(CASE, f, ensure_ascii=False, indent=2)
+    atomic_write_json(path, CASE)
 
 
 def _chart_timeline(out: str) -> None:

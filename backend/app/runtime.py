@@ -1,33 +1,36 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from app.config import settings, MAX_ROUNDS
 
-ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+ENV_PATH = Path(os.path.dirname(os.path.dirname(__file__)), ".env")
 
-_MAP = {
-    "llm_provider": "LLM_PROVIDER",
-    "llm_api_key": "LLM_API_KEY",
-    "llm_base_url": "LLM_BASE_URL",
-    "llm_model": "LLM_MODEL",
-    "ollama_base_url": "OLLAMA_BASE_URL",
-    "ollama_model": "OLLAMA_MODEL",
-    "temperature": "LLM_TEMPERATURE",
-    "max_rounds": "MAX_ROUNDS",
-    "human_in_the_loop": "HUMAN_IN_THE_LOOP",
-    "judge_mode": "JUDGE_MODE",
-    "hitl_timeout": "HITL_TIMEOUT",
-    "memory_rounds": "MEMORY_ROUNDS",
-    "context_char_limit": "CONTEXT_CHAR_LIMIT",
-    "max_concurrency": "MAX_CONCURRENCY",
-    "llm_timeout": "LLM_TIMEOUT",
-    "llm_max_tokens": "LLM_MAX_TOKENS",
-    "web_search_enabled": "WEB_SEARCH_ENABLED",
-    "intake_model": "INTAKE_MODEL",
-    "code_sandbox_enabled": "CODE_SANDBOX_ENABLED",
-    "code_sandbox_python": "CODE_SANDBOX_PYTHON",
-}
+# 设置字段 → .env 键名：除 temperature 外全部与字段大写一致，
+# 显式列出避免手工映射漏项
+_MAP = {k: k.upper() for k in (
+    "llm_provider",
+    "llm_api_key",
+    "llm_base_url",
+    "llm_model",
+    "ollama_base_url",
+    "ollama_model",
+    "max_rounds",
+    "human_in_the_loop",
+    "judge_mode",
+    "hitl_timeout",
+    "memory_rounds",
+    "context_char_limit",
+    "max_concurrency",
+    "llm_timeout",
+    "llm_max_tokens",
+    "web_search_enabled",
+    "intake_model",
+    "code_sandbox_enabled",
+    "code_sandbox_python",
+)}
+_MAP["temperature"] = "LLM_TEMPERATURE"
 
 
 def current() -> dict:
@@ -132,8 +135,7 @@ def update(payload: dict) -> dict:
 
 def _persist() -> None:
     try:
-        with open(ENV_PATH, "r", encoding="utf-8") as f:
-            lines = f.read().splitlines()
+        lines = ENV_PATH.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
         lines = []
 
@@ -182,7 +184,7 @@ def _persist() -> None:
         if k not in seen:
             out.append(f"{k}={v}")
 
-    tmp = ENV_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write("\n".join(out) + "\n")
-    os.replace(tmp, ENV_PATH)
+    # 原子替换：中断不会留下半截 .env 让下次启动读到损坏配置
+    tmp = ENV_PATH.with_name(ENV_PATH.name + ".tmp")
+    tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+    tmp.replace(ENV_PATH)
