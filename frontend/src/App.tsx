@@ -66,7 +66,7 @@ export default function App() {
             <p className="text-[10px] text-slate-400">
               Multi-Agent Legal Investigation & Trial · 7 专家辩论 · 纠错官 · 审判长收敛
             </p>
-            <p className="text-[9px] text-slate-500">v{import.meta.env.PACKAGE_VERSION || '0.5.0'}</p>
+            <p className="text-[9px] text-slate-500">v{import.meta.env.PACKAGE_VERSION || '0.5.1'}</p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs">

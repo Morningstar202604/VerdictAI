@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.5.0")
+app = FastAPI(title="VerdictAI Local Engine", version="0.5.1")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
@@ -223,7 +223,7 @@ class Case:
         ]
         self.transfer = [
             f for f in self.finance
-            if "转账" in f["item"] or "账户" in f["item"] or "收款" in f["item"] or "来源存疑" in f["note"] or "当晚" in f["note"]
+            if any(k in (f["item"] + f["note"]) for k in ("转账", "账户", "收款", "来源存疑", "当晚", "工资", "欠薪", "拖欠"))
         ]
         self.weapon = next((e for e in self.evidence if "凶器" in e.type or "刀" in e.desc), None)
         self.monitor = next((e for e in self.evidence if "监控" in e.type or "监控" in e.desc or "录像" in e.desc), None)
@@ -319,7 +319,7 @@ class Case:
             steps.append("生物物证指向性：DNA 比对" + ("（含身份不明成分）" if self.dna_unknown else ""))
         if self.insurance or self.transfer:
             steps.append("动机与资金背景：" + "、".join(f["item"] for f in (self.insurance + self.transfer)[:2]))
-        return steps or ["证据链尚不完整，需补充侦查"]
+        return steps or ["在案证据尚待补强：按待证事实逐项补证后再行评判"]
 
 
 # ----------------------------- 会话状态 -----------------------------
@@ -829,16 +829,18 @@ def _judge_json(case: Case) -> dict:
     case_text = (case.raw or "")[:2000]
     if any(k in intent + case_text for k in ("盗窃", "窃取", "侵占", "职务侵占")):
         model = "熟悉现场与值守规律的人员作案"
-    elif any(k in intent for k in ("合同", "违约")):
-        model = "违约事实与原因力比例的综合认定"
+    elif "民事" in intent or any(k in intent + case_text for k in ("借款", "借贷", "合同", "违约", "欠款")):
+        model = "合同履行事实与违约责任的按因认定"
     else:
         model = "熟人预谋作案"
+    subject = "、".join(case.names[:3]) if case.names else "在案各方"
     hypo = (
         "真相推定：在案证据更支持「" + model + "」——"
-        + f"动机层面存在{motive}；"
+        + f"涉案主体：{subject}；"
+        + (f"动机与资金层面：{motive}；" if (case.insurance or case.transfer) else "")
         + (f"手段层面 {case.weapon.id} 与致伤方式吻合；" if case.weapon else "")
         + (f"条件层面 {case.edited[0].id} 缺失时段提供了行为窗口；" if case.edited else "")
-        + ("但在案生物检材检出身份不明 DNA，使「第三人介入」模型暂不能被排除。" if case.dna_unknown else "但证据空窗处仍需补充侦查以闭合模型。")
+        + ("但在案生物检材检出身份不明 DNA，使「第三人介入」模型暂不能被排除。" if case.dna_unknown else "但关键待证事项仍需在案证据进一步印证。")
     )
     # 后续流程：从案件事实动态推导，供司法机关直接执行
     steps: List[str] = []
@@ -855,11 +857,29 @@ def _judge_json(case: Case) -> dict:
     if not steps:
         steps.append("按裁决建议推进后续程序；由人类法官作出最终裁判")
     steps.append("本系统结论仅供辅助参考，最终裁判权由人类法官/司法机关行使")
+    civil_case = "民事" in intent or any(k in intent + case_text for k in ("借款", "借贷", "合同", "违约", "欠款", "工资"))
+    loan_case = any(k in intent + case_text for k in ("借款", "借贷"))
+    if loan_case:
+        recommendation = (
+            "建议：①核对借款合同与转账凭证原件，确认债务数额与利息计算；"
+            "②审查抵押未登记对担保效力的影响及保证期间是否届满；"
+            "③查明已还款项的性质（本金/利息）与抵充顺序；"
+            "④经审理后依法判决——本系统结论仅供辅助参考。"
+        )
+    elif civil_case:
+        recommendation = (
+            "建议：①围绕争议法律关系固定证据原件（合同/记录/凭证）；"
+            "②明确双方权利义务与实际履行事实；"
+            "③核算请求数额与责任比例；"
+            "④经审理后依法裁判——本系统结论仅供辅助参考。"
+        )
+    else:
+        recommendation = "建议：①调取并封存原始监控与电子数据，修复缺失时段；②对身份不明 DNA 入库比对并排查社会关系；③回溯在案瑕疵物证的保管链；④补充侦查后由人类法官作出最终裁判。"
     return {
         "truth_hypothesis": hypo,
         "evidence_chain": case.chain_step(),
         "doubts": doubts[:5] or ["证据链已收敛，无明显存疑点"],
-        "recommendation": "建议：①调取并封存原始监控与电子数据，修复缺失时段；②对身份不明 DNA 入库比对并排查社会关系；③回溯在案瑕疵物证的保管链；④补充侦查后由人类法官作出最终裁判。",
+        "recommendation": recommendation,
         "next_steps": steps[:6],
         "disclaimer": "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
     }
@@ -934,12 +954,24 @@ _EV_TYPE_KW = [
     ("勘验", "勘验笔录"), ("笔录", "笔录"), ("现场提取", "物证"), ("痕迹", "痕迹物证"),
 ]
 _DATE_RE = re.compile(r"(20\d{2}年)?\d{1,2}月\d{1,2}日(?:\s?(?:凌晨|清晨|上午|中午|下午|傍晚|晚上|深夜|当晚|当日))?(?:\s*\d{1,2}[时点]\d{1,2}分?)?")
+# 身份词后允许序号（被告一/原告二）与冒号/逗号/括号，再接人名——
+# 否则「被告一偿还…」会把「一偿还」当成名字
 _PERSON_RE = re.compile(
     r"(?:被告人|犯罪嫌疑人|嫌疑人|被害人|死者|证人|报案人|原告|被告|上诉人|驾驶人|司机|法定代表人"
-    r"|值班员|装卸工|仓管员|经理|保安|老板|财务|受害人|被害者)\s*([\u4e00-\u9fa5]{2,3})"
+    r"|值班员|装卸工|仓管员|经理|保安|老板|财务|受害人|被害者)(?:[一二三四五六七八九十\d]{1,2})?[：:，,（(\s]*"
+    r"([\u4e00-\u9fa5]{2,3})"
 )
 _NAME_TRAIL = "系的与和及于在已曾称说是就又"
 _NAME_STOP_PREFIX = ("指甲", "皮屑", "血液", "现场", "手机", "仓库", "工资", "通话", "监控", "录像", "火灾", "提取物")
+# 常见姓氏白名单：首字不像姓氏的候选（如「名下轿」「保存有」「到期不」）直接排除，
+# 这是中文人名抽取最稳的规则；动词/虚词黑名单只作第二道兜底
+_SURNAMES = set(
+    "李王张刘陈杨赵黄周吴徐孙马朱胡郭何高林罗郑梁谢宋唐许韩冯邓曹彭曾肖田董袁潘于蒋蔡余杜叶程"
+    "苏魏吕丁任沈姚卢姜崔钟谭陆汪范金石廖贾夏韦付方白邹孟熊秦邱江尹薛闫段雷侯龙史陶黎贺顾毛郝"
+    "龚邵万钱严覃武戴莫孔向汤温康施文柯桂米邱常齐殷施聂伍余倪凌殷穆祝郝洪阮龚龚代盛童邱"
+)
+# 常见动词/虚词：出现在候选名里基本可断定不是人名（偿还/抵押/签约…）
+_NAME_BAD_CHARS = set("的了与和及其于在已曾称说是就又对为这向由从被还偿押签诉请确享受优先允诺承应当须将愿按依经通过逾超未均已此各该")
 
 
 def _cn_clocks(text: str) -> List[str]:
@@ -985,6 +1017,9 @@ def _extract_structure(text: str) -> Dict[str, Any]:
     for m in _PERSON_RE.finditer(text):
         nm = _clean_name(m.group(1))
         if len(nm) < 2 or len(nm) > 3 or nm.startswith(_NAME_STOP_PREFIX) or nm in seen_names:
+            continue
+        # 首字必须是常见姓氏，且候选名不含动词/虚词（如「偿还」「抵押」）
+        if nm[0] not in _SURNAMES or any(ch in _NAME_BAD_CHARS for ch in nm):
             continue
         seen_names.add(nm)
         role_m = m.group(0)[:len(m.group(0)) - len(m.group(1))]
@@ -1043,10 +1078,19 @@ def _extract_structure(text: str) -> Dict[str, Any]:
     for s in sentences:
         if len(finance) >= 4:
             break
-        if any(k in s for k in ("保险", "保额", "赔付", "赔偿金")) and any(ch.isdigit() for ch in s):
+        # 覆盖民事资金线（借款/工资/补偿）而不仅是保险
+        if any(k in s for k in ("保险", "保额", "赔付", "赔偿金", "借款", "本金", "利息", "还款", "归还", "工资", "欠薪", "补偿金")) and any(ch.isdigit() for ch in s):
             s2 = re.sub(r"^\d+[.、]\s*", "", s)
             # item 必须是干净短标签（进裁决/发言），原始句子进 note——否则整句被拼进动机文案
-            if "保额" in s2 and any(k in s2 for k in ("提高", "提升", "增加")):
+            if "工资" in s2 or "欠薪" in s2:
+                label = "拖欠工资"
+            elif "补偿" in s2:
+                label = "经济补偿"
+            elif "归还" in s2 or "还款" in s2 or "偿还" in s2:
+                label = "还款记录"
+            elif "本金" in s2 or "借款" in s2:
+                label = "借款本金"
+            elif "保额" in s2 and any(k in s2 for k in ("提高", "提升", "增加")):
                 label = "火灾险保额异常提升"
             elif "投保" in s2:
                 label = "投保记录"
@@ -1055,7 +1099,7 @@ def _extract_structure(text: str) -> Dict[str, Any]:
             elif "保额" in s2:
                 label = "保险保额"
             else:
-                label = "保险利益"
+                label = "资金往来"
             am = (re.search(r"(\d+(?:\.\d+)?)\s*万元", s2)
                   or re.search(r"(\d+(?:\.\d+)?)\s*元", s2)
                   or re.search(r"(\d+(?:\.\d+)?)", s2))
