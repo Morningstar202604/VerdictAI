@@ -16,6 +16,24 @@ def test_extract_json_code_block():
     assert _extract_json('```json\n{"a": [1, 2]}\n```') == {"a": [1, 2]}
 
 
+def test_extract_json_array_with_prose():
+    """纠错官输出 JSON 数组且常带前后缀说明：必须返回完整数组，
+    而不是数组内第一个对象切片（该对象再被 critic 兜底逻辑拆错）。"""
+    text = '比对结果如下\n[{"issue": "口供与监控时间冲突", "parties": ["evidence"]},'
+    text += '\n{"issue": "DNA检材保管链断点", "parties": ["law", "evidence"]}]\n以上。'
+    parsed = _extract_json(text)
+    assert isinstance(parsed, list)
+    assert [p["issue"] for p in parsed] == ["口供与监控时间冲突", "DNA检材保管链断点"]
+
+
+def test_extract_json_object_with_prose_keeps_object():
+    """卷宗预处理输出对象（内含数组字段）且可能带前缀说明：
+    数组切片不能抢先，必须仍返回最外层对象。"""
+    text = '结果：{"intent": "刑案", "extracted": {"persons": ["甲"], "evidence": []}}'
+    parsed = _extract_json(text)
+    assert parsed == {"intent": "刑案", "extracted": {"persons": ["甲"], "evidence": []}}
+
+
 def test_extract_json_double_encoded():
     assert _extract_json('{\\"a\\": \\"b\\"}') == {"a": "b"}
 

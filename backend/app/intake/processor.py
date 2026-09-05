@@ -182,7 +182,9 @@ def _extract_json(text: str) -> Optional[dict | list]:
     """容错解析：兼容干净 JSON、代码块包裹、被整体转义的二次编码。
 
     返回 dict 或 list——纠错官节点要求输出 JSON 数组，若只接受 dict，
-    数组会被静默丢弃导致矛盾检测永远为空。"""
+    数组会被静默丢弃导致矛盾检测永远为空。文本被前后缀说明包裹时，
+    对象切片内部也含数组、数组切片内部也含对象，单一固定顺序必有一类
+    被抢先：这里取「解析成功的最长切片」，让最完整的结构胜出。"""
     if not text:
         return None
     t = text.strip()
@@ -197,14 +199,13 @@ def _extract_json(text: str) -> Optional[dict | list]:
     i, j = t.find("{"), t.rfind("}")
     if i != -1 and j > i:
         c = t[i : j + 1]
-        candidates.append(c)
-        candidates.append(c.replace('\\"', '"').replace("\\\\", "\\"))
+        candidates.extend([c, c.replace('\\"', '"').replace("\\\\", "\\")])
     a, b = t.find("["), t.rfind("]")
     if a != -1 and b > a:
         c = t[a : b + 1]
-        candidates.append(c)
-        candidates.append(c.replace('\\"', '"').replace("\\\\", "\\"))
-    for cand in candidates:
+        candidates.extend([c, c.replace('\\"', '"').replace("\\\\", "\\")])
+
+    def _try(cand: str) -> Optional[dict | list]:
         try:
             obj = json.loads(cand)
             if isinstance(obj, (dict, list)):
@@ -217,7 +218,14 @@ def _extract_json(text: str) -> Optional[dict | list]:
                 return json.loads(inner)
         except Exception:
             pass
-    return None
+        return None
+
+    best: tuple[int, dict | list] | None = None
+    for cand in candidates:
+        obj = _try(cand)
+        if obj is not None and (best is None or len(cand) > best[0]):
+            best = (len(cand), obj)
+    return best[1] if best else None
 
 
 async def _intake_llm(dossier: str, retries: int = 3) -> Optional[dict]:
