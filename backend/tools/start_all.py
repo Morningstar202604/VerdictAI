@@ -43,20 +43,42 @@ def port_in_use(port: int) -> bool:
 
 
 def find_processes_by_marker(marker: str):
-    """查找命令行中包含指定 marker 的进程 PID 列表（跨平台）。"""
+    """查找命令行中包含指定 marker 的进程 PID 列表（跨平台）。
+
+    Windows 11 24H2 起系统已移除 wmic：先试 wmic，失败或无输出时
+    改用 PowerShell CIM 查询——否则 stop 在新系统上完全失效，
+    监管进程反复复活子进程、僵尸进程不断累积。"""
     pids = []
     try:
         if IS_WIN:
-            out = subprocess.run(
-                ["wmic", "process", "where", "name='python.exe'",
-                 "get", "processid,commandline"],
-                capture_output=True, text=True, timeout=10,
-            ).stdout
-            for line in out.splitlines():
-                if marker.lower() in line.lower():
-                    parts = line.strip().split()
-                    if parts and parts[-1].isdigit():
-                        pids.append(int(parts[-1]))
+            out = ""
+            try:
+                out = subprocess.run(
+                    ["wmic", "process", "where", "name='python.exe'",
+                     "get", "processid,commandline"],
+                    capture_output=True, text=True, timeout=10,
+                ).stdout
+            except Exception:
+                out = ""
+            if out.strip():
+                for line in out.splitlines():
+                    if marker.lower() in line.lower():
+                        parts = line.strip().split()
+                        if parts and parts[-1].isdigit():
+                            pids.append(int(parts[-1]))
+            else:
+                ps = (
+                    "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+                    "Where-Object { $_.CommandLine -and $_.CommandLine.Contains('" + marker + "') } | "
+                    "Select-Object -ExpandProperty ProcessId"
+                )
+                out = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", ps],
+                    capture_output=True, text=True, timeout=15,
+                ).stdout
+                for line in out.splitlines():
+                    if line.strip().isdigit():
+                        pids.append(int(line.strip()))
         else:
             # Linux/macOS: 使用 ps
             out = subprocess.run(
