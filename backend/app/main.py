@@ -299,12 +299,15 @@ async def regenerate():
     # 给示例案件一个新 ID，避免覆盖 case_001
     new_id = "case_" + uuid.uuid4().hex[:8]
     case["id"] = new_id
-    # 标题去重：以原题去掉"(副本…)"后缀为基底，统计已有同源副本数，递增编号
+    # 标题去重：以原题去掉"(副本…)"后缀为基底，统计已有同源副本数，递增编号。
+    # generate() 已把模板写进 cases 目录，统计时必须跳过模板自身，否则
+    # 新生成的示例案件永远被误判为"已有副本"而带上 (副本) 后缀。
     base = re.sub(r"\s*\(副本\d*\)\s*$", "", case.get("title", "示例案件"))
+    source_fn = os.path.basename(path)
     existing = 0
     try:
         for fn in os.listdir(os.path.join(data_dir, "cases")):
-            if not fn.endswith(".json"):
+            if not fn.endswith(".json") or fn == source_fn:
                 continue
             try:
                 with open(os.path.join(data_dir, "cases", fn), encoding="utf-8") as f:
@@ -314,7 +317,10 @@ async def regenerate():
                 continue
     except Exception:
         pass
-    case["title"] = base + (" (副本)" if existing <= 1 else f" (副本{existing})")
+    if existing == 1:
+        case["title"] = base + " (副本)"
+    elif existing >= 2:
+        case["title"] = base + f" (副本{existing})"
     try:
         case["brief"] = await preprocess(case)
     except Exception:
@@ -508,8 +514,9 @@ async def upload_case(payload: dict):
                 continue
             try:
                 with open(os.path.join(cases_dir, _fn), encoding="utf-8") as _f:
-                    if (json.load(_f).get("title") or "").startswith(_base) and json.load(_f).get("id") != cid:
-                        _existing += 1
+                    _c = json.load(_f)
+                if (_c.get("title") or "").startswith(_base) and _c.get("id") != cid:
+                    _existing += 1
             except Exception:
                 continue
     except Exception:
