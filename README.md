@@ -220,7 +220,7 @@ Browser ──WebSocket──▶ FastAPI ──▶ LangGraph StateGraph
 - **asyncio.gather + concurrency cap** — experts run in parallel, rate-limit friendly
 - **Tool fault tolerance** — bad tool calls never crash the debate
 - **Tiered memory** — recent rounds in full, older rounds rolling-compressed
-- **Citation discipline** — statutes/precedents come from检索 (retrieval), never from model imagination
+- **Citation discipline** — statutes/precedents come from retrieval, never from model imagination
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full breakdown.
 
@@ -252,7 +252,7 @@ This system is for **research and demonstration purposes only**. AI-generated co
 ---
 
 <p align="center">
-  <strong>If you find VerdictAI useful, please consider giving it a ⭐</strong>
+  <strong>We hope VerdictAI is useful to you.</strong>
 </p>
 
 <p align="center">
