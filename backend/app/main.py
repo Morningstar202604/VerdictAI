@@ -29,7 +29,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-app = FastAPI(title="VerdictAI", version="0.2.0")
+app = FastAPI(title="VerdictAI", version="0.2.1")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)
