@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-09-06
+### Fixed
+- /static/data 收敛为仅挂载 cases/assets：辩论全记录、agent_config、知识库、presets 不再有任何 URL 可直达（图表 URL 前缀保持兼容）。
+- 登录 cookie 从口令哈希改为进程级随机密钥的 HMAC 签名令牌（7 天过期、重启失效、不可伪造）；口令与会话校验走 compare_digest；/login 失败 5 次锁定 15 分钟。
+### Added
+- 配置快照：辩论开场 debate_snapshot() 拍快照并全程传递，POST /api/settings 只影响新辩论；并发会话互不干扰。get_llm 缓存键补 max_tokens。
+### Changed
+- should_continue 的 max_rounds/judge_mode 读会话内值，不再回读全局。
+
 ## [0.2.2] - 2026-09-06
 ### Fixed
 - 路径穿越：上传接口的案件 ID 与 WebSocket 的 session_id 参与服务端文件名拼接但未校验，补齐 validate_id 同等校验。
