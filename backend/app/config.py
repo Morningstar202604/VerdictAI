@@ -50,6 +50,12 @@ class Settings:
     code_sandbox_enabled: bool = (
         os.getenv("CODE_SANDBOX_ENABLED", "true").lower() == "true"
     )
+    # 沙箱后端：auto=有 Docker 用容器（断网+资源上限），否则本机子进程；
+    # subprocess=强制本机；docker=强制容器（不可用时报错提示）
+    code_sandbox_backend: str = os.getenv("CODE_SANDBOX_BACKEND", "auto")
+    code_sandbox_docker_image: str = os.getenv(
+        "CODE_SANDBOX_DOCKER_IMAGE", "python:3.12-slim"
+    )
     code_sandbox_python: str = os.getenv(
         "CODE_SANDBOX_PYTHON", sys.executable or "python3"
     )
@@ -91,6 +97,8 @@ class Settings:
         self.temperature = max(0.0, min(2.0, float(self.temperature)))
         if self.judge_mode not in ("ai", "human"):
             self.judge_mode = "ai"
+        if self.code_sandbox_backend not in ("auto", "subprocess", "docker"):
+            self.code_sandbox_backend = "auto"
         if self.hitl_timeout != 0 and self.hitl_timeout < MIN_HITL_TIMEOUT:
             self.hitl_timeout = DEFAULT_HITL_TIMEOUT
         self.port = max(1, min(65535, int(self.port)))

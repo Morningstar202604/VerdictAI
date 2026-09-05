@@ -28,6 +28,8 @@ _MAP = {k: k.upper() for k in (
     "web_search_enabled",
     "intake_model",
     "code_sandbox_enabled",
+    "code_sandbox_backend",
+    "code_sandbox_docker_image",
     "code_sandbox_python",
 )}
 _MAP["temperature"] = "LLM_TEMPERATURE"
@@ -54,6 +56,8 @@ def current() -> dict:
         "web_search_enabled": settings.web_search_enabled,
         "intake_model": settings.intake_model,
         "code_sandbox_enabled": settings.code_sandbox_enabled,
+        "code_sandbox_backend": settings.code_sandbox_backend,
+        "code_sandbox_docker_image": settings.code_sandbox_docker_image,
         "code_sandbox_python": settings.code_sandbox_python,
     }
 
@@ -116,6 +120,16 @@ def update(payload: dict) -> dict:
         and payload["code_sandbox_enabled"] is not None
     ):
         settings.code_sandbox_enabled = bool(payload["code_sandbox_enabled"])
+    if "code_sandbox_backend" in payload and payload["code_sandbox_backend"] is not None:
+        v = str(payload["code_sandbox_backend"]).strip().lower()
+        settings.code_sandbox_backend = v if v in ("auto", "subprocess", "docker") else "auto"
+    if (
+        "code_sandbox_docker_image" in payload
+        and payload["code_sandbox_docker_image"] is not None
+    ):
+        settings.code_sandbox_docker_image = (
+            str(payload["code_sandbox_docker_image"]).strip() or "python:3.12-slim"
+        )
     if "code_sandbox_python" in payload and payload["code_sandbox_python"] is not None:
         settings.code_sandbox_python = (
             str(payload["code_sandbox_python"]).strip() or "python3"

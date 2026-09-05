@@ -181,3 +181,33 @@ For best performance:
 - Use `MAX_ROUNDS=2` for faster results (still multi-round)
 - Use a fast model for `INTAKE_MODEL` (case preprocessing is one-shot)
 - Ensure the server has ≥2GB RAM for PyMuPDF + LLM client
+
+## Sandbox Isolation (0.4.0+)
+
+The `run_code` sandbox supports pluggable backends via `CODE_SANDBOX_BACKEND`:
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | One-shot Docker container when Docker and the image are available locally; otherwise falls back to the host subprocess (`python -I`) |
+| `docker` | Force container mode; actionable error if Docker or the image is missing |
+| `subprocess` | Force host subprocess |
+
+Container mode runs with `--network=none --memory=512m --cpus=1 --pids-limit=128`,
+mounts only the sandbox output directory, and injects just `SANDBOX_OUT` /
+`MPLBACKEND` — host env vars never enter. Pre-bake extra packages (scipy,
+openpyxl…) into a custom image via `CODE_SANDBOX_DOCKER_IMAGE`; the
+`install_package` tool cannot persist inside a one-shot container.
+
+## Backups (0.4.0+)
+
+```bash
+cd backend
+.venv/Scripts/python tools/backup.py --out /path/offsite --keep 14   # Windows
+.venv/bin/python tools/backup.py --out /path/offsite --keep 14       # Linux/macOS
+```
+
+Packs cases / debates / knowledge base / presets into a zip (excludes
+sandbox output, logs and previous backups) and prunes to the newest `--keep`
+archives. Schedule it daily (Windows Task Scheduler / cron) and point
+`--out` at a different disk or network share. Backend logs rotate at
+1 MB × 5 files under `DATA_DIR/logs/`.
