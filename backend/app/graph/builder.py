@@ -14,8 +14,11 @@ from app.models.state import DebateState
 
 
 def should_continue(state: DebateState) -> str:
-    # 审判长已收敛，或已达到最大轮次（避免永不收敛时死循环）
-    if state.get("consensus") or state.get("round", 0) >= settings.max_rounds:
+    # 审判长已收敛，或已达到最大轮次（避免永不收敛时死循环）。
+    # max_rounds / judge_mode 都取开场快照（随 state 流转），
+    # 全局 settings 中途被改也不影响进行中的辩论。
+    max_rounds = state.get("max_rounds", settings.max_rounds)
+    if state.get("consensus") or state.get("round", 0) >= max_rounds:
         # 审判长由人类担任时，在结束前暂停等待落槌（judge_mode 取会话级，避免污染全局）
         judge_mode = state.get("judge_mode") or settings.judge_mode
         return "human_final" if judge_mode == "human" else "end"

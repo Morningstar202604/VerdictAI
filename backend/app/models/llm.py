@@ -214,11 +214,19 @@ class MockChatModel(BaseChatModel):
 
 
 def get_llm(
-    role_hint: str = "expert", model: str = None, temperature: float = None
+    role_hint: str = "expert",
+    model: str = None,
+    temperature: float = None,
+    cfg: dict = None,
 ) -> BaseChatModel:
-    provider = settings.llm_provider.lower()
-    model = model or settings.llm_model
-    temperature = temperature if temperature is not None else settings.temperature
+    """cfg 是辩论开场拍的配置快照（app.config.debate_snapshot）：
+    传入时模型选择完全由快照决定，与全局 settings 的后续变更解耦；
+    不传（辩论外的端点）沿用全局配置。"""
+    c = cfg or {}
+    provider = str(c.get("llm_provider") or settings.llm_provider).lower()
+    model = model or c.get("llm_model") or settings.llm_model
+    if temperature is None:
+        temperature = c.get("temperature", settings.temperature)
 
     if provider == "mock":
         m = MockChatModel()
@@ -226,20 +234,31 @@ def get_llm(
         return m
 
     if provider in ("openai", "openai_compatible", "ollama"):
-        # 缓存键：同一组参数复用同一个客户端实例
-        cache_key = (provider, model, settings.llm_base_url, settings.ollama_base_url, temperature)
+        base_url = c.get("llm_base_url") or settings.llm_base_url or None
+        ollama_base_url = c.get("ollama_base_url") or settings.ollama_base_url
+        max_tokens = c.get("llm_max_tokens", settings.llm_max_tokens)
+        # 缓存键：同一组参数复用同一个客户端实例（max_tokens 参与键，
+        # 避免不同快照间复用截断配置不同的客户端）
+        cache_key = (
+            provider,
+            model,
+            base_url,
+            ollama_base_url,
+            temperature,
+            max_tokens if provider != "ollama" else 0,
+        )
         cached = _llm_cache.get(cache_key)
         if cached is not None:
             return cached
 
         from langchain_openai import ChatOpenAI
-        base_url = settings.llm_base_url or None
+
         if provider == "ollama":
-            model = settings.ollama_model
-            base_url = settings.ollama_base_url
+            model = c.get("ollama_model") or settings.ollama_model
+            base_url = ollama_base_url
             api_key = "ollama"
         else:
-            api_key = settings.llm_api_key or "EMPTY"
+            api_key = c.get("llm_api_key") or settings.llm_api_key or "EMPTY"
         # langchain-openai 1.6 对 SecretStr 处理有 bug，必须传明文 str
         llm = ChatOpenAI(
             model=model,
@@ -249,7 +268,7 @@ def get_llm(
             streaming=False,
             # 思维链类模型（如 gemini 系列）会把大量推理写入 reasoning_content，
             # 若不显式给足 max_tokens，JSON 输出会被截断导致解析失败
-            max_tokens=settings.llm_max_tokens or 8000,
+            max_tokens=max_tokens or 8000,
         )
         _llm_cache[cache_key] = llm
         return llm
@@ -260,8 +279,9 @@ def get_llm(
     return m
 
 
-def is_mock() -> bool:
-    return settings.llm_provider.lower() == "mock"
+def is_mock(cfg: dict = None) -> bool:
+    provider = (cfg or {}).get("llm_provider") or settings.llm_provider
+    return str(provider).lower() == "mock"
 
 
 def clear_llm_cache() -> None:
