@@ -313,36 +313,59 @@ def get_case(case_id: str):
     return c
 
 
+_debates_index: dict = {}
+
+
+def _debate_summary(path: str) -> dict | None:
+    """解析单份辩论记录的列表摘要；损坏文件返回 None（重试到下次修改为止）。"""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except Exception:
+        return None
+    return {
+        "session_id": rec.get("session_id"),
+        "case_title": rec.get("case_title"),
+        "started_at": rec.get("started_at"),
+        "model": rec.get("model"),
+        "rounds": rec.get("rounds"),
+        "truth": (rec.get("final_verdict") or {}).get("truth_hypothesis", ""),
+        "usage": rec.get("usage") or {},
+    }
+
+
 @app.get("/api/debates")
 def list_debates(limit: int = 50):
-    """列出已落盘的辩论记录，供复盘。默认最多返回最近 50 条。"""
+    """列出已落盘的辩论记录，供复盘。默认最多返回最近 50 条（按开始时间排序）。
+    摘要按文件 (mtime, size) 缓存：记录上千份时列表请求不再全量解析。"""
     d = os.path.join(settings.data_dir, "debates")
     if not os.path.isdir(d):
         return []
     limit = max(1, min(200, int(limit)))
-    out = []
-    for fn in sorted(os.listdir(d), reverse=True):
-        if len(out) >= limit:
-            break
+    entries = []
+    for fn in os.listdir(d):
         if not fn.endswith(".json"):
             continue
+        p = os.path.join(d, fn)
         try:
-            with open(os.path.join(d, fn), encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except Exception:
+            st = os.stat(p)
+        except OSError:
             continue
-        out.append(
-            {
-                "session_id": rec.get("session_id"),
-                "case_title": rec.get("case_title"),
-                "started_at": rec.get("started_at"),
-                "model": rec.get("model"),
-                "rounds": rec.get("rounds"),
-                "truth": (rec.get("final_verdict") or {}).get("truth_hypothesis", ""),
-                "usage": rec.get("usage") or {},
-            }
-        )
-    return out
+        key = (st.st_mtime_ns, st.st_size)
+        cached = _debates_index.get(fn)
+        if cached is not None and cached[0] == key:
+            item = cached[1]
+        else:
+            item = _debate_summary(p)
+            _debates_index[fn] = (key, item)
+        if item is not None:
+            entries.append(item)
+    # 清理已删除记录的缓存
+    live = {fn for fn in os.listdir(d) if fn.endswith(".json")}
+    for fn in [k for k in _debates_index if k not in live]:
+        _debates_index.pop(fn, None)
+    entries.sort(key=lambda e: e.get("started_at") or "", reverse=True)
+    return entries[:limit]
 
 
 @app.get("/api/debates/{session_id}")

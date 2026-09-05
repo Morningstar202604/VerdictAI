@@ -41,31 +41,51 @@ def atomic_write_json(path: str, data, indent: int | None = 2) -> None:
 def list_cases() -> List[Dict]:
     d = cases_dir()
     out = []
-    for fn in os.listdir(d):
-        if fn.endswith(".json"):
-            try:
-                with open(os.path.join(d, fn), "r", encoding="utf-8") as f:
-                    c = json.load(f)
-                out.append(
-                    {
-                        "id": c.get("id"),
-                        "title": c.get("title"),
-                        "summary": c.get("summary", "")[:120],
-                        # 列表统计：人员/证据/时间线数量，供前端案例库直接展示
-                        "persons": c.get("persons") or [],
-                        "evidence": c.get("evidence") or [],
-                        "timeline": c.get("timeline") or [],
-                        # 前端案例库用 brief.intake_done 显示「已预处理」标记
-                        "brief": {
-                            "intake_done": bool(
-                                (c.get("brief") or {}).get("intake_done")
-                            )
-                        },
-                    }
-                )
-            except Exception:
-                continue
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".json"):
+            continue
+        path = os.path.join(d, fn)
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        # 按 (mtime, size) 缓存每份案件的摘要：案件数量上百时避免
+        # 每次列表请求都全量读盘解析；文件变化自动失效
+        key = (st.st_mtime_ns, st.st_size)
+        cached = _cases_index.get(fn)
+        if cached is not None and cached[0] == key:
+            out.append(cached[1])
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                c = json.load(f)
+            item = {
+                "id": c.get("id"),
+                "title": c.get("title"),
+                "summary": c.get("summary", "")[:120],
+                # 列表统计：人员/证据/时间线数量，供前端案例库直接展示
+                "persons": c.get("persons") or [],
+                "evidence": c.get("evidence") or [],
+                "timeline": c.get("timeline") or [],
+                # 前端案例库用 brief.intake_done 显示「已预处理」标记
+                "brief": {
+                    "intake_done": bool(
+                        (c.get("brief") or {}).get("intake_done")
+                    )
+                },
+            }
+        except Exception:
+            continue
+        _cases_index[fn] = (key, item)
+        out.append(item)
+    # 清理已删除案件的缓存，防无限增长
+    live = {fn for fn in os.listdir(d) if fn.endswith(".json")}
+    for fn in [k for k in _cases_index if k not in live]:
+        _cases_index.pop(fn, None)
     return out
+
+
+_cases_index: dict = {}
 
 
 def load_case(case_id: str) -> Optional[Dict]:
