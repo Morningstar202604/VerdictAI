@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.5.1")
+app = FastAPI(title="VerdictAI Local Engine", version="0.6.0")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
