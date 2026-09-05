@@ -31,6 +31,27 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+# 文件日志按 1MB×5 份轮转，防止单文件无限增长；只读盘等场景退回仅控制台
+try:
+    from logging.handlers import RotatingFileHandler
+
+    _log_dir = os.path.join(os.path.abspath(settings.data_dir), "logs")
+    os.makedirs(_log_dir, exist_ok=True)
+    _file_handler = RotatingFileHandler(
+        os.path.join(_log_dir, "verdictai.log"),
+        maxBytes=1_000_000,
+        backupCount=5,
+        encoding="utf-8",
+    )
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    log.addHandler(_file_handler)
+except Exception:
+    pass
 
 app = FastAPI(title="VerdictAI", version="0.3.0")
 _START_TIME = _time.time()

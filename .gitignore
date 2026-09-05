@@ -68,3 +68,7 @@ backend/data/cases/assets/
 
 # Mimosa scanner runtime state (session-local, never commit)
 backend/.mimosa/
+
+# Backup archives (produced by tools/backup.py)
+backend/data/backups/
+backend/data/logs/
