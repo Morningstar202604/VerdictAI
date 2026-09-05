@@ -16,6 +16,7 @@ import threading
 import uuid
 
 from app.config import settings
+from app.data.store import atomic_write_json
 
 _KB_LOCK = threading.Lock()
 
@@ -121,9 +122,7 @@ def _load_custom() -> list[dict]:
 
 
 def _save_custom(entries: list[dict]) -> None:
-    os.makedirs(os.path.dirname(_kb_path()), exist_ok=True)
-    with open(_kb_path(), "w", encoding="utf-8") as f:
-        json.dump(entries, f, ensure_ascii=False, indent=2)
+    atomic_write_json(_kb_path(), entries)
 
 
 def list_knowledge() -> list[dict]:

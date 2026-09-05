@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.2] - 2026-09-06
+### Fixed
+- 路径穿越：上传接口的案件 ID 与 WebSocket 的 session_id 参与服务端文件名拼接但未校验，补齐 validate_id 同等校验。
+- 密钥泄露面：代码沙箱与 pip 子进程此前继承完整环境，LLM_API_KEY / ACCESS_PASSWORD 对专家生成的任意代码可见；按 LLM_*/ACCESS_* 前缀剥离，工具注入变量显式叠加。
+- 落盘可靠性：新增 atomic_write_json（临时文件 + 原子替换）作为全部 JSON 存储的统一写入点，并钳制写入目标在 DATA_DIR 内；agent_config 读取侧容忍损坏 JSON 回退内置默认，半截文件只降级一项功能而非拖垮辩论。
+### Changed
+- 固定源的 HTTP 探测/检索改用 http.client 显式固定主机（web_search、debate_client、start_all），请求目标不再由字符串拼接间接构成。
+- 血迹示意图表改 sin-hash 确定性生成，替代 random+seed。
+- CI backend 矩阵补 Python 3.10，兑现 README「Python 3.10+」承诺。
+### Added
+- CONTRIBUTING 新增运行时纪律：运行时数据不入库、JSON 原子写入与损坏容忍、Secrets 前缀剥离约定、路径参数校验、README 版本下限必须被 CI 矩阵覆盖、依赖分运行时/开发两栏。
+- 核心纯逻辑单测（收敛判定、文本分片、原子落盘、配置容错）与沙箱/输入校验回归测试（共 28 例）。
+
 ## [0.2.1] - 2026-09-05
 ### Fixed
 - 案件标题去重双重失效：上传接口对同一文件句柄连续 json.load 导致同名计数永远为 0，"(副本N)" 后缀从不生成；generate 先落盘模板再统计导致自计数，每个新示例案件都误带 "(副本)" 后缀。

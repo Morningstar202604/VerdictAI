@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import time
@@ -9,6 +8,7 @@ from typing import Optional
 
 from app.agents.tools import activate_case
 from app.config import settings
+from app.data.store import atomic_write_json
 from app.graph.builder import build_graph
 from app.intake.processor import build_role_material, preprocess
 from app.ws.manager import manager
@@ -170,10 +170,9 @@ async def run_debate(
             await manager.send(session_id, {"kind": "usage", "usage": config["configurable"].get("usage") or {}})
         except Exception:
             pass
-        # 持久化整场辩论记录，便于复盘（刷新/断线不丢失）
+        # 持久化整场辩论记录，便于复盘（刷新/断线不丢失）；原子替换，
+        # 中断不会留下半截记录让复盘页解析失败
         try:
-            debates_dir = os.path.join(settings.data_dir, "debates")
-            os.makedirs(debates_dir, exist_ok=True)
             record = {
                 "session_id": session_id,
                 "usage": config["configurable"].get("usage") or {},
@@ -187,10 +186,10 @@ async def run_debate(
                 "final_verdict": final_verdict,
                 "events": transcript,
             }
-            with open(
-                os.path.join(debates_dir, f"{session_id}.json"), "w", encoding="utf-8"
-            ) as f:
-                json.dump(record, f, ensure_ascii=False)
+            debates_dir = os.path.join(settings.data_dir, "debates")
+            atomic_write_json(
+                os.path.join(debates_dir, f"{session_id}.json"), record, indent=None
+            )
         except Exception:
             log.warning("[debate %s] 辩论记录落盘失败", session_id, exc_info=True)
         await manager.send(session_id, {"kind": "done"})

@@ -65,3 +65,6 @@ backend/data/presets.json
 # Runtime-generated case charts (regenerated per case; generate_case.py
 # redraws the template charts on every call, so tracked copies go stale)
 backend/data/cases/assets/
+
+# Mimosa scanner runtime state (session-local, never commit)
+backend/.mimosa/

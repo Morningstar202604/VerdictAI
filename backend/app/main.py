@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings, MAX_PDF_PAGES, MAX_PDF_CHARS
 from app.data import generate_case
-from app.data.store import list_cases, load_case, validate_id
+from app.data.store import atomic_write_json, list_cases, load_case, validate_id
 from app.agents.roles import role_list
 from app.agents import agent_config
 from app.graph.runner import run_debate
@@ -29,7 +29,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-app = FastAPI(title="VerdictAI", version="0.2.1")
+app = FastAPI(title="VerdictAI", version="0.2.2")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)
@@ -328,8 +328,7 @@ async def regenerate():
     except Exception:
         pass
     new_path = os.path.join(os.path.dirname(path), f"{new_id}.json")
-    with open(new_path, "w", encoding="utf-8") as f:
-        json.dump(case, f, ensure_ascii=False, indent=2)
+    atomic_write_json(new_path, case)
     return {"path": new_path, "case": case}
 
 
@@ -503,7 +502,13 @@ async def upload_case(payload: dict):
                 data[k] = v
         data["pdf_text"] = pdf_text
 
-    cid = data.get("id") or ("case_" + uuid.uuid4().hex[:8])
+    cid = str(data.get("id") or "").strip()
+    if cid and not validate_id(cid):
+        # cid 会参与案件文件名拼接，必须与 GET/DELETE 端点同等校验，
+        # 否则 "../" 之类的值可以写出 cases 目录之外
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+    if not cid:
+        cid = "case_" + uuid.uuid4().hex[:8]
     data["id"] = cid
     cases_dir = os.path.join(data_dir, "cases")
     os.makedirs(cases_dir, exist_ok=True)
@@ -537,8 +542,7 @@ async def upload_case(payload: dict):
     except Exception as ex:
         log.warning("chart generation failed for %s: %s", cid, ex)
         data["charts"] = {}
-    with open(os.path.join(cases_dir, cid + ".json"), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    atomic_write_json(os.path.join(cases_dir, cid + ".json"), data)
     return {"case": data}
 
 
@@ -665,9 +669,7 @@ def save_preset(payload: dict):
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     custom[name] = body
-    os.makedirs(os.path.dirname(_PRESETS_PATH), exist_ok=True)
-    with open(_PRESETS_PATH, "w", encoding="utf-8") as f:
-        json.dump(custom, f, ensure_ascii=False, indent=2)
+    atomic_write_json(_PRESETS_PATH, custom)
     return {"saved": name}
 
 
@@ -686,8 +688,7 @@ def delete_preset(name: str):
     if name not in custom:
         return JSONResponse({"error": "模板不存在"}, status_code=404)
     del custom[name]
-    with open(_PRESETS_PATH, "w", encoding="utf-8") as f:
-        json.dump(custom, f, ensure_ascii=False, indent=2)
+    atomic_write_json(_PRESETS_PATH, custom)
     return {"deleted": name}
 
 
@@ -757,6 +758,10 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
     # 访问口令启用时，WebSocket 同样校验登录 cookie（ accept 前拒绝，避免产生半开连接）
     if settings.access_password and websocket.cookies.get(_AUTH_COOKIE) != _auth_token():
         await websocket.close(code=4401)
+        return
+    # session_id 会作为辩论记录文件名落盘，与 REST 端点同等校验，杜绝路径穿越
+    if not validate_id(session_id):
+        await websocket.close(code=4400)
         return
     # 同一会话重复连接：先关闭旧连接，避免孤儿连接占用资源
     if session_id in manager.active:

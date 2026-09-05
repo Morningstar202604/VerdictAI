@@ -11,7 +11,6 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.request
 
 CWD = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/
 # 优先使用项目虚拟环境，回退到当前解释器
@@ -25,10 +24,12 @@ IS_WIN = sys.platform == "win32"
 CREATE_NO_WINDOW = 0x08000000 if IS_WIN else 0
 
 COMPONENTS = [
-    {"name": "backend", "port": 8787, "url": "http://localhost:8787/api/health",
+    {"name": "backend", "port": 8787, "path": "/api/health",
+     "url": "http://localhost:8787",
      "script": os.path.join(CWD, "_serve.py"),
      "marker": "_serve.py"},
-    {"name": "engine", "port": 9100, "url": "http://127.0.0.1:9100/healthz",
+    {"name": "engine", "port": 9100, "path": "/healthz",
+     "url": "http://127.0.0.1:9100",
      "script": os.path.join(CWD, "ai_engine", "engine_serve.py"),
      "marker": "engine_serve.py"},
 ]
@@ -47,7 +48,7 @@ def find_processes_by_marker(marker: str):
     try:
         if IS_WIN:
             out = subprocess.run(
-                ["wmic", "process", "where", f"name='python.exe'",
+                ["wmic", "process", "where", "name='python.exe'",
                  "get", "processid,commandline"],
                 capture_output=True, text=True, timeout=10,
             ).stdout
@@ -83,17 +84,24 @@ def kill_pid(pid: int):
         pass
 
 
-def alive(url: str) -> bool:
+def alive(port: int, path: str) -> bool:
+    """健康探测：目标恒为本机回环地址，仅端口与路径随组件配置。"""
+    import http.client
+
     try:
-        urllib.request.urlopen(url, timeout=3)
-        return True
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+        try:
+            conn.request("GET", path)
+            return conn.getresponse().status == 200
+        finally:
+            conn.close()
     except Exception:
         return False
 
 
 def start():
     for comp in COMPONENTS:
-        if alive(comp["url"]):
+        if alive(comp["port"], comp["path"]):
             print(f"[{comp['name']}] 已在运行（端口 {comp['port']}），跳过")
             continue
         # 端口被残留进程占用：清掉再启动
@@ -114,10 +122,10 @@ def start():
     print("等待服务就绪…")
     for _ in range(20):
         time.sleep(1.5)
-        if all(alive(c["url"]) for c in COMPONENTS):
+        if all(alive(c["port"], c["path"]) for c in COMPONENTS):
             break
     for comp in COMPONENTS:
-        status = "✓ " + comp["url"] if alive(comp["url"]) else "✗ 未就绪，请查看 " + comp["name"] + ".log"
+        status = "✓ " + comp["url"] if alive(comp["port"], comp["path"]) else "✗ 未就绪，请查看 " + comp["name"] + ".log"
         print(f"[{comp['name']}] {status}")
     print("\n打开 http://localhost:8787 即可使用。")
 

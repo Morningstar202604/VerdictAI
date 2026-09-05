@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import os
 
@@ -12,6 +11,7 @@ from matplotlib import font_manager
 from matplotlib.patches import Rectangle
 
 from app.config import settings
+from app.data.store import atomic_write_json
 
 # 选择系统中存在的中文字体，避免图表中文乱码
 _CANDIDATES = [
@@ -327,8 +327,7 @@ ASSETS_REL = "assets"
 
 
 def _save_case(path: str) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(CASE, f, ensure_ascii=False, indent=2)
+    atomic_write_json(path, CASE)
 
 
 def _chart_timeline(out: str) -> None:
@@ -526,20 +525,25 @@ def _chart_communication(out: str) -> None:
 
 
 def _chart_bloodstain(out: str) -> None:
-    """血迹分布示意（散点 + 中心冲击点）。"""
-    fig, ax = plt.subplots(figsize=(6, 5))
-    import random
+    """血迹分布示意（散点 + 中心冲击点）。
 
-    random.seed(42)
+    溅射点用 sin-hash 确定性伪随机生成：不依赖 random 模块，
+    同一输入永远产出同一张图，便于回归比对。"""
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    def _fract(x: float, lo: float, hi: float) -> float:
+        v = math.sin(x * 127.1 + 311.7) * 43758.5453
+        return lo + (v - math.floor(v)) * (hi - lo)
+
     # 中心点血迹
     ax.scatter([0], [0], s=300, color="#991b1b", zorder=4)
     # 溅射血迹
-    for _ in range(90):
-        ang = random.uniform(0, 2 * 3.14159)
-        r = random.uniform(0.3, 2.4)
-        x = r * random.uniform(0.6, 1) * math.cos(ang)
-        y = r * random.uniform(0.6, 1) * math.sin(ang)
-        ax.scatter(x, y, s=random.uniform(6, 22), color="#b91c1c", alpha=0.55)
+    for i in range(90):
+        ang = _fract(i + 1, 0, 2 * 3.14159)
+        r = _fract(i + 101, 0.3, 2.4)
+        x = r * _fract(i + 201, 0.6, 1) * math.cos(ang)
+        y = r * _fract(i + 201, 0.6, 1) * math.sin(ang)
+        ax.scatter(x, y, s=_fract(i + 301, 6, 22), color="#b91c1c", alpha=0.55)
     # 刀痕方向
     ax.annotate(
         "",
