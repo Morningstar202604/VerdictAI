@@ -72,3 +72,6 @@ backend/.mimosa/
 # Backup archives (produced by tools/backup.py)
 backend/data/backups/
 backend/data/logs/
+
+# Mimosa hook state (any depth, never commit)
+**/.mimosa/

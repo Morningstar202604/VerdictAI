@@ -473,6 +473,19 @@
       body.dark img.chart, body.dark .sandbox-result img { filter: brightness(.92); }
       body.dark .agent-row.speaking { background: #231a1c; }
 
+      /* ---- 结案卡片：有始有终的收束时刻 ---- */
+      .closure-card { margin: 18px auto 8px; max-width: 560px; border: 2px solid var(--navy);
+        border-radius: 14px; padding: 20px 22px 16px; text-align: center; background: var(--surface);
+        box-shadow: 0 8px 28px rgba(31,58,95,.12); }
+      .closure-card .cl-icon { font-size: 26px; }
+      .closure-card .cl-title { font-family: "Noto Serif SC","Songti SC",serif; font-size: 17px;
+        font-weight: 700; color: var(--navy); letter-spacing: 2px; margin: 6px 0 4px; }
+      .closure-card .cl-sub { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+      .closure-card .cl-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+      .closure-card .cl-actions .ghost, .closure-card .cl-actions .primary { font-size: 12px; padding: 7px 12px; }
+      .closure-card .cl-note { font-size: 11px; color: var(--faint); margin-top: 10px; }
+      body.dark .closure-card { box-shadow: 0 8px 28px rgba(0,0,0,.4); }
+
       /* ==================== 响应式设计 ==================== */
       @media (max-width: 1200px) {
         main { grid-template-columns: 280px minmax(0,1fr) 300px; }
@@ -569,7 +582,7 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.4.1</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.5.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>
@@ -1357,7 +1370,7 @@
           case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
           case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#b45309", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
           case "usage": lastUsage=ev.usage||null; break;
-          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } break;
+          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
           case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
           case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
         }
@@ -1465,7 +1478,8 @@
         setTimeout(flush, 80);
       }
       function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts); return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0")+":"+d.getSeconds().toString().padStart(2,"0"); }
-      function renderDebate(){ const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
+      function renderDebate(){
+        const box=$("debate"); const wrap=document.createElement("div"); wrap.className="thread"; let last=-1;
         messages.forEach((m,mi)=>{ // 仅 role-round 形式的 id（如 scene-2）渲染轮次分隔；human-<ts> / err-<ts> 不计
           const rk=parseInt(m.id.split("-")[1]); const isRoundId=Number.isInteger(rk)&&rk>=1&&rk<=maxRounds+2;
           if(isRoundId&&rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
@@ -1474,7 +1488,10 @@
            el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
           wrap.appendChild(el);
         });
-        box.innerHTML=""; box.appendChild(wrap);
+        box.innerHTML="";
+        // 结案卡片挂在渲染流水线内：任何一次重绘都自动补挂，不会被冲掉
+        if(!running && lastVerdict && messages.length) appendClosureCard(wrap);
+        box.appendChild(wrap);
         const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
         if (nearBottom) box.scrollTop = box.scrollHeight;
         const jb = $("jumpBottom"); if (jb) jb.classList.toggle("hidden", nearBottom || !messages.length);
@@ -1517,6 +1534,28 @@
         // 推荐追问：从存疑点自动生成
         const qc=$("qaChips"); if(qc){ qc.innerHTML=((v.doubts||[]).slice(0,3)).map(function(d){ return '<span class="chip-mini" data-q="为什么：'+escapeHtml(String(d).slice(0,26))+'…？">'+escapeHtml("为什么："+String(d).slice(0,18)+"…")+'</span>'; }).join(""); }
         renderNextSteps(v.next_steps||[]);
+      }
+      function appendClosureCard(container){
+        /* 结案卡片：辩论终结后在笔录末尾给出明确的收束时刻与结案动作。
+           由 renderDebate 在「已终结且有裁决」时挂载，重绘自动保留。 */
+        const wrap=container||$("debate"); if(!wrap) return;
+        if(wrap.querySelector(".closure-card")) return;
+        const rounds=round||new Set(messages.map(m=>m.roundLabel).filter(Boolean)).size;
+        const calls=(lastUsage&&lastUsage.calls)?lastUsage.calls:0;
+        const div=document.createElement("div");
+        div.className="closure-card";
+        div.innerHTML='<div class="cl-icon">🔨</div>' +
+          '<div class="cl-title">本 案 审 理 终 结</div>' +
+          '<div class="cl-sub">' + escapeHtml((caseDetail&&caseDetail.title)||"案件") +
+          " · " + rounds + " 轮审理" + (calls ? " · 推理 " + calls + " 次" : "") + '</div>' +
+          '<div class="cl-actions">' +
+          '<button class="primary" onclick="downloadReport()" aria-label="下载完整结案报告">⬇ 完整结案报告</button>' +
+          '<button class="ghost" onclick="printReport()" aria-label="打印结案报告或导出 PDF">🖨 打印 / PDF</button>' +
+          '<button class="ghost" onclick="goHome()" aria-label="结束本案并开始新庭审">🏛 新庭审</button>' +
+          '</div>' +
+          '<div class="cl-note">裁决与全程笔录已自动归档 · 「设置 → 案例库 → 复盘记录」可随时调阅</div>';
+        wrap.appendChild(div);
+        wrap.scrollTop = wrap.scrollHeight;
       }
       function renderNextSteps(steps){
         const box=$("nextSteps");
