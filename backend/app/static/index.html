@@ -56,7 +56,7 @@
       .hero-logo { width: 72px; height: 72px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 8px 20px rgba(21,41,63,.35)); animation: heroFloat 5s ease-in-out infinite; }
       @keyframes heroFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
       .hero { position: relative; }
-      .hero-deco { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); width: min(860px, 100%); opacity: .08; pointer-events: none; }
+      .hero-deco { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); width: min(860px, 100%); opacity: .18; pointer-events: none; }
       .sub { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: .3px; }
       .controls { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
       .badge { font-size: 11.5px; padding: 5px 11px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;
@@ -76,38 +76,47 @@
       button.ghost { background: var(--surface); }
       button.ghost:hover { background: var(--surface-3); }
 
-      /* ---------- 落地页（GPT 式首页） ---------- */
+      /* ---------- 落地页（深蓝司法质感首页） ---------- */
       .landing { position: fixed; inset: 0; z-index: 40; overflow-y: auto;
-        background: radial-gradient(1200px 520px at 50% -12%, #f4f6f9 0%, var(--paper) 62%); padding: 64px 24px 80px; }
+        background:
+          radial-gradient(900px 420px at 50% -8%, rgba(156,124,67,.22), transparent 62%),
+          linear-gradient(180deg, #0f1722 0%, #16222f 36%, var(--paper) 82%);
+        padding: 72px 24px 80px; }
       .hero { width: min(880px, 96vw); margin: 0 auto; }
-      .cover-kicker { font-size: 12px; letter-spacing: 5px; color: var(--gold); text-align: center; font-weight: 600; }
-      .hero h1 { font-family: var(--serif); text-align: center; font-size: 34px; font-weight: 700; color: var(--navy-deep); margin: 10px 0 8px; letter-spacing: 3px; }
-      .cover-desc { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.9; margin: 0 auto 26px; max-width: 640px; }
+      .cover-kicker { font-size: 12px; letter-spacing: 5px; color: #d4b46a; text-align: center; font-weight: 600; }
+      .hero h1 { font-family: var(--serif); text-align: center; font-size: 36px; font-weight: 700; color: #f3eee2; margin: 10px 0 8px; letter-spacing: 3px; text-shadow: 0 2px 26px rgba(0,0,0,.4); }
+      .cover-desc { text-align: center; color: #aab8c8; font-size: 14px; line-height: 1.9; margin: 0 auto 26px; max-width: 640px; }
       .feat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 780px; margin: 0 auto 24px; }
-      .feat { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 16px 14px; text-align: center; transition: .2s; cursor: default; }
-      .feat:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(20,30,45,.10); border-color: var(--gold); }
-      .feat .fi { font-size: 26px; margin-bottom: 8px; }
+      .feat { border: 1px solid rgba(255,255,255,.55); border-radius: 14px; background: var(--surface); padding: 16px 14px; text-align: center; transition: .2s; cursor: default;
+        box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+      .feat:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,.30); border-color: var(--gold); }
+      .feat .fi { width: 46px; height: 46px; margin: 0 auto 8px; display: grid; place-items: center; font-size: 24px;
+        border-radius: 12px; background: linear-gradient(135deg, rgba(31,58,95,.10), rgba(156,124,67,.14)); }
       .feat b { display: block; font-family: var(--serif); color: var(--navy-deep); font-size: 14px; margin-bottom: 5px; letter-spacing: .5px; }
       .feat span { font-size: 11.5px; color: var(--muted); line-height: 1.6; display: block; }
-      .composer { margin: 0 auto; max-width: 780px; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface);
-        box-shadow: 0 14px 40px rgba(20,30,45,.10); padding: 14px 14px 12px; }
+      .composer { margin: 0 auto; max-width: 780px; border: 1px solid transparent; border-radius: 16px; background: var(--surface);
+        box-shadow: 0 24px 64px rgba(0,0,0,.38); padding: 14px 14px 12px; }
       .composer textarea { width: 100%; border: none; outline: none; resize: none; font-family: inherit; font-size: 14px;
         line-height: 1.7; color: var(--ink); background: transparent; min-height: 54px; }
       .composer textarea::placeholder { color: var(--faint); }
       .composer-bar { display: flex; align-items: center; gap: 9px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
       .composer-bar select { flex: 1; min-width: 0; }
-      .composer-bar .primary { margin-left: auto; padding: 9px 22px; font-size: 14px; letter-spacing: 1px; }
+      .composer-bar .primary { margin-left: auto; padding: 9px 24px; font-size: 14px; letter-spacing: 1px;
+        background: linear-gradient(135deg, var(--navy) 0%, #2c5688 100%); box-shadow: 0 6px 18px rgba(31,58,95,.38); transition: .15s; }
+      .composer-bar .primary:hover { transform: translateY(-1px); box-shadow: 0 9px 24px rgba(31,58,95,.46); }
       .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 18px auto 0; max-width: 780px; }
-      .chip { font-size: 12.5px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); cursor: pointer; transition: .15s; }
+      .chip { font-size: 12.5px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.94); color: var(--muted); cursor: pointer; transition: .15s;
+        box-shadow: 0 4px 14px rgba(0,0,0,.14); }
       .chip:hover { border-color: var(--navy); color: var(--navy); }
-      .roster-preview { max-width: 780px; margin: 30px auto 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+      .roster-preview { max-width: 780px; margin: 30px auto 0; padding: 18px 20px; border: none; border-radius: 14px; background: var(--surface);
+        box-shadow: 0 14px 40px rgba(0,0,0,.24); }
       .roster-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 12px; }
       .roster-pick { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: #fbfcfe; font-size: 12px; cursor: pointer; transition: .12s; }
       .roster-pick .ainit { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 12px; flex: none; }
       .roster-pick.off { opacity: .4; }
       .linkbtn { color: var(--navy); font-size: 12.5px; cursor: pointer; font-weight: 600; }
       .linkbtn:hover { text-decoration: underline; }
-      .cover-foot { text-align: center; color: var(--faint); font-size: 11.5px; margin-top: 22px; }
+      .cover-foot { text-align: center; color: #7e8b9c; font-size: 11.5px; margin-top: 22px; }
 
       /* ---------- 工作区 ---------- */
       main { display: grid; grid-template-columns: 340px minmax(0,1fr) 372px; height: calc(100vh - 60px);
@@ -582,7 +591,7 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.5.1</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.6.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>

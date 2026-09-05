@@ -137,6 +137,7 @@ Agents don't just talk — they **use tools** (results render inside the transcr
 - **AI Judge** — automated convergence and verdict delivery
 - **Human Judge (HITL)** — pause the trial for human review; auto-archival on configurable timeout
 - **After the verdict**: Q&A follow-ups, an executable **next-steps checklist** with progress tracking, one-click copy / Markdown export / print-to-PDF
+- **Closure card** — when the trial ends, the transcript closes with a 🔨 "审理终结" card (case / rounds / usage) and one-click access to the full closure report, print-to-PDF and a new trial
 - Every trial is auto-archived with **usage analytics** (inference count, characters in/out) and full replay
 
 </details>
@@ -159,8 +160,10 @@ Platform-grade runtime controls, inspired by Dify/Coze:
 <details>
 <summary><strong>🏛️ Deployment-Ready</strong></summary>
 
-- One-command start/stop (`tools/start_all.py`) — windowless daemons with auto-restart
-- Access password gate for intranet deployment (`ACCESS_PASSWORD` in `.env`)
+- **One-command start/stop** (`tools/start_all.py`) — windowless daemons with auto-restart
+- **Access password gate** for intranet deployment (`ACCESS_PASSWORD` in `.env`) — HMAC-signed session tokens with login rate-limiting
+- **Sandbox isolation** — `run_code` prefers a one-shot Docker container (no network, capped memory/CPU) and degrades to a host subprocess automatically (`CODE_SANDBOX_BACKEND`)
+- **Data backup** — `tools/backup.py` packs cases / debates / knowledge base into a pruned zip
 - Works fully offline with the bundled local engine, or against any OpenAI-compatible API
 - Light/dark theme, English / 中文 / 日本語 UI
 
