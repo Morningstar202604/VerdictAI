@@ -155,7 +155,9 @@ async def request_size_limit(request, call_next):
     return await call_next(request)
 
 # 静态资源：生成的图表/图片（不缓存，因为内容会更新）
+# data/ 整体不入版本控制，新克隆不存在该目录，而 StaticFiles 挂载要求目录必须已存在
 data_dir = os.path.abspath(settings.data_dir)
+os.makedirs(data_dir, exist_ok=True)
 app.mount("/static/data", StaticFiles(directory=data_dir), name="data")
 
 # 品牌与界面静态资源（logo 等，长缓存）
