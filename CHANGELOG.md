@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0] - 2026-09-07
+### Added
+- 专家并行发言：asyncio.gather + Semaphore(max_concurrency)，真实 LLM 下辩论耗时降至 1/4~1/6；gather 保序保证 claims/摘要顺序确定；mock 演示保持串行（`PARALLEL_EXPERTS=auto/on/off`）。
+- 真流式输出：最终答复走 astream 增量下发（30ms 节流），首字延迟从整段等待降到首块时间；本地引擎 chat 端点支持 stream:true（OpenAI 兼容 SSE）；端点不支持时首块前自动回退非流式并记住该端点（`STREAM_EXPERTS=auto/on/off`）。
+- 断线重连接续观看：会话事件缓冲（5000 帧上限）+ resume 协议，重连先补快照再续直播，辩论不再因网络抖动作废；任务挂会话注册表，新连接可停止；重连后旧连接清理改为守护式。
+- tools/smoke.py 一键自检（健康/生成/辩论/归档/复盘/质询六步断言）；CI 矩阵补 Python 3.12；CONTRIBUTING 注明内置 UI 为正式产品、React 版冻结。
+### Changed
+- WS 协议新增 resume 消息与 batch 事件；「重新连接」按钮改为「接续观看」，不再弹破坏性确认框。
+
 ## [0.6.1] - 2026-09-06
 ### Fixed
 - `tools/start_all.py stop` 在 Windows 11（系统已移除 wmic）上完全失效：进程查找失败导致监管进程杀不掉、反复复活子进程，每次 start/stop 循环累积僵尸进程（从头检查实测一轮清出 27 个）。wmic 失败或无输出时回退 PowerShell Get-CimInstance 查询；实测完整 start→stop 循环端口与监管进程双清零。

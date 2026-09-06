@@ -76,6 +76,10 @@ class Settings:
     # 单次 LLM 调用最大输出 token 数（思维链类模型 reasoning_content 占用 token，
     # 若限制过小会导致 JSON/长分析被截断），0 表示交给平台默认
     llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "0"))
+    # 专家发言流式输出：auto=非 mock 供应商启用（端点不支持自动回退），on=强制，off=关闭
+    stream_experts: str = os.getenv("STREAM_EXPERTS", "auto")
+    # 同轮专家并行：auto=非 mock 供应商并行（真实 LLM 耗时降为 1/4~1/6），on=强制，off=串行
+    parallel_experts: str = os.getenv("PARALLEL_EXPERTS", "auto")
     web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
     # 数据目录
     data_dir: str = os.getenv(
@@ -99,6 +103,10 @@ class Settings:
             self.judge_mode = "ai"
         if self.code_sandbox_backend not in ("auto", "subprocess", "docker"):
             self.code_sandbox_backend = "auto"
+        if self.stream_experts not in ("auto", "on", "off"):
+            self.stream_experts = "auto"
+        if self.parallel_experts not in ("auto", "on", "off"):
+            self.parallel_experts = "auto"
         if self.hitl_timeout != 0 and self.hitl_timeout < MIN_HITL_TIMEOUT:
             self.hitl_timeout = DEFAULT_HITL_TIMEOUT
         self.port = max(1, min(65535, int(self.port)))
@@ -136,10 +144,12 @@ _SNAPSHOT_FIELDS = (
     "hitl_timeout",
     "memory_rounds",
     "context_char_limit",
+    "max_concurrency",
     "llm_timeout",
     "llm_max_tokens",
     "web_search_enabled",
     "intake_model",
+    "parallel_experts",
 )
 
 

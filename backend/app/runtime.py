@@ -27,6 +27,8 @@ _MAP = {k: k.upper() for k in (
     "llm_max_tokens",
     "web_search_enabled",
     "intake_model",
+    "stream_experts",
+    "parallel_experts",
     "code_sandbox_enabled",
     "code_sandbox_backend",
     "code_sandbox_docker_image",
@@ -55,6 +57,8 @@ def current() -> dict:
         "llm_max_tokens": settings.llm_max_tokens,
         "web_search_enabled": settings.web_search_enabled,
         "intake_model": settings.intake_model,
+        "stream_experts": settings.stream_experts,
+        "parallel_experts": settings.parallel_experts,
         "code_sandbox_enabled": settings.code_sandbox_enabled,
         "code_sandbox_backend": settings.code_sandbox_backend,
         "code_sandbox_docker_image": settings.code_sandbox_docker_image,
@@ -123,6 +127,12 @@ def update(payload: dict) -> dict:
     if "code_sandbox_backend" in payload and payload["code_sandbox_backend"] is not None:
         v = str(payload["code_sandbox_backend"]).strip().lower()
         settings.code_sandbox_backend = v if v in ("auto", "subprocess", "docker") else "auto"
+    if "stream_experts" in payload and payload["stream_experts"] is not None:
+        v = str(payload["stream_experts"]).strip().lower()
+        settings.stream_experts = v if v in ("auto", "on", "off") else "auto"
+    if "parallel_experts" in payload and payload["parallel_experts"] is not None:
+        v = str(payload["parallel_experts"]).strip().lower()
+        settings.parallel_experts = v if v in ("auto", "on", "off") else "auto"
     if (
         "code_sandbox_docker_image" in payload
         and payload["code_sandbox_docker_image"] is not None

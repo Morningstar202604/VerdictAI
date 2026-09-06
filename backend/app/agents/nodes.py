@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from typing import Any, Awaitable, Callable, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -12,7 +13,7 @@ from app.agents.roles import ROLES
 from app.agents import agent_config
 from app.config import debate_snapshot, settings
 from app.intake.processor import _extract_json
-from app.models.llm import get_llm, is_mock
+from app.models.llm import get_llm, is_mock, stream_enabled, stream_or_invoke
 from app.models.state import DebateState
 
 log = logging.getLogger("debate.nodes")
@@ -35,6 +36,15 @@ def _session_cfg(config) -> dict:
     """取本场辩论的配置快照；未经 runner 直接调用图时回退拍一份当前值。"""
     cfg = config["configurable"].get("cfg")
     return cfg if isinstance(cfg, dict) and cfg else debate_snapshot()
+
+
+def _parallel_enabled(cfg: dict) -> bool:
+    mode = str((cfg or {}).get("parallel_experts") or settings.parallel_experts).lower()
+    if mode == "on":
+        return True
+    if mode == "off":
+        return False
+    return not is_mock(cfg)  # auto：非 mock 供应商并行
 
 
 def _to_str(content) -> str:
@@ -116,10 +126,51 @@ async def _run_agent(
     # 保证末尾存在一条 user 消息，否则 OpenAI/兼容接口会报 "No user query found"
     messages.append(HumanMessage(content=user_content))
     full = ""
+    final_streamed = False  # 最终答复是否已走真流式下发（避免末尾假分片重复输出）
+    stream_on = stream_enabled(cfg)
+    endpoint_key = "|".join(str(cfg.get(k) or "") for k in ("llm_provider", "llm_base_url", "llm_model"))
+    timeout = cfg.get("llm_timeout")
+
+    async def _stream_once():
+        """一次流式尝试：chunk 到达即按增量下发 token（30ms 节流合并）。
+        返回 (聚合消息, 是否已实际播出内容)。首块前失败不产生任何输出，
+        调用方回退非流式；已播出部分内容后失败则抛出（重试会重复发言）。"""
+        emitted = 0
+        buf = {"text": "", "last": 0.0}
+
+        async def _on(text: str) -> None:
+            nonlocal emitted
+            emitted += 1
+            buf["text"] += text
+            now = time.monotonic()
+            if now - buf["last"] >= 0.03 and buf["text"]:
+                buf["last"] = now
+                piece, buf["text"] = buf["text"], ""
+                await sink({"kind": "token", "role": role_key, "text": piece, "id": msg_id})
+
+        agg = await stream_or_invoke(llm, messages, on_chunk=_on, timeout=timeout, key=endpoint_key)
+        if buf["text"]:
+            await sink({"kind": "token", "role": role_key, "text": buf["text"], "id": msg_id})
+        return agg, emitted > 0
 
     if tools and not is_mock(cfg):
         for _ in range(4):
-            resp = await _retry_ainvoke(llm, messages, timeout=cfg.get("llm_timeout"))
+            final_streamed = False
+            try:
+                if stream_on:
+                    resp, final_streamed = await _stream_once()
+                else:
+                    resp = await _retry_ainvoke(llm, messages, timeout=timeout)
+                    full = _to_str(resp.content)
+                    break
+            except Exception:
+                # 首块前失败：回退整段调用（含既有重试）；已播出部分内容后
+                # 失败则不重试（重试会导致重复发言），交给该专家失败兜底
+                if final_streamed or not stream_on:
+                    raise
+                resp = await _retry_ainvoke(llm, messages, timeout=timeout)
+                full = _to_str(resp.content)
+                break
             if getattr(resp, "tool_calls", None):
                 messages.append(resp)
                 for tc in resp.tool_calls:
@@ -154,16 +205,27 @@ async def _run_agent(
             # 4 次工具调用仍未产出最终结论：给兜底提示，避免静默返回空文本
             full = "（该专家经多次工具调用仍未形成明确结论，建议人工复核其证据推导。）"
     else:
-        # 无工具角色：直接一次性生成（不依赖模型流式能力，跨模型更稳；
-        # 仍按 token 分片下发以保留逐字显示效果）
-        resp = await _retry_ainvoke(llm, messages, timeout=cfg.get("llm_timeout"))
-        full = _to_str(resp.content)
+        # 无工具角色：最终答复优先走真流式（首字延迟从整段等待降到首块时间）
+        try:
+            if stream_on:
+                resp, final_streamed = await _stream_once()
+                full = _to_str(resp.content)
+            else:
+                resp = await _retry_ainvoke(llm, messages, timeout=timeout)
+                full = _to_str(resp.content)
+        except Exception:
+            if final_streamed or not stream_on:
+                raise
+            resp = await _retry_ainvoke(llm, messages, timeout=timeout)
+            full = _to_str(resp.content)
     if not full.strip():
         role = ROLES.get(role_key, {})
         full = f"（{role.get('name', role_key)}未能生成有效分析，请检查模型可用性。）"
-    for seg in _chunk(full):
-        await sink({"kind": "token", "role": role_key, "text": seg, "id": msg_id})
-        await asyncio.sleep(0.004)
+    if not final_streamed:
+        # 非流式路径：保留分片下发以维持逐字显示效果
+        for seg in _chunk(full):
+            await sink({"kind": "token", "role": role_key, "text": seg, "id": msg_id})
+            await asyncio.sleep(0.004)
     if usage is not None:
         usage["calls"] = usage.get("calls", 0) + 1
         usage["in_chars"] = usage.get("in_chars", 0) + sum(len(str(m.content)) for m in messages)
@@ -368,9 +430,22 @@ async def experts_node(state: DebateState, config) -> Dict:
             )
 
     results = []
-    for rk in order:
-        r = await _run_one_limited(rk)
-        results.append(r)
+    if _parallel_enabled(cfg):
+        # 真实 LLM 下并行发言（README 承诺的 asyncio.gather + 并发上限）：
+        # gather 保持传入顺序 → claims 与轮次摘要的顺序确定，与完成先后无关；
+        # 信号量钳制并发，防云端限流；mock/本地演示路径仍走串行保持节奏感
+        sem = asyncio.Semaphore(max(1, int(cfg.get("max_concurrency") or settings.max_concurrency)))
+
+        async def _bounded(rk: str):
+            async with sem:
+                return await _run_one_limited(rk)
+
+        results = list(await asyncio.gather(*[_bounded(rk) for rk in order]))
+    else:
+        results = []
+        for rk in order:
+            r = await _run_one_limited(rk)
+            results.append(r)
     for role_key, text in results:
         claims[role_key] = text
 

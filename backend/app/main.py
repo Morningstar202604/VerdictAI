@@ -53,7 +53,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="VerdictAI", version="0.6.1")
+app = FastAPI(title="VerdictAI", version="0.7.0")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)
@@ -889,10 +889,8 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
             pass
         manager.disconnect(session_id)
     await manager.connect(session_id, websocket)
-    debate_task = None
 
     async def receiver():
-        nonlocal debate_task
         while True:
             try:
                 msg = await websocket.receive_json()
@@ -900,11 +898,13 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 break
             msg_type = msg.get("type")
             if msg_type == "start":
-                # 已有辩论在运行时，先取消再启动新的
-                if debate_task is not None and not debate_task.done():
-                    debate_task.cancel()
+                # 新庭审：清空事件缓冲，取消同会话仍在运行的任务
+                manager.clear_buffer(session_id)
+                old = manager.tasks.get(session_id)
+                if old is not None and not old.done():
+                    old.cancel()
                     try:
-                        await debate_task
+                        await old
                     except Exception:
                         pass
                 case_id = msg.get("case_id", "case_001")
@@ -923,18 +923,27 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                     )
                     if msg.get(k)
                 }
-                debate_task = asyncio.create_task(
+                manager.tasks[session_id] = asyncio.create_task(
                     run_debate(case, session_id, agents, overrides or None)
                 )
+            elif msg_type == "resume":
+                # 断线重连续看：补发历史事件快照，绝不取消进行中的辩论。
+                # manager.active 已被新连接接管，直播事件自动续上。
+                events = manager.buffer(session_id)
+                if events:
+                    await manager.send(
+                        session_id, {"kind": "batch", "events": events}, buffer=False
+                    )
             elif msg_type == "stop":
-                if debate_task is not None and not debate_task.done():
-                    debate_task.cancel()
+                old = manager.tasks.get(session_id)
+                if old is not None and not old.done():
+                    old.cancel()
                     try:
-                        await debate_task
+                        await old
                     except Exception:
                         pass
                     await manager.send(session_id, {"kind": "stopped", "message": "辩论已被用户停止"})
-                debate_task = None
+                manager.tasks.pop(session_id, None)
             elif msg_type == "human":
                 await manager.push_human(
                     session_id, msg.get("text", ""), msg.get("subtype", "intervene")
@@ -944,10 +953,14 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
     try:
         await task
     finally:
-        manager.disconnect(session_id)
-        # 客户端断开后取消仍在后台跑的辩论，避免白白消耗 API 额度
-        if debate_task is not None and not debate_task.done():
-            debate_task.cancel()
+        # 守护式清理：重连后本连接已被新连接接管（taken_over）时保留任务；
+        # 正常断开（无人接管）则取消辩论，避免白烧 API 额度
+        taken_over = manager.active.get(session_id) is not websocket
+        manager.disconnect(session_id, websocket)
+        if not taken_over:
+            old = manager.tasks.get(session_id)
+            if old is not None and not old.done():
+                old.cancel()
 
 
 if __name__ == "__main__":

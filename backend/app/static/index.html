@@ -591,7 +591,7 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.6.1</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.7.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>
@@ -1336,19 +1336,28 @@
           disp.appendChild(el);
         });
       }
-      let wsRetries=0; let manualClose=false;
+      let wsRetries=0; let manualClose=false; let resumeMode=false; window._replaying=false;
       function showBanner(t){ const b=$("connBanner"); if(b){ b.textContent=t; b.style.display="block"; } }
       function hideBanner(){ const b=$("connBanner"); if(b) b.style.display="none"; }
-      function doConnect(){
-        reset(); running=true; wsRetries++; $("landStart").disabled=true; session=Math.random().toString(36).slice(2);
+      function doConnect(resume=false){
+        reset(); running=true; wsRetries++; $("landStart").disabled=true;
+        if(!resume) session=Math.random().toString(36).slice(2);
+        resumeMode=resume;
         const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
         ws=new WebSocket(`${wsProto}//${location.host}/ws/${session}`);
-        ws.onopen=()=>{ setConn("on"); hideBanner(); ws.send(JSON.stringify(Object.assign({type:"start",case_id:selectedCase}, intakePayload()))); };
-        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开，辩论可能未完成。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#fff;color:#9b2c2c;cursor:pointer;font-weight:600'>重新连接</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
+        ws.onopen=()=>{
+          setConn("on"); hideBanner();
+          ws.send(JSON.stringify(resume ? {type:"resume"} : Object.assign({type:"start",case_id:selectedCase}, intakePayload())));
+          if(resume){
+            // 服务端无该会话缓冲（如服务重启）→ 提示重新开庭而不是停在空屏
+            setTimeout(()=>{ if(!messages.length && !document.querySelector(".closure-card")){ showBanner("该场审理的实时数据已不可恢复，请重新开庭。"); running=false; $("landStart").disabled=false; } }, 1800);
+          }
+        };
+        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#fff;color:#9b2c2c;cursor:pointer;font-weight:600'>接续观看</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
         ws.onerror=()=>{ setConn("off"); console.error("WebSocket error"); };
         ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
-      function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(); }
+      function start(){ if(running) return; wsRetries=0; manualClose=false; doConnect(false); }
       async function stopDebate(){
         if(!running || !ws){ return; }
         if(!await confirmDialog("确定要停止当前辩论吗？已生成的发言和裁决将保留。")){ return; }
@@ -1366,13 +1375,13 @@
       }
       async function retryConnect(){
         hideBanner();
-        if(await confirmDialog("重新连接将从头开始一场新的辩论，之前的发言不会保留。确定继续吗？")){
-          wsRetries=0; manualClose=false; doConnect();
-        }
+        // 重连改为接续观看：服务端补发历史事件快照，辩论绝不重启
+        wsRetries=0; manualClose=false; doConnect(true);
       }
       function reset(){ messages=[]; activeRole=null; currentId=null; round=0; serverBrief=null; lastVerdict=null; contraList=[]; recNotes=[]; qaHistory=[]; nsDone=new Set(); $("debate").innerHTML='<div class="empty">⚖️ 准备就绪，等待开庭。</div>'; $("contra").innerHTML='<div class="muted">尚未记录矛盾点。</div>'; $("recording").innerHTML='<div class="muted">辩论开始后，各专家主张将实时记录于此。</div>'; $("verdictBox").innerHTML=""; $("verdictTools").classList.add("hidden"); $("nextSteps").classList.add("hidden"); $("qaBox").classList.add("hidden"); const _jb=$("jumpBottom"); if(_jb) _jb.classList.add("hidden"); $("hitl").innerHTML=""; $("prog").style.width="0%"; setSpeak("", false); $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); $("dlReport").classList.add("hidden"); setPhase("idle"); renderRoster(); }
       function handle(ev){
         switch(ev.kind){
+          case "batch": { /* 断线重连水合：一次性重放历史事件，抑制 toast，最后统一渲染 */ window._replaying=true; try{ (ev.events||[]).forEach(x=>{ if(x.kind!=="batch") handle(x); }); } finally { window._replaying=false; } renderDebate(); break; }
            case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); const _sb=$("btnStop"); if(_sb) _sb.style.display=""; if(!messages.length){ $("debate").innerHTML='<div class="thread"><div class="skeleton"><div class="sk-ava"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div><div style="text-align:center;color:var(--faint);font-size:12px;margin-top:8px">专家们正在阅卷、准备首轮举证…</div></div>'; } break;
           case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary}; break;
           case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }

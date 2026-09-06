@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.6.1")
+app = FastAPI(title="VerdictAI Local Engine", version="0.7.0")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
@@ -1171,17 +1171,18 @@ async def chat(request: Request):
     messages: List[dict] = body.get("messages") or []
     req_tools: List[dict] = body.get("tools") or []
     model = body.get("model", "verdict-local")
+    want_stream = bool(body.get("stream"))
 
     texts = [_text_of(m.get("content")) for m in messages]
     joined = "\n".join(texts)
     sys_text = next((t for t, m in zip(texts, messages) if m.get("role") == "system"), "")
     has_tool_msg = any(m.get("role") == "tool" for m in messages)
 
-    def _reply(content: str, finish: str = "stop", extra: Optional[dict] = None) -> JSONResponse:
+    def _payload(content: str, finish: str = "stop", extra: Optional[dict] = None) -> dict:
         msg: Dict[str, Any] = {"role": "assistant", "content": content}
         if extra:
             msg.update(extra)
-        return JSONResponse({
+        return {
             "id": f"chatcmpl-local-{uuid.uuid4().hex[:12]}",
             "object": "chat.completion",
             "created": int(time.time()),
@@ -1192,7 +1193,39 @@ async def chat(request: Request):
                 "completion_tokens": max(1, len(content) // 3),
                 "total_tokens": (len(joined) + len(content)) // 3,
             },
-        })
+        }
+
+    def _reply(content: str, finish: str = "stop", extra: Optional[dict] = None):
+        payload = _payload(content, finish, extra)
+        if not want_stream:
+            return JSONResponse(payload)
+        # OpenAI 兼容 SSE：内容分块下发，末帧带 finish_reason，再以 [DONE] 结束
+        from fastapi.responses import StreamingResponse
+
+        async def gen():
+            piece = ""
+            for ch in content:
+                piece += ch
+                if len(piece) >= 48:
+                    yield "data: " + json.dumps(
+                        {"id": payload["id"], "object": "chat.completion.chunk",
+                         "created": payload["created"], "model": model,
+                         "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}]},
+                        ensure_ascii=False) + "\n\n"
+                    piece = ""
+            if piece:
+                yield "data: " + json.dumps(
+                    {"id": payload["id"], "object": "chat.completion.chunk",
+                     "created": payload["created"], "model": model,
+                     "choices": [{"index": 0, "delta": {"content": piece}, "finish_reason": None}]},
+                    ensure_ascii=False) + "\n\n"
+            tail = {"id": payload["id"], "object": "chat.completion.chunk",
+                    "created": payload["created"], "model": model,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": finish}]}
+            yield "data: " + json.dumps(tail, ensure_ascii=False) + "\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     # 1) 多模态图片描述（本地引擎不做视觉识别，如实说明）
     if _has_image(messages):

@@ -284,6 +284,60 @@ def is_mock(cfg: dict = None) -> bool:
     return str(provider).lower() == "mock"
 
 
+def stream_enabled(cfg: dict = None) -> bool:
+    mode = (cfg or {}).get("stream_experts") or settings.stream_experts
+    mode = str(mode).lower()
+    if mode == "off":
+        return False
+    if mode == "on":
+        return True
+    return not is_mock(cfg)  # auto：非 mock 供应商启用
+
+
+# 端点流式支持缓存：首块前失败的端点本次进程内不再尝试流式
+_stream_unsupported: set = set()
+
+
+async def stream_or_invoke(llm, messages, on_chunk=None, timeout=None, key: str = ""):
+    """优先真流式：chunk 到达即回调 on_chunk(文本增量)，返回聚合后的消息对象
+    （AIMessageChunk 聚合体，含 content / tool_calls，语义与整段返回一致）。
+
+    首块之前失败视为端点不支持流式：记入 _stream_unsupported 并抛出，
+    由调用方回退非流式重试（此时没有任何字节发出，重试不会重复输出）；
+    已经流出部分内容后的失败同样抛出——调用方按该专家失败处理，
+    绝不重试，否则用户会看到重复发言。"""
+    if key and key in _stream_unsupported:
+        return await llm.ainvoke(messages)
+
+    merged = None
+    emitted = False
+
+    async def _consume():
+        nonlocal merged, emitted
+        async for chunk in llm.astream(messages):
+            emitted = True
+            merged = chunk if merged is None else merged + chunk
+            text = chunk.text() if hasattr(chunk, "text") else str(chunk.content or "")
+            if text and on_chunk:
+                on_chunk(text)
+
+    try:
+        if timeout and timeout > 0:
+            await asyncio.wait_for(_consume(), timeout=timeout)
+        else:
+            await _consume()
+    except Exception:
+        if not emitted:
+            if key:
+                _stream_unsupported.add(key)
+        raise
+    if merged is None:
+        if key:
+            _stream_unsupported.add(key)
+        return await llm.ainvoke(messages)
+    return merged
+
+
 def clear_llm_cache() -> None:
     """清空 LLM 客户端缓存（设置变更后调用）。"""
     _llm_cache.clear()
