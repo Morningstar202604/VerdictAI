@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.7.1")
+app = FastAPI(title="VerdictAI Local Engine", version="0.8.0")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
@@ -486,6 +486,10 @@ def _crossref_opening(case: Case, round_no: int) -> str:
     if case.known_contradictions:
         ref += f"，并针对纠错官指出的「{case.known_contradictions[0][:40]}」"
     ref += "，本轮进一步核验如下：\n\n"
+    if round_no >= 3:
+        ref += "（结辩导向）请给出收束性结论：核心主张一句话 + 证据编号清单，不再展开新论点。\n\n"
+    elif round_no == 2:
+        ref += "（交叉质证轮）本轮须点名回应至少一位其他专家的主张，给出认可或反驳及证据编号依据。\n\n"
     return ref
 
 

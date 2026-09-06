@@ -591,7 +591,7 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.7.1</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.8.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>
@@ -749,6 +749,7 @@
             <div id="verdictTools" class="v-tools hidden">
               <button class="ghost" onclick="copyVerdict()" aria-label="复制裁决结果到剪贴板">📋 复制裁决</button>
               <button class="ghost" onclick="downloadMarkdown()" aria-label="导出裁决结果为 Markdown 文件">⬇ 导出 MD</button>
+              <button class="ghost" onclick="downloadVerdictDoc()" aria-label="导出正式裁决书文档">📜 裁决书</button>
               <button class="ghost" onclick="printReport()" aria-label="打印裁决报告或导出 PDF">🖨 打印/PDF</button>
               <button class="ghost" id="btnSpeak" onclick="speakVerdict()" aria-label="朗读裁决结果">🔊 朗读</button>
             </div>
@@ -1207,7 +1208,7 @@
       const sumBtn = sumFull.length>360 ? '<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="toggleCaseSum()"> 展开全文</button>' : "";
       let h=`<div class="card"><div class="case-head"><div class="case-no">案号 ${d.id?("〔2026〕"+e(d.id.toUpperCase())):"—"}</div><div class="case-title">${e(d.title)} ${aiTag}</div><div class="muted" id="caseSumBox">${e(sumShort)}${sumBtn}</div></div>`;
         if(d.persons&&d.persons.length){ h+='<div class="sec-title">涉案人员</div>'; d.persons.forEach(p=>{ h+=`<div class="person"><div><div><span class="pname">${e(p.name)}</span> <span class="prole">${e(p.role)}</span></div><div class="pdesc">${e(p.desc||"")}</div></div></div>`; }); }
-        if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单</div>'; d.evidence.forEach(ev=>{ const col=ev.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e(ev.id)}</span><span class="evi-type">${e(ev.type)}</span></div><div class="evi-desc">${e(ev.desc)}</div><div class="bar"><div style="width:${(ev.reliability||0)*100}%"></div></div><span class="chain ${ev.chain_intact?'ok':'no'}">${ev.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((ev.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
+        if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单 <button class="ghost" style="float:right;font-size:10.5px;padding:2px 8px" onclick="auditEvidence()" aria-label="一键核验证据">🔍 一键核验</button></div><div id="evAudit"></div>'; d.evidence.forEach(ev=>{ const col=ev.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e(ev.id)}</span><span class="evi-type">${e(ev.type)}</span></div><div class="evi-desc">${e(ev.desc)}</div><div class="bar"><div style="width:${(ev.reliability||0)*100}%"></div></div><span class="chain ${ev.chain_intact?'ok':'no'}">${ev.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((ev.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
         if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${e(s.topic)}</div><div class="st-text">${e(s.text)}</div></div>`; }); }
         if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${e(t.time)}</div><div class="tl-ev">${e(t.event)}</div><div class="tl-src">来源：${e(t.source||"—")}</div></div>`; }); h+='</div>'; }
         h+='<div class="sec-title">现场勘验图表</div>';
@@ -1651,12 +1652,56 @@
         if(v.disclaimer) md += `---\n\n${v.disclaimer}\n`;
         return md;
       }
+      async function auditEvidence(){
+        if(!selectedCase){ toast("请先选择案件"); return; }
+        const box=document.getElementById("evAudit"); if(!box) return;
+        box.innerHTML='<div class="muted" style="font-size:11px">核验中…</div>';
+        try{
+          const d=await (await fetch(`/api/cases/${selectedCase}/evidence-audit`)).json();
+          if(d.error){ box.innerHTML=`<div class="muted" style="font-size:11px">${escape(d.error)}</div>`; return; }
+          const items=(d.issues||[]).map(i=>`<div style="margin:2px 0;font-size:11.5px">· ${escape(i.msg)}</div>`).join("");
+          const s=d.stats||{};
+          box.innerHTML=`<div style="border:1px solid ${d.ok?'var(--ok)':'var(--bad)'};border-radius:8px;padding:7px 9px;margin:4px 0;font-size:11.5px">`
+            +`<b style="color:${d.ok?'var(--ok)':'var(--bad)'}">${d.ok?'✓ 未发现硬伤':'⚠ 发现 '+d.issues.length+' 处问题'}</b>`
+            +`<span class="muted">　证据 ${s.count} 件 · 保管链瑕疵 ${s.chain_flawed} · 平均可靠性 ${s.avg_reliability} · 时间线 ${s.timeline_events} 条</span>`
+            +(items?`<div style="margin-top:4px">${items}</div>`:"")+`</div>`;
+        }catch(e){ box.innerHTML='<div class="muted" style="font-size:11px">核验失败：'+escape(e.message)+'</div>'; }
+      }
       function downloadMarkdown(){
         const blob = new Blob([reportMarkdown()], {type:"text/markdown;charset=utf-8"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download = `审判报告_${(caseDetail&&caseDetail.id)||"case"}.md`; a.click();
         setTimeout(()=>URL.revokeObjectURL(url), 2000);
         toast("Markdown 报告已导出");
+      }
+      function verdictDocHtml(){
+        /* 正式裁决书：仅裁决要素，判决书式排版（区别于含全文笔录的审判报告） */
+        const b = serverBrief || (caseDetail && caseDetail.brief) || {};
+        const c = caseDetail || {}; const v = lastVerdict || {};
+        const li = (t, arr) => (arr && arr.length) ? `<h2>${t}</h2><ul>${arr.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>` : "";
+        let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审理裁决书 - ${escape(c.title||"")}</title>`;
+        h += `<style>body{font-family:"Noto Serif SC","Songti SC","SimSun",serif;max-width:800px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:2} h1{text-align:center;font-size:22px;letter-spacing:4px;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:12px;margin-bottom:18px} h2{font-size:15px;margin:20px 0 6px} .meta{border-top:1px solid #999;border-bottom:1px solid #999;padding:8px 0;font-size:13px;margin:12px 0} .sec{margin:8px 0} .main{font-size:15px;font-weight:700} ul{margin:4px 0;padding-left:22px} li{margin:3px 0} .sign{margin-top:36px;text-align:right;color:#333;font-size:13px} .disc{margin-top:24px;color:#888;font-size:11px;border-top:1px dashed #bbb;padding-top:8px} @media print{body{margin:0 auto}}</style></head><body>`;
+        h += `<h1>审 理 裁 决 书</h1><div class="sub">VerdictAI 多智能体合议系统 · 辅助研究文书</div>`;
+        h += `<div class="meta">案号：${escape(c.id||"")}　｜　案件：${escape(c.title||"")}<br>调查意图：${escape(b.intent||"")}　｜　审理轮次：${round||"—"} 轮　｜　合议庭：七专家 + 纠错官 + 审判长</div>`;
+        h += `<h2>一、案件事实</h2><div class="sec">${renderMarkdown(c.summary||"（无）")}</div>`;
+        if(c.persons&&c.persons.length) h += `<h2>二、涉案当事人</h2><div class="sec">${c.persons.map(p=>`${escape(p.name||"")}（${escape(p.role||"")}）`).join("　")}</div>`;
+        h += li("三、经审理采信的证据链", v.evidence_chain||[]);
+        if(v.doubts&&v.doubts.length) h += `<h2>四、存疑事项（不予认定或需查证）</h2><div class="sec"><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
+        h += `<h2>五、裁决主文</h2><div class="sec main">${renderMarkdown(v.truth_hypothesis||"（无）")}</div>`;
+        if(v.recommendation) h += `<h2>六、处理建议</h2><div class="sec">${renderMarkdown(v.recommendation)}</div>`;
+        if(v.next_steps&&v.next_steps.length) h += `<h2>七、后续事项</h2><ul>${v.next_steps.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>`;
+        h += `<div class="sign">合议庭：VerdictAI 多智能体系统<br>${new Date().toLocaleDateString("zh-CN")}</div>`;
+        if(v.disclaimer) h += `<div class="disc">${escape(v.disclaimer)}</div>`;
+        h += `</body></html>`;
+        return h;
+      }
+      function downloadVerdictDoc(){
+        if(!lastVerdict){ toast("裁决尚未生成"); return; }
+        const blob = new Blob([verdictDocHtml()], {type:"text/html;charset=utf-8"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href=url; a.download = `审理裁决书_${(caseDetail&&caseDetail.id)||"case"}.html`; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+        toast("裁决书已导出（浏览器打开可打印为 PDF）");
       }
       function printReport(){
         const brief = serverBrief || (caseDetail && caseDetail.brief) || {};

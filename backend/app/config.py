@@ -83,6 +83,8 @@ class Settings:
     # WebSocket 脱离宽限期（秒）：断线后辩论保活等待重连，宽限期内 resume
     # 可续看且不重跑，排队中的介入/落槌不丢；0=断开立即取消（旧行为）
     ws_detach_grace: int = int(os.getenv("WS_DETACH_GRACE", "120"))
+    # 提示词审计：开启后把每次专家调用的提示词/响应原文落盘到 data/audit/
+    audit_prompts: bool = os.getenv("AUDIT_PROMPTS", "false").lower() == "true"
     web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
     # 数据目录
     data_dir: str = os.getenv(

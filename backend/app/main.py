@@ -53,7 +53,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="VerdictAI", version="0.7.1")
+app = FastAPI(title="VerdictAI", version="0.8.0")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)
@@ -332,6 +332,54 @@ def get_case(case_id: str):
     if c is None:
         return JSONResponse({"error": "案件不存在"}, status_code=404)
     return c
+
+
+@app.get("/api/cases/{case_id}/evidence-audit")
+def evidence_audit(case_id: str):
+    """证据一键核验：确定性体检（编号唯一/格式/描述完整/保管链/时间可解析），
+    庭前快速发现卷宗硬伤。纯规则检查，不做任何主观判断。"""
+    if not validate_id(case_id):
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+    c = load_case(case_id)
+    if c is None:
+        return JSONResponse({"error": "案件不存在"}, status_code=404)
+    evs = c.get("evidence") or []
+    ids = [str(e.get("id") or "") for e in evs]
+    issues: list = []
+    dup = sorted({i for i in ids if ids.count(i) > 1})
+    if dup:
+        issues.append({"level": "high", "msg": f"证据编号重复：{'、'.join(dup)}"})
+    bad_fmt = [i for i in ids if i and not re.match(r"^[A-Z]-\d{2}$", i)]
+    if bad_fmt:
+        issues.append({"level": "low", "msg": f"编号格式建议统一为 E-NN：{'、'.join(bad_fmt)}"})
+    missing_desc = [i for i, e in zip(ids, evs) if not str(e.get("desc") or "").strip()]
+    if missing_desc:
+        issues.append({"level": "medium", "msg": f"缺少证据描述：{'、'.join(missing_desc)}"})
+    chain_flawed = [i for i, e in zip(ids, evs) if e.get("chain_intact") is False]
+    unparseable_time = sum(
+        1
+        for t in c.get("timeline") or []
+        if str(t.get("time") or "")
+        and not re.search(r"\d{1,2}[:：]\d{2}|\d{4}年|\d{1,2}月\d{1,2}日", str(t.get("time")))
+    )
+    if unparseable_time:
+        issues.append({"level": "low", "msg": f"{unparseable_time} 条时间线的时间无法解析为标准格式"})
+    stats = {
+        "count": len(evs),
+        "chain_flawed": len(chain_flawed),
+        "avg_reliability": (
+            round(sum(float(e.get("reliability") or 0) for e in evs) / len(evs), 2) if evs else 0
+        ),
+        "timeline_events": len(c.get("timeline") or []),
+        "unparseable_time": unparseable_time,
+    }
+    return {
+        "case_id": case_id,
+        "ok": not issues,
+        "issues": issues,
+        "stats": stats,
+        "chain_flawed": chain_flawed,
+    }
 
 
 _debates_index: dict = {}

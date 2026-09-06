@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from typing import Any, Awaitable, Callable, Dict, List
@@ -12,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from app.agents.roles import ROLES
 from app.agents import agent_config
 from app.config import debate_snapshot, settings
+from app.data.store import validate_id
 from app.intake.processor import _extract_json
 from app.models.llm import get_llm, is_mock, stream_enabled, stream_or_invoke
 from app.models.state import DebateState
@@ -97,6 +99,8 @@ async def _run_agent(
     msg_id: str | None = None,
     usage: Dict | None = None,
     cfg: dict | None = None,
+    phase_hint: str = "",
+    session_id: str = "",
 ) -> str:
     cfg = cfg or {}
     role = ROLES[role_key]
@@ -117,6 +121,7 @@ async def _run_agent(
         + role_material
         + ("\n\n" + guidance if guidance else "")
         + ("\n\n" + intensity_note if intensity_note else "")
+        + ("\n\n" + phase_hint if phase_hint else "")
     )
 
     context_limit = cfg.get("context_char_limit", settings.context_char_limit)
@@ -230,6 +235,28 @@ async def _run_agent(
         usage["calls"] = usage.get("calls", 0) + 1
         usage["in_chars"] = usage.get("in_chars", 0) + sum(len(str(m.content)) for m in messages)
         usage["out_chars"] = usage.get("out_chars", 0) + len(full)
+    if settings.audit_prompts and session_id and validate_id(session_id):
+        # 提示词审计链：每次专家调用落盘一行 JSONL（提示词/响应原文 + 元信息），
+        # 供研究复现；data/audit/{session}.jsonl
+        try:
+            audit_dir = os.path.join(settings.data_dir, "audit")
+            os.makedirs(audit_dir, exist_ok=True)
+            entry = {
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "session": session_id,
+                "role": role_key,
+                "model": str(getattr(llm, "model_name", "") or ""),
+                "system": sys_prompt,
+                "user": user_content,
+                "response": full,
+                "phase_hint": phase_hint,
+            }
+            with open(
+                os.path.join(audit_dir, f"{session_id}.jsonl"), "a", encoding="utf-8"
+            ) as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            log.warning("审计日志写入失败 session=%s", session_id, exc_info=True)
     return full
 
 
@@ -321,6 +348,24 @@ async def _summarize_note(
 
 
 # ------------------------- 节点 1：多专家发言 -------------------------
+def _phase_hint(round_no: int, max_rounds: int) -> str:
+    """庭审阶段提示：让多轮辩论有剧本——初勘自由举证、中段交叉质证、
+    末轮结辩收束。对本地引擎与真实 LLM 同样生效。"""
+    if max_rounds >= 3 and round_no == 2:
+        return (
+            "（交叉质证轮）请至少点名一位其他专家在上一轮的具体主张，"
+            "明确说明你认可或反驳之处，并给出卷宗证据编号依据；"
+            "禁止只重申自己上一轮的观点。"
+        )
+    if max_rounds >= 2 and round_no >= max_rounds:
+        return (
+            "（结辩轮）请给出最终结论性意见：核心主张一句话、"
+            "依据的证据编号清单、以及仍需补充侦查/审查的事项；"
+            "不要再抛出新论点。"
+        )
+    return ""
+
+
 async def experts_node(state: DebateState, config) -> Dict:
     sink: Sink = config["configurable"]["sink"]
     cfg = _session_cfg(config)
@@ -384,6 +429,8 @@ async def experts_node(state: DebateState, config) -> Dict:
             role_key, material, intensity, guidance, history, sink, msg_id,
             usage=config["configurable"].get("usage"),
             cfg=cfg,
+            phase_hint=_phase_hint(new_round, int(state.get("max_rounds", settings.max_rounds))),
+            session_id=str(config["configurable"].get("thread_id") or ""),
         )
         await sink(
             {

@@ -75,3 +75,6 @@ backend/data/logs/
 
 # Mimosa hook state (any depth, never commit)
 **/.mimosa/
+
+# Prompt audit trail (opt-in AUDIT_PROMPTS)
+backend/data/audit/
