@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.7.0")
+app = FastAPI(title="VerdictAI Local Engine", version="0.7.1")
 
 # ----------------------------- 请求/消息解析 -----------------------------
 
@@ -937,7 +937,7 @@ def _qa_answer(case: Case, verdict: dict, question: str, facts: Optional[dict] =
         concl = "就您的质询，裁决的整体逻辑如下："
     body = (
         f"{concl}\n\n"
-        f"- 真相推定：{hypo[:90]}…\n"
+        f"- 真相推定：{hypo}\n"
         + (f"- 证据链关键环：{chain[0][:60]}\n" if chain else "")
         + (f"- 相关存疑点：{doubts[0][:60]}\n" if doubts else "")
         + (("\n**证据依据**\n\n" + "\n".join(ev_lines) + "\n") if ev_lines else "")

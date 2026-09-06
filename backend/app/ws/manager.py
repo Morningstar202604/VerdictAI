@@ -35,13 +35,26 @@ class ConnectionManager:
 
     def disconnect(self, session_id: str, ws: Optional[WebSocket] = None) -> None:
         """断开清理。传入 ws 时做守护：若该会话已被更新的连接接管
-        （重连场景），旧连接的清理不得误删新连接的注册项。"""
+        （重连场景），旧连接的清理不得误删新连接的注册项。
+
+        人工介入/落槌队列在脱离期间保留：宽限期内重连，排队中的
+        介入消息与人类落槌等待都不丢。"""
         if ws is not None and self.active.get(session_id) is not ws:
             return
         self.active.pop(session_id, None)
+        # buffers / tasks / 队列保留：跨重连续看，新庭审 start 时显式清空
+
+    def cleanup_session(self, session_id: str, task) -> None:
+        """任务终结后的最终清理：仅当注册表仍指向该任务时生效。"""
+        if self.tasks.get(session_id) is task:
+            self.tasks.pop(session_id, None)
         self.human_queues.pop(session_id, None)
         self.final_queues.pop(session_id, None)
-        # buffers / tasks 保留：跨重连续看，新庭审 start 时显式清空
+
+    def reset_session_queues(self, session_id: str) -> None:
+        """新庭审开局：丢弃上一场遗留的人工介入/落槌队列内容。"""
+        self.human_queues[session_id] = asyncio.Queue()
+        self.final_queues[session_id] = asyncio.Queue()
 
     async def send(self, session_id: str, obj: dict, buffer: bool = True) -> None:
         if buffer:

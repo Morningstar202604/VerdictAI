@@ -80,6 +80,9 @@ class Settings:
     stream_experts: str = os.getenv("STREAM_EXPERTS", "auto")
     # 同轮专家并行：auto=非 mock 供应商并行（真实 LLM 耗时降为 1/4~1/6），on=强制，off=串行
     parallel_experts: str = os.getenv("PARALLEL_EXPERTS", "auto")
+    # WebSocket 脱离宽限期（秒）：断线后辩论保活等待重连，宽限期内 resume
+    # 可续看且不重跑，排队中的介入/落槌不丢；0=断开立即取消（旧行为）
+    ws_detach_grace: int = int(os.getenv("WS_DETACH_GRACE", "120"))
     web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
     # 数据目录
     data_dir: str = os.getenv(
@@ -107,6 +110,7 @@ class Settings:
             self.stream_experts = "auto"
         if self.parallel_experts not in ("auto", "on", "off"):
             self.parallel_experts = "auto"
+        self.ws_detach_grace = max(0, min(600, int(self.ws_detach_grace)))
         if self.hitl_timeout != 0 and self.hitl_timeout < MIN_HITL_TIMEOUT:
             self.hitl_timeout = DEFAULT_HITL_TIMEOUT
         self.port = max(1, min(65535, int(self.port)))

@@ -53,7 +53,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="VerdictAI", version="0.7.0")
+app = FastAPI(title="VerdictAI", version="0.7.1")
 _START_TIME = _time.time()
 
 @app.exception_handler(Exception)
@@ -898,8 +898,9 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                 break
             msg_type = msg.get("type")
             if msg_type == "start":
-                # 新庭审：清空事件缓冲，取消同会话仍在运行的任务
+                # 新庭审：清空事件缓冲与遗留介入/落槌队列，取消同会话仍在运行的任务
                 manager.clear_buffer(session_id)
+                manager.reset_session_queues(session_id)
                 old = manager.tasks.get(session_id)
                 if old is not None and not old.done():
                     old.cancel()
@@ -954,13 +955,36 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
         await task
     finally:
         # 守护式清理：重连后本连接已被新连接接管（taken_over）时保留任务；
-        # 正常断开（无人接管）则取消辩论，避免白烧 API 额度
+        # 守护式清理：重连后本连接已被新连接接管（taken_over）时保留任务；
+        # 正常断开（无人接管）进入脱离宽限期——宽限期内重连可 resume 续看
+        # 且辩论继续（排队中的介入/落槌也不丢），超时无人认领才取消并清理，
+        # 兼顾断线容错与不白烧 API 额度（WS_DETACH_GRACE=0 恢复旧行为）
         taken_over = manager.active.get(session_id) is not websocket
         manager.disconnect(session_id, websocket)
         if not taken_over:
             old = manager.tasks.get(session_id)
             if old is not None and not old.done():
-                old.cancel()
+                grace = int(settings.ws_detach_grace or 0)
+                if grace > 0:
+
+                    async def _reap_detached(sid: str = session_id, task=old, g: int = grace):
+                        await asyncio.sleep(g)
+                        if (
+                            manager.tasks.get(sid) is task
+                            and not task.done()
+                            and manager.active.get(sid) is None
+                        ):
+                            task.cancel()
+                            try:
+                                await task
+                            except Exception:
+                                pass
+                            manager.cleanup_session(sid, task)
+
+                    asyncio.create_task(_reap_detached())
+                else:
+                    old.cancel()
+                    manager.cleanup_session(session_id, old)
 
 
 if __name__ == "__main__":
