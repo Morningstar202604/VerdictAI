@@ -61,15 +61,18 @@ The debate is modeled as a `StateGraph` with the following flow:
 
 ## Tool System
 
-Each expert has access to 5 tools:
+Each expert has access to the following tools (defined in `app/agents/tools.py`):
 
 | Tool | Description |
 |------|-------------|
-| `search_evidence` | Search case evidence by keyword |
-| `check_timeline` | Verify event timing and sequence |
-| `list_contradictions` | Get known contradictions from critic |
-| `search_statutes` | Look up relevant legal statutes |
-| `annotate_evidence` | Mark evidence with analysis notes |
+| `read_evidence` | Read a specific evidence item by ID (e.g. `E-03`) |
+| `timeline_check` | Return the case timeline for cross-validation |
+| `list_contradictions` | List known contradictions flagged by the critic |
+| `search_case_law` | Three-tier statute search: case file → custom knowledge base → built-in statute library |
+| `cite_source` | Require an expert to cite evidence or statute backing for a stated fact |
+| `web_search` | Live public web search (Bing CN source, toggleable via `WEB_SEARCH_ENABLED`) |
+| `run_code` | Sandboxed Python execution (matplotlib charts render into the transcript) |
+| `install_package` | Install a package into the sandbox environment |
 
 Tools are invoked via the LLM's tool-calling mechanism. Failed tool calls are caught gracefully (never crash the debate).
 
