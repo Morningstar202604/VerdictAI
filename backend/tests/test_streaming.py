@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.models import llm as L
-from app.models.llm import MockChatModel, get_llm, stream_enabled, stream_or_invoke
+from app.models.llm import MockChatModel, stream_enabled, stream_or_invoke
 
 
 def test_stream_enabled_auto_is_off_for_mock():

@@ -29,7 +29,9 @@
       }
       function renderVerdict(v){ if(!v) return;
         const sec=(t,arr)=>(arr&&arr.length)?`<div class="vsec">${t}</div><ul>${arr.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:"";
-        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
+        const es=v.evidence_strength||{}; const pct=Math.round((es.score||0)*100);
+        const bar=(es.score!=null)?`<div class="strength st-${pct>=75?"ok":pct>=45?"warn":"bad"}"><div class="st-row">证据链强度<b>${pct}%</b></div><div class="st-bar"><i style="width:${pct}%"></i></div>${(es.issues||[]).length?`<ul class="st-issues">${es.issues.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:""}</div>`:"";
+        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${bar}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
         // 裁决后处理工具条 + 质询面板
         $("verdictTools").classList.remove("hidden");
         $("qaBox").classList.remove("hidden");
@@ -248,6 +250,7 @@
         $("s_web").checked=!!settingsCache.web_search_enabled;
         loadPresets();
         renderBoard(); renderAgentConfig();
+        if(typeof loadUsage==="function") loadUsage();
         $("settingsModal").classList.remove("hidden");
       }
       function closeSettings(){ $("settingsModal").classList.add("hidden"); }
@@ -391,15 +394,17 @@
       async function loadKnowledge(){
         const box=$("kbList"); if(!box) return;
         const q=($("kbSearch")||{}).value||"";
+        const semantic = !!($("kbSemantic")||{}).checked ? 1 : 0;
         try {
-          const d=await (await fetch("/api/knowledge?q="+encodeURIComponent(q))).json();
+          const d=await (await fetch("/api/knowledge?q="+encodeURIComponent(q)+(semantic?"&semantic=1":""))).json();
           const list=d.entries||[];
           if(!list.length){ box.innerHTML="<div class='muted'>无匹配条目。</div>"; return; }
           box.innerHTML="";
           list.forEach(e=>{
             const el=document.createElement("div"); el.className="kb-item";
             const kws=(e.keywords||[]).map(k=>" <span style='color:var(--gold)'>#"+escapeHtml(k)+"</span>").join("");
-            el.innerHTML=`<div class="kb-title">${escapeHtml(e.title)}</div><div class="kb-meta">${escapeHtml(e.category||"")}${kws}</div><div class="kb-text md">${escapeHtml(e.text||"")}</div>`;
+            const sim = e.semantic ? `<span class="badge" style="background:#eaf6ee;color:#1e7d3c">语义</span>` : "";
+            el.innerHTML=`<div class="kb-title">${escapeHtml(e.title)}${sim}</div><div class="kb-meta">${escapeHtml(e.category||"")}${kws}</div><div class="kb-text md">${escapeHtml(e.text||"")}</div>`;
             if(e.source==="custom"){
               const btn=document.createElement("button"); btn.className="ghost danger"; btn.textContent="删除"; btn.style.marginTop="8px"; btn.style.fontSize="11px";
               btn.onclick=async()=>{ if(!await confirmDialog("删除该自定义条目？")) return; await fetch("/api/knowledge/"+e.id,{method:"DELETE"}); loadKnowledge(); };
@@ -424,10 +429,60 @@
         } catch(e){ toast("请求失败: "+e.message); }
       }
 
+      let libDebounce = null;
+      function libFilterInput(){ clearTimeout(libDebounce); libDebounce = setTimeout(refreshCaseLibrary, 300); }
+      let libTagsLoaded = false;
+      async function loadLibTags(){
+        if (libTagsLoaded) return;
+        try {
+          const d = await (await fetch("/api/cases/tags")).json();
+          const sel = $("libTag"); if(!sel) return;
+          const cur = sel.value || "";
+          const opts = (d.tags||[]).map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+          sel.innerHTML = `<option value="">全部案由/标签</option>` + opts;
+          if (cur) sel.value = cur;
+          libTagsLoaded = true;
+        } catch(e){ /* 静默：标签面板非关键 */ }
+      }
+      function importDocs(){ const inp=$("libImport"); if(inp) inp.click(); }
+      async function importDocsFiles(inp){
+        const files = (inp.files||[]);
+        if(!files.length) return;
+        toast("批量导入 " + files.length + " 个文件，预处理中…");
+        const filesPayload = [];
+        for (const f of files) {
+          const name = f.name.toLowerCase();
+          let ft = "txt";
+          if (name.endsWith(".pdf")) ft = "pdf";
+          else if (name.endsWith(".docx")) ft = "docx";
+          else if (name.endsWith(".doc")) ft = "doc";
+          else if (name.endsWith(".png")) ft = "png";
+          else if (name.endsWith(".jpg") || name.endsWith(".jpeg")) ft = "jpeg";
+          else if (name.endsWith(".webp")) ft = "webp";
+          filesPayload.push({ file_type: ft, file_content: await fileToB64(f), file_name: f.name });
+        }
+        inp.value = "";
+        try {
+          const r = await fetch("/api/cases/import_batch", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ files: filesPayload }) });
+          const d = await r.json();
+          if(d.imported>0){ toast("✓ 导入成功 " + d.imported + "/" + d.total + " 份"); }
+          else { toast("导入失败：" + ((d.results||[]).map(x=>x.error).filter(Boolean).join("；") || "未知错误")); }
+        } catch(e){ toast("批量导入请求失败: " + e.message); }
+        refreshCaseLibrary();
+      }
       async function refreshCaseLibrary(){
         const box=$("libList"); box.innerHTML="<div class='muted'>加载中…</div>";
+        loadLibTags();
+        const q = (($("libQ")||{}).value||"").trim();
+        const tag = (($("libTag")||{}).value||"").trim();
+        const hb = !!($("libOnlyBrief")||{}).checked ? 1 : 0;
         try {
-          const d=await (await fetch("/api/cases")).json();
+          const params = new URLSearchParams();
+          if (q) params.set("q", q);
+          if (tag) params.set("tag", tag);
+          if (hb) params.set("has_brief", "1");
+          const qs = params.toString();
+          const d=await (await fetch("/api/cases"+(qs?"?"+qs:""))).json();
           renderCaseLibrary(d.cases||[]);
         } catch(e){ box.innerHTML="<div class='muted' style='color:var(--bad)'>加载失败: "+escape(e.message)+"</div>"; }
         refreshDebates();
@@ -469,7 +524,7 @@
         cases.forEach(c=>{
           const el=document.createElement("div"); el.className="lib-item";
           const hasBrief = c.brief && c.brief.intake_done;
-          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="openTimelineModal('${escape(c.id)}')">⏱ 时间线</button><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
           box.appendChild(el);
         });
       }
@@ -488,6 +543,38 @@
           // 如果当前选中的是被删除的案件，重置
           if(selectedCase===id){ selectedCase=""; const land=$("landCase"); land.value=""; caseDetail=null; renderCase(); }
         } catch(e){ toast("删除失败: "+e.message); }
+      }
+      function timelineSvg(items){
+        /* 横向证据时间线（M1.5）：节点=时间，下方=事件摘要；横向滚动。 */
+        const n=Math.min(items.length||0, 20), W=Math.max(420, n*150+60), H=170, y=70;
+        if(!n) return '<div class="muted">该案件暂无时间线节点。</div>';
+        let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:${W}px">`;
+        s+=`<line x1="24" y1="${y}" x2="${W-24}" y2="${y}" stroke="#c9b98a" stroke-width="2"/>`;
+        items.slice(0,n).forEach((it,i)=>{
+          const x=44+i*150;
+          s+=`<circle cx="${x}" cy="${y}" r="6" fill="#9c7c43" stroke="#e9ddc0" stroke-width="2"/>`;
+          s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+16}" stroke="#c9b98a" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+          s+=`<text x="${x}" y="${y-16}" text-anchor="middle" font-size="11" fill="#8a6d3b">${escape(it.time||"-")}</text>`;
+          const ev=String(it.event||""); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" font-size="11" fill="#4a5560">${escape(ev.length>20?ev.slice(0,19)+"…":ev)}</text>`;
+          if(it.source) s+=`<text x="${x}" y="${y+50}" text-anchor="middle" font-size="9.5" fill="#9aa5b1">${escape(String(it.source).slice(0,14))}</text>`;
+        });
+        return s+"</svg>";
+      }
+      async function openTimelineModal(id){
+        const ov=document.createElement("div"); ov.className="tl-overlay";
+        ov.innerHTML='<div class="tl-modal"><div class="tl-load">加载时间线…</div></div>';
+        document.body.appendChild(ov);
+        try{
+          const [tl, sim]=await Promise.all([
+            fetch("/api/cases/"+encodeURIComponent(id)+"/timeline").then(r=>r.json()),
+            fetch("/api/cases/"+encodeURIComponent(id)+"/similar").then(r=>r.json())
+          ]);
+          const title=tl.case_id||id;
+          const similar=(sim.similar||[]).map(s=>
+            `<div class="tl-sim"><span class="tl-sim-t">${escape(s.title||"")}</span><span class="tl-sim-s">相似度 ${Math.round((s.score||0)*100)}% · ${escape(s.cause||"未归类")}</span></div>`).join("") || '<div class="muted">暂无其他案例可对比</div>';
+          ov.innerHTML=`<div class="tl-modal"><div class="tl-head"><b>证据时间线 · ${escape(title)}</b>（${tl.count||0} 个时间节点）<button class="ghost" onclick="this.closest('.tl-overlay').remove()" style="margin-left:auto">✕</button></div><div class="tl-scroll">${timelineSvg(tl.timeline||[])}</div><div class="tl-sec">相似案例推荐（基于语义/案由匹配）</div><div>${similar}</div><div class="tl-foot muted">时间线按时间排序 · 数据来自卷宗 timeline 字段</div></div>`;
+          ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+        }catch(e){ ov.innerHTML=`<div class="tl-modal"><div class="tl-load">加载失败：${escape(e.message)}</div></div>`; setTimeout(()=>ov.remove(), 1600); }
       }
       function viewCase(id){
         // "查看"= 选中案件并直接进入工作区研读卷宗（与落地页停留区分开）

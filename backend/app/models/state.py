@@ -29,6 +29,9 @@ class DebateState(TypedDict, total=False):
     blackboard: Dict  # 共享黑板：已确认事实 / 争议点 / 矛盾清单
     claims: Annotated[Dict, _merge_claims]  # 各 Agent 本轮主张 {role_key: text}
     contradictions: Annotated[List, _extend_contradictions]  # 矛盾表
+    reflections: List  # M2.3 可证伪性审查（Reflexion）产出
+    selfcheck: Dict  # M2.2 完整性自检结果（裁决前体检）
+    tool_citations: Annotated[List, operator.add]  # M2.1 引用溯源（grounding）来源清单
     messages: Annotated[List[BaseMessage], add_messages]  # 全部对话
     round_summaries: Annotated[
         List[str], operator.add

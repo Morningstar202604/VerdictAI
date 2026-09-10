@@ -32,6 +32,8 @@ desktop.ini
 backend/data/debates/
 backend/data/sandbox_out/
 backend/data/cases/*.json
+# Vector store (auto-rebuilt by legal/retriever.py on content change)
+backend/data/vectorstore/
 
 # Cache
 .ruff_cache/

@@ -89,6 +89,15 @@ class Settings:
     # 提示词审计：开启后把每次专家调用的提示词/响应原文落盘到 data/audit/
     audit_prompts: bool = os.getenv("AUDIT_PROMPTS", "false").lower() == "true"
     web_search_enabled: bool = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
+    # 联网搜索实现：searxng（自托管默认，无需 API Key）| bing_html（抓取兜底）| tavily（可选 API）
+    search_provider: str = os.getenv("SEARCH_PROVIDER", "searxng")
+    search_base_url: str = os.getenv("SEARCH_BASE_URL", "http://127.0.0.1:8888")
+    search_timeout: int = int(os.getenv("SEARCH_TIMEOUT", "12"))
+    # 扫描件/图片 OCR（RapidOCR onnx 本地，无需联网）；false 时扫描件仅返回文本说明
+    ocr_enabled: bool = os.getenv("OCR_ENABLED", "true").lower() == "true"
+    # 知识库语义检索嵌入模型：bge-small-zh（本地，免联网）| off（关闭语义检索，退回关键词）
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "bge-small-zh")
+    embedding_device: str = os.getenv("EMBEDDING_DEVICE", "cpu")
     # 数据目录
     data_dir: str = os.getenv(
         "DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data")

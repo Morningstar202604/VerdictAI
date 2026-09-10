@@ -14,7 +14,7 @@ from app import auth
 from app.config import settings
 from app.data.store import load_case, validate_id
 from app.graph.runner import run_debate
-from app.routers import agents, cases, debates, knowledge, presets, qa, sandbox
+from app.routers import admin, agents, cases, debates, intent, knowledge, presets, qa, reports, sandbox
 from app.routers import settings as settings_router
 from app.ws.manager import manager
 
@@ -46,7 +46,7 @@ try:
 except Exception:
     pass
 
-app = FastAPI(title="VerdictAI", version="0.8.0")
+app = FastAPI(title="VerdictAI", version="0.9.0")
 _START_TIME = _time.time()
 
 
@@ -91,7 +91,7 @@ app.post("/login")(auth.login_submit)
 
 
 # ---------------- REST 路由 ----------------
-for r in (cases, debates, settings_router, agents, sandbox, presets, knowledge, qa):
+for r in (cases, debates, reports, settings_router, agents, sandbox, presets, knowledge, qa, intent, admin):
     app.include_router(r.router)
 
 

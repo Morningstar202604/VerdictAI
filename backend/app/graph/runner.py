@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -8,7 +9,7 @@ from typing import Optional
 
 from app.agents.tools import activate_case
 from app.config import debate_snapshot, settings
-from app.data.store import atomic_write_json
+from app.data.store import atomic_write_json, validate_id
 from app.graph.builder import build_graph
 from app.intake.processor import build_role_material, preprocess
 from app.ws.manager import manager
@@ -135,6 +136,7 @@ async def run_debate(
             "reasoning_intensity": brief.get("reasoning_intensity"),
             "global_guidance": brief.get("global_guidance"),
             "summary": brief.get("summary"),
+            "investigation_plan": brief.get("investigation_plan") or [],
             "judge_mode": resolved_judge_mode,
         }
     )
@@ -197,4 +199,24 @@ async def run_debate(
             )
         except Exception:
             log.warning("[debate %s] 辩论记录落盘失败", session_id, exc_info=True)
+
+        # 案例沉淀（M2.5）：把本场最终裁决回填案件文件，作为「类案/判决」沉淀，
+        # 供案例库检索、相似案例推荐与后续庭审参考（长期记忆留痕）
+        if final_verdict:
+            try:
+                case_id = case.get("id") or ""
+                if validate_id(case_id):
+                    case_path = os.path.join(
+                        settings.data_dir, "cases", f"{case_id}.json"
+                    )
+                    if os.path.exists(case_path):
+                        with open(case_path, encoding="utf-8") as fh:
+                            stored = json.load(fh)
+                        stored["last_verdict"] = final_verdict
+                        stored["last_verdict_at"] = time.strftime(
+                            "%Y-%m-%dT%H:%M:%SZ", time.gmtime(start_ts)
+                        )
+                        atomic_write_json(case_path, stored, indent=None)
+            except Exception:
+                log.warning("[debate %s] 案例沉淀回填失败", session_id, exc_info=True)
         await manager.send(session_id, {"kind": "done"})

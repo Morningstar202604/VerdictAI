@@ -1,7 +1,6 @@
 """备份工具测试：打包内容正确、排除目录、保留策略修剪。"""
 
 import os
-import time
 import zipfile
 from pathlib import Path
 

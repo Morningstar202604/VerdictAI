@@ -14,7 +14,7 @@
       <div class="brand">
         <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
         <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.8.0</span></div>
+          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.9.0</span></div>
           <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
         </div>
       </div>
@@ -66,13 +66,15 @@
         <div class="or-divider"><span>或</span></div>
 
         <div class="composer">
-          <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…"></textarea>
+          <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…" oninput="onIntentPreview()"></textarea>
+          <div class="voice-row"><button class="ghost" id="btnVoice" onclick="startVoiceInput()" title="语音输入案情描述（浏览器录音，识别文本后填入）" aria-label="语音输入案情描述">🎤 语音输入</button><span id="voiceHint" class="muted" style="font-size:11px"></span></div>
           <div class="composer-bar">
             <button class="ghost" onclick="document.getElementById('fileInput').click()" aria-label="上传 JSON 卷宗文件">📎 上传 JSON 卷宗</button>
             <input id="fileInput" type="file" accept=".json,application/json" onchange="uploadCase(event)" />
             <select id="landCase" onchange="onPickCase(this)" aria-label="选择案件"></select>
             <button id="landStart" class="primary" onclick="landStart()" aria-label="开庭审理">开庭审理 →</button>
           </div>
+          <div id="intentPreview" class="hidden"></div>
         </div>
 
         <!-- 预处理可视化 -->
@@ -104,6 +106,7 @@
           <label class="mini">总体分析提示词（系统生成，可修改）</label>
           <textarea id="ivGuidance" rows="2" class="iv-in" placeholder="（上传卷宗后自动生成）" oninput="onIntake()"></textarea>
           <details class="iv-det"><summary>查看分派到各角色的材料</summary><div id="ivDispatch" class="iv-dispatch"></div></details>
+          <div id="ivPlan"></div>
         </div>
 
         <div class="chips" id="caseChips"></div>
@@ -176,6 +179,7 @@
               <button class="ghost" onclick="printReport()" aria-label="打印裁决报告或导出 PDF">🖨 打印/PDF</button>
               <button class="ghost" id="btnSpeak" onclick="speakVerdict()" aria-label="朗读裁决结果">🔊 朗读</button>
             </div>
+            <div id="reflexBox"></div>
             <div id="nextSteps" class="next-steps hidden"></div>
             <div id="qaBox" class="qa hidden">
               <div class="qa-title">⚖ 裁决质询 <span class="muted" style="font-weight:400">（就裁决继续追问，审判长答复）</span></div>
@@ -280,6 +284,7 @@
           </div>
           <div class="tabpane" id="tab-agent">
             <div class="muted" style="margin-bottom:10px">智能体运行时工程参数（对齐 Dify/Coze 的记忆窗口、上下文管理与并发控制），对下一场审理生效。</div>
+            <div class="usage-card" id="usageCard"><div class="muted">加载用量统计…</div></div>
             <div class="row2">
               <div><label>记忆窗口（注入前几轮摘要）</label><input id="s_mem" type="number" min="0" max="6" /></div>
               <div><label>单次最大上下文（字符，0=不限）</label><input id="s_ctx" type="number" min="0" max="200000" /></div>
@@ -308,6 +313,9 @@
               <input id="kbSearch" placeholder="检索：如 证明标准 / 保管链 / 三性 / 违约 / 排除" oninput="kbSearchInput()" onkeydown="if(event.key==='Enter')loadKnowledge()" />
               <button class="ghost" onclick="loadKnowledge()" aria-label="检索知识库">检索</button>
             </div>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <input type="checkbox" id="kbSemantic" onchange="loadKnowledge()" style="width:15px;height:15px;accent-color:var(--navy)" /> 语义检索（向量相似，需知识库建立索引；关闭则仅精确关键词）
+            </label>
             <div id="kbList" class="kb-list"><div class='muted'>加载中…</div></div>
             <div class="sec-title" style="margin-top:16px">新增自定义条目</div>
             <input id="kbTitle" placeholder="标题，如：本院类案裁判要旨（盗窃既遂采失控说）" style="margin-bottom:8px" />
@@ -316,11 +324,18 @@
             <button class="primary" onclick="addKnowledge()" aria-label="将当前案件加入知识库">加入知识库</button>
           </div>
           <div class="tabpane" id="tab-library">
-            <div class="muted" style="margin-bottom:10px">案例库：所有上传/生成的案件。可删除、查看详情、或点击标题在落地页选中。</div>
-            <div class="row2" style="margin-bottom:10px">
-              <button class="ghost" onclick="refreshCaseLibrary()" aria-label="刷新案例库列表">刷新列表</button>
-              <button class="ghost" onclick="generateSampleCase(this)" aria-label="从示例生成一个测试案件">生成示例案件</button>
+            <div class="muted" style="margin-bottom:10px">案例库：所有上传/生成的案件（支持 PDF / DOCX / TXT / 图片，批量导入可一次拖入多个文件）。</div>
+            <div class="row2" style="margin-bottom:8px">
+              <input id="libQ" placeholder="按标题/摘要关键词筛选…" oninput="libFilterInput()" style="flex:1;min-width:0" />
+              <select id="libTag" onchange="refreshCaseLibrary()" style="max-width:170px"><option value="">全部案由/标签</option></select>
+              <button class="ghost" onclick="refreshCaseLibrary()" aria-label="刷新案例库列表">刷新</button>
+              <button class="ghost" onclick="generateSampleCase(this)" aria-label="从示例生成一个测试案件">生成示例</button>
+              <button class="ghost" onclick="importDocs()" aria-label="批量导入案例文档">📂 批量导入</button>
+              <input type="file" id="libImport" multiple style="display:none" accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg" onchange="importDocsFiles(this)" />
             </div>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:10px">
+              <input type="checkbox" id="libOnlyBrief" onchange="refreshCaseLibrary()" style="width:15px;height:15px;accent-color:var(--navy)" /> 仅显示已预处理案件
+            </label>
             <div id="libList" class="lib-list"></div>
             <div class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
             <div class="row2" style="margin-bottom:10px">

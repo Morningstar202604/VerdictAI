@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""案件管理路由：列表 / 查看 / 上传（含 PDF 文本提取）/ 生成示例 / 删除 / 证据一键核验。"""
+"""案件管理路由：列表 / 查看 / 上传（PDF/DOCX/TXT + OCR + 表格）/ 生成示例 / 删除 / 证据一键核验。"""
 
 from __future__ import annotations
 
@@ -12,73 +12,46 @@ import uuid
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.config import MAX_PDF_CHARS, MAX_PDF_PAGES, settings
+from app.config import settings
 from app.data import generate_case
 from app.data.store import atomic_write_json, list_cases, load_case, validate_id
+from app.intake.documents import process_document
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 log = logging.getLogger("verdictai")
 
 DATA_DIR = os.path.abspath(settings.data_dir)
 
+# 支持的文档类型 → (process_document 的 kind, 是否二进制 base64)
+_DOC_TYPES = ("pdf", "docx", "doc", "txt", "plain")
 
-# ----------------------------- PDF 文本提取 -----------------------------
-
-
-def extract_pdf_text(
-    b64_content: str, max_pages: int = MAX_PDF_PAGES, max_chars: int = MAX_PDF_CHARS
-) -> str:
-    """从 base64 编码的 PDF 中提取文本。
-
-    对超大文档做截断保护，避免无限撑爆模型上下文：最多取前 max_pages 页、
-    拼接后最多保留 max_chars 字符，并在超限时附加提示。
-    """
-    import base64
-
-    try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return ""
-    try:
-        raw = base64.b64decode(b64_content)
-        doc = fitz.open(stream=raw, filetype="pdf")
-        # 检测加密 PDF
-        if doc.is_encrypted:
-            # 尝试空密码解密（很多 PDF 用空密码加密只是限制编辑）
-            if not doc.authenticate(""):
-                doc.close()
-                log.warning("PDF 已加密且无法用空密码解密")
-                return "__ENCRYPTED__"
-        pages = []
-        truncated_pages = False
-        for i, page in enumerate(doc):
-            if i >= max_pages:
-                truncated_pages = True
-                break
-            pages.append(page.get_text())
-        doc.close()
-        text = "\n\n".join(pages).strip()
-        truncated_chars = False
-        if len(text) > max_chars:
-            text = text[:max_chars].rstrip()
-            truncated_chars = True
-        if truncated_pages or truncated_chars:
-            text += (
-                "\n\n[注意：原始文档较大，已自动截断（"
-                + ("页数" if truncated_pages else "")
-                + ("字符" if truncated_chars else "")
-                + "上限）以保证分析可行，关键事实请以来源原件为准。]"
-            )
-        return text
-    except Exception:
-        return ""
+# 常见扩展名 → file_type（无 file_type 时按文件名推断）
+_EXT_MAP = {
+    ".pdf": "pdf",
+    ".docx": "docx",
+    ".doc": "doc",
+    ".txt": "txt",
+    ".md": "txt",
+    ".text": "txt",
+    ".png": "png",
+    ".jpg": "jpg",
+    ".jpeg": "jpeg",
+    ".webp": "webp",
+}
+_IMG_TYPES = {"png", "jpg", "jpeg", "webp", "gif"}
 
 
 def _text_to_case(text: str, filename: str = "") -> dict:
-    """从纯文本构建案件 JSON 结构（PDF 上传时使用）。"""
-    title = filename.replace(".pdf", "").replace(".PDF", "") or "上传案件"
+    """从提取文本构建案件 JSON 结构（文档上传时使用）。"""
+    for ext, ft in _EXT_MAP.items():
+        base = filename.lower().rsplit(ext, 1)[0]
+        if base != filename.lower():
+            title = base
+            break
+    else:
+        title = re.sub(r"\.[^.]+$", "", filename) or "上传案件"
     return {
-        "title": title,
+        "title": title or "上传案件",
         "summary": text[:2000],
         "persons": [],
         "evidence": [],
@@ -92,8 +65,25 @@ def _text_to_case(text: str, filename: str = "") -> dict:
 
 
 @router.get("")
-def cases():
-    return {"cases": list_cases()}
+def cases(q: str = "", has_brief: int = 0, tag: str = ""):
+    """案件列表，支持筛选：q=标题/摘要关键词，has_brief=1 仅显示已预处理，tag=按案由/标签。"""
+    hb = None if int(has_brief or 0) == 0 else True
+    return {"cases": list_cases(q=q, has_brief=hb, tag=tag)}
+
+
+@router.get("/tags")
+def case_tags():
+    """案例库可用标签（案由 + 意图标签聚合），供筛选器展示。"""
+    tags: dict = {}
+    for c in list_cases():
+        cause = (c.get("cause") or "").strip()
+        if cause:
+            tags[cause] = tags.get(cause, 0) + 1
+        for t in (c.get("intent_tags") or []):
+            t = str(t).strip()
+            if t:
+                tags[t] = tags.get(t, 0) + 1
+    return {"tags": sorted(tags.keys())}
 
 
 @router.get("/{case_id}")
@@ -154,6 +144,56 @@ def evidence_audit(case_id: str):
     }
 
 
+@router.get("/{case_id}/timeline")
+def case_timeline(case_id: str):
+    """证据时间线（M1.5）：案件内置 timeline 按时间排序输出；时间缺失的条目
+    保留在原位不丢弃。确定性、零模型调用，供前端绘制横向时间线视图。"""
+    if not validate_id(case_id):
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+    c = load_case(case_id)
+    if c is None:
+        return JSONResponse({"error": "案件不存在"}, status_code=404)
+    items = []
+    for t in c.get("timeline") or []:
+        if not isinstance(t, dict):
+            continue
+        items.append({
+            "time": str(t.get("time") or ""),
+            "event": str(t.get("event") or "")[:200],
+            "source": str(t.get("source") or ""),
+            "evidence": str(t.get("evidence") or t.get("evidence_id") or ""),
+        })
+    # 时间可解析的按时间排序；无时间/不可解析的兜底排在末尾，保持信息来源不丢
+    import datetime as _dt
+
+    def _sort_key(x):
+        raw = x["time"] or ""
+        try:
+            return _dt.datetime.fromisoformat(raw).timestamp()
+        except ValueError:
+            return 0.0
+
+    items.sort(key=_sort_key)
+    return {
+        "case_id": case_id,
+        "count": len(items),
+        "timeline": items,
+        "evidence_count": len(c.get("evidence") or []),
+    }
+
+
+@router.get("/{case_id}/similar")
+def similar_cases(case_id: str, limit: int = 3):
+    """相似案例推荐（M1.5）：embedding 近邻优先，语义不可用时退关键词/案由重叠。
+    返回 [{id,title,score,cause}]；无其他案件时返回空列表。"""
+    if not validate_id(case_id):
+        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+    from app.legal.retriever import case_similarities
+
+    limit = max(1, min(10, int(limit)))
+    return {"case_id": case_id, "similar": case_similarities(case_id, limit)}
+
+
 @router.post("/generate")
 async def regenerate():
     """生成一个示例案件并加入案例库（用唯一 ID，不再硬编码 case_001）。"""
@@ -202,36 +242,15 @@ async def regenerate():
     return {"path": new_path, "case": case}
 
 
-@router.post("/upload")
-async def upload_case(payload: dict):
+async def _store_upload(data: dict) -> dict:
+    """把一份已构造好的案件 dict 持久化：ID 校验/去重/预处理/图表/落盘。返回 {case}。"""
     from app.intake.processor import preprocess
-
-    if not isinstance(payload, dict):
-        return JSONResponse({"error": "案件须为 JSON 对象"}, status_code=400)
-    data = dict(payload)
-
-    # PDF 文件：从 base64 提取文本并构建案件结构
-    if data.get("file_type") == "pdf" and data.get("file_content"):
-        pdf_text = extract_pdf_text(data["file_content"])
-        if pdf_text == "__ENCRYPTED__":
-            return JSONResponse(
-                {"error": "PDF 已加密，请先解除密码保护后再上传"}, status_code=400
-            )
-        if not pdf_text:
-            return JSONResponse(
-                {"error": "PDF 文本提取失败，文件可能是扫描件（图片型 PDF），请粘贴文字内容"}, status_code=400
-            )
-        case_from_pdf = _text_to_case(pdf_text, data.get("file_name", ""))
-        for k, v in case_from_pdf.items():
-            if k not in data or not data[k]:
-                data[k] = v
-        data["pdf_text"] = pdf_text
 
     cid = str(data.get("id") or "").strip()
     if cid and not validate_id(cid):
         # cid 会参与案件文件名拼接，必须与 GET/DELETE 端点同等校验，
         # 否则 "../" 之类的值可以写出 cases 目录之外
-        return JSONResponse({"error": "无效的案件 ID"}, status_code=400)
+        raise ValueError("无效的案件 ID")
     if not cid:
         cid = "case_" + uuid.uuid4().hex[:8]
     data["id"] = cid
@@ -269,6 +288,83 @@ async def upload_case(payload: dict):
         data["charts"] = {}
     atomic_write_json(os.path.join(cases_dir, cid + ".json"), data)
     return {"case": data}
+
+
+def _apply_document(data: dict) -> str | None:
+    """把文档/图片 base64 展开为案件文本/图文/OCR 字段；出错返回错误消息（None=成功）。"""
+    ft_raw = str(data.get("file_type") or "").lower().strip()
+    if not ft_raw and data.get("file_name"):
+        ft_raw = _EXT_MAP.get(os.path.splitext(str(data["file_name"]))[1].lower(), "")
+    if not data.get("file_content"):
+        return None
+    # 图片：以 data URL 形式入 images，交由预处理的多模态/OCR 描述
+    if ft_raw in _IMG_TYPES:
+        img_name = data.get("file_name") or "图片"
+        data.setdefault("images", []).append({
+            "name": img_name,
+            "data_url": f"data:image/{ft_raw};base64,{data['file_content']}",
+        })
+        return None
+    if not (ft_raw in _DOC_TYPES and data.get("file_content")):
+        return None
+    proc = process_document(ft_raw, data["file_content"], data.get("file_name", ""))
+    if ft_raw == "pdf" and proc["encrypted"]:
+        return "PDF 已加密，请先解除密码保护后再上传"
+    if not proc["text"] and not proc["tables"]:
+        hint = "（可能是扫描件，请启用 OCR 后重试）" if ft_raw == "pdf" else ""
+        return f"文档文本提取失败{hint}，请粘贴文字内容"
+    case_from_doc = _text_to_case(proc["text"], data.get("file_name", ""))
+    for k, v in case_from_doc.items():
+        if k not in data or not data[k]:
+            data[k] = v
+    data["pdf_text"] = proc["text"]  # 统一存为原始提取文本（前端预览兼容）
+    if proc["tables"]:
+        data["tables"] = proc["tables"]
+    if proc["ocr_pages"]:
+        data["ocr_pages"] = proc["ocr_pages"]
+    return None
+
+
+@router.post("/upload")
+async def upload_case(payload: dict):
+    if not isinstance(payload, dict):
+        return JSONResponse({"error": "案件须为 JSON 对象"}, status_code=400)
+    data = dict(payload)
+    err = _apply_document(data)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    try:
+        return await _store_upload(data)
+    except ValueError as ex:
+        return JSONResponse({"error": str(ex)}, status_code=400)
+
+
+@router.post("/import_batch")
+async def import_batch(payload: dict):
+    """批量导入：files=[{file_type,file_content,file_name}, ...]（PDF/DOCX/TXT）。逐份处理，单份失败不影响其余。"""
+    files = (payload or {}).get("files")
+    if not isinstance(files, list) or not files:
+        return JSONResponse({"error": "files 须为非空数组"}, status_code=400)
+    results = []
+    for f in files[:50]:  # 单批上限 50 份，防误操作刷爆
+        if not isinstance(f, dict):
+            results.append({"ok": False, "error": "文件项格式错误"})
+            continue
+        data = dict(f)
+        err = _apply_document(data)
+        if err:
+            data["title"] = data.get("file_name") or data.get("title") or "未命名"
+            results.append({"ok": False, "file_name": data["title"], "error": err})
+            continue
+        try:
+            saved = await _store_upload(data)
+            results.append({"ok": True, "id": saved["case"]["id"],
+                            "title": saved["case"].get("title")})
+        except ValueError as ex:
+            results.append({"ok": False, "file_name": data.get("file_name"),
+                            "error": str(ex)})
+    ok_n = sum(1 for r in results if r.get("ok"))
+    return {"imported": ok_n, "total": len(results), "results": results}
 
 
 @router.delete("/{case_id}")

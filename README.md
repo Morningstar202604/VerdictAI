@@ -188,7 +188,7 @@ python tools/start_all.py
 # stop everything: python tools/start_all.py stop
 ```
 
-**Production (Docker)**: `docker compose up -d --build` at the repo root → React frontend on `:8080`, backend built-in UI on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+**Production (Docker)**: `docker compose up -d --build` at the repo root → built-in SPA served by the backend on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 **Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
 
@@ -211,12 +211,10 @@ Restart the server. Works with any OpenAI-compatible API: DeepSeek, GLM, Qwen, S
 
 ```mermaid
 flowchart TB
-    UI1["🌐 内置 SPA UI<br/>(正式产品, index.html)"]
-    UI2["📱 React 前端<br/>(frontend/, 已冻结)"]
+    UI1["🌐 内置 SPA UI<br/>(唯一前端, index.html)"]
     API["⚖️ FastAPI 服务 · app/main.py<br/>REST · WebSocket · 访问认证 · 请求限流"]
 
     UI1 -->|WebSocket + REST| API
-    UI2 -->|WebSocket + REST| API
 
     subgraph GRAPH["LangGraph 辩论状态机 StateGraph"]
         direction LR

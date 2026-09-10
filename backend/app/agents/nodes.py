@@ -16,6 +16,7 @@ from app.config import debate_snapshot, settings
 from app.data.store import validate_id
 from app.intake.processor import _extract_json
 from app.models.llm import get_llm, is_mock, stream_enabled, stream_or_invoke
+from app.models.schemas import clean_contradictions, clean_verdict
 from app.models.state import DebateState
 
 log = logging.getLogger("debate.nodes")
@@ -131,6 +132,7 @@ async def _run_agent(
     # 保证末尾存在一条 user 消息，否则 OpenAI/兼容接口会报 "No user query found"
     messages.append(HumanMessage(content=user_content))
     full = ""
+    citations: List[str] = []  # 引用溯源（M2.1）：本轮工具检索到的可追溯来源
     final_streamed = False  # 最终答复是否已走真流式下发（避免末尾假分片重复输出）
     stream_on = stream_enabled(cfg)
     endpoint_key = "|".join(str(cfg.get(k) or "") for k in ("llm_provider", "llm_base_url", "llm_model"))
@@ -203,6 +205,7 @@ async def _run_agent(
                             "id": msg_id,
                         }
                     )
+                    citations.extend(_extract_citations(str(result), tc["name"]))
                 continue
             full = _to_str(resp.content)
             break
@@ -235,6 +238,14 @@ async def _run_agent(
         usage["calls"] = usage.get("calls", 0) + 1
         usage["in_chars"] = usage.get("in_chars", 0) + sum(len(str(m.content)) for m in messages)
         usage["out_chars"] = usage.get("out_chars", 0) + len(full)
+    if citations:
+        # 引用溯源：随发言下发来源徽标（前端渲染为来源 chips）
+        try:
+            await sink(
+                {"kind": "citations", "role": role_key, "citations": list(dict.fromkeys(citations)), "id": msg_id}
+            )
+        except Exception:
+            pass
     if settings.audit_prompts and session_id and validate_id(session_id):
         # 提示词审计链：每次专家调用落盘一行 JSONL（提示词/响应原文 + 元信息），
         # 供研究复现；data/audit/{session}.jsonl
@@ -274,6 +285,68 @@ _DOUBT_KW = (
     "伪造",
     "缺失",
 )
+
+_CITE_TITLE_RE = re.compile(r"《([^》]{2,40})》")
+_CITE_URL_RE = re.compile(r"https?://[^\s\"'<>()）]+")
+
+
+def _extract_citations(result: str, tool: str) -> List[str]:
+    """引用溯源（M2.1）：从工具返回文本提取可追溯来源（法条/知识条目标题、网页 URL）。
+    供前端在专家发言中渲染「来源」徽标，实现 grounding。"""
+    r = str(result or "")
+    out: List[str] = []
+    for m in _CITE_TITLE_RE.finditer(r):
+        t = m.group(1).strip()
+        if t and t not in out:
+            out.append(t)
+        if len(out) >= 6:
+            break
+    if tool == "web_search":
+        for u in _CITE_URL_RE.findall(r):
+            if u not in out:
+                out.append(u[:70])
+            if len(out) >= 4:
+                break
+    return out[:6]
+
+
+def _selfcheck_case(case: Dict, verdict: Dict, contradictions: List) -> Dict:
+    """确定性完整性自检（M2.2）：裁决前体检——
+    - 证据覆盖：未在裁决中显式解释的证据计数；
+    - 矛盾收敛：未解决矛盾计数；
+    - 法条引用：裁决是否引用《法条》/第X条。
+    同时产出证据链强度分值（M3.2 前置）：覆盖越全、矛盾越少、有法条支撑越高。"""
+    evs = case.get("evidence") or []
+    total = len(evs)
+    text = json.dumps(verdict, ensure_ascii=False)
+    covered = [
+        e for e in evs
+        if (e.get("id") or "") in text or ((e.get("desc") or "")[:18] and (e.get("desc")[:18] in text))
+    ]
+    unresolved = len(contradictions or [])
+    law_hits = len(_CITE_TITLE_RE.findall(text)) + len(
+        re.findall(r"第\s*[一二三四五六七八九十0-9]+\s*[条款]", text)
+    )
+    issues: List[str] = []
+    if total and len(covered) < total:
+        missing = [str(e.get("id") or "") for e in evs if e not in covered][:5]
+        issues.append(f"证据覆盖不完整：{total - len(covered)}/{total} 件未在裁决中显式解释（{', '.join(m for m in missing if m)}）")
+    if unresolved:
+        issues.append(f"仍有 {unresolved} 条矛盾未解决，建议人类法官复核后再落槌")
+    if total and law_hits == 0:
+        issues.append("裁决未引用任何法条/知识条目")
+    score = round(
+        0.35 + 0.40 * (len(covered) / max(total, 1)) + 0.25 * max(0.0, 1.0 - unresolved / 3.0), 2
+    )
+    return {
+        "ok": not issues,
+        "issues": issues,
+        "covered": len(covered),
+        "total": total,
+        "unresolved_contradictions": unresolved,
+        "legal_citations": law_hits,
+        "strength": min(1.0, max(0.0, score)),
+    }
 
 
 async def _summarize_note(
@@ -518,12 +591,14 @@ async def critic_node(state: DebateState, config) -> Dict:
     new_contradictions: List[Dict] = []
     if is_mock(cfg):
         if state.get("round", 0) < state.get("max_rounds", 3):
-            new_contradictions.append(
-                {
-                    "round": state.get("round"),
-                    "issue": f"第{state.get('round')}轮：关键证据链闭合度仍需交叉验证（如口供与物证时间冲突）",
-                    "parties": ["evidence", "psych"],
-                }
+            new_contradictions = clean_contradictions(
+                [
+                    {
+                        "round": state.get("round"),
+                        "issue": f"第{state.get('round')}轮：关键证据链闭合度仍需交叉验证（如口供与物证时间冲突）",
+                        "parties": ["evidence", "psych"],
+                    }
+                ]
             )
     else:
         prompt = agent_config.prompt_for_critic(
@@ -536,11 +611,11 @@ async def critic_node(state: DebateState, config) -> Dict:
             )
             parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, list):
-                new_contradictions = parsed
+                new_contradictions = clean_contradictions(parsed)
             elif isinstance(parsed, dict):
                 for v in parsed.values():
                     if isinstance(v, list):
-                        new_contradictions = v
+                        new_contradictions = clean_contradictions(v)
                         break
         except Exception:
             pass
@@ -553,6 +628,69 @@ async def critic_node(state: DebateState, config) -> Dict:
         "blackboard": blackboard,
         "log": [{"event": "critic", "count": len(new_contradictions)}],
     }
+
+
+# ------------------------- 节点 2.5：可证伪性审查（Reflexion / M2.3） -------------------------
+async def reflect_node(state: DebateState, config) -> Dict:
+    """裁决前反思：对每位专家的核心主张给出「反对理由/待核验点」，倒逼批评者先找反证。
+
+    - mock：确定性抽取每角色首行主张，生成需实证检验的反对清单；
+    - 真实 LLM：一次调用产出结构化 JSON。失败静默降级（不影响主流程）。"""
+    sink: Sink = config["configurable"]["sink"]
+    cfg = _session_cfg(config)
+    claims = state.get("claims", {})
+    contradictions = state.get("contradictions", [])
+    reflections: List[Dict] = []
+
+    if is_mock(cfg):
+        for role_key, txt in (claims or {}).items():
+            first = str(txt or "").strip().splitlines()[0][:70] or "（无主张）"
+            reflections.append({
+                "role": role_key,
+                "subject": first,
+                "objection": "该主张当前缺乏可证伪的反证排除：需补充能推翻或支撑它的证据再收敛",
+            })
+        for c in (contradictions or [])[:2]:
+            reflections.append({
+                "role": "critic",
+                "subject": str(c.get("issue") or "")[:70],
+                "objection": "矛盾尚未闭环：建议人类法官在落槌前复核双方依据的原始证据",
+            })
+    else:
+        prompt = (
+            "你是庭审反思官。请对以下各专家主张进行可证伪性审查：对每条主张给出最有力的"
+            "反对理由或必须补齐的证据（反对理由不得重复），只输出 JSON 数组：\n"
+            '[{"role":"角色key","subject":"该条主张(≤40字)","objection":"反对理由/待核验点(≤80字)"}]\n'
+            "禁止输出代码块或额外文字。\n\n"
+            f"专家主张：\n{json.dumps(claims, ensure_ascii=False, indent=2)}\n\n"
+            f"矛盾清单：\n{json.dumps(contradictions, ensure_ascii=False, indent=2)}"
+        )
+        llm = get_llm("反思官", cfg=cfg)
+        try:
+            resp = await _retry_ainvoke(
+                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            )
+            parsed = _extract_json(_to_str(resp.content))
+            if isinstance(parsed, dict):
+                for v in parsed.values():
+                    if isinstance(v, list):
+                        parsed = v
+                        break
+            if isinstance(parsed, list):
+                reflections = [
+                    {
+                        "role": str(r.get("role") or "")[:24],
+                        "subject": str(r.get("subject") or "")[:70],
+                        "objection": str(r.get("objection") or "")[:110],
+                    }
+                    for r in parsed
+                    if isinstance(r, dict) and r.get("objection")
+                ][:8]
+        except Exception:  # noqa: BLE001
+            log.warning("反思节点解析失败，跳过（不影响裁决）")
+
+    await sink({"kind": "reflect", "reflections": reflections})
+    return {"reflections": reflections, "log": [{"event": "reflect", "count": len(reflections)}]}
 
 
 # ------------------------- 节点 3：审判长收敛 / 裁决 -------------------------
@@ -577,7 +715,7 @@ async def judge_node(state: DebateState, config) -> Dict:
         return {"consensus": False, "log": [{"event": "judge", "consensus": False}]}
 
     if is_mock(cfg):
-        verdict = {
+        verdict = clean_verdict({
             "truth_hypothesis": "基于现有卷宗，真相推定：案件存在多种可能，需在关键证据（凶器DNA、被告时间线）上进一步确认。",
             "evidence_chain": [
                 "现场勘查确定出入口",
@@ -594,7 +732,7 @@ async def judge_node(state: DebateState, config) -> Dict:
             ],
             "recommendation": "建议补充DNA复核与监控原始数据，再由人类法官作出最终裁判。",
             "disclaimer": "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
-        }
+        })
     else:
         prompt = (
             "你是审判长。请综合各专家主张与矛盾清单，输出 JSON："
@@ -611,27 +749,37 @@ async def judge_node(state: DebateState, config) -> Dict:
             )
             parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, dict):
-                verdict = parsed
-                verdict.setdefault(
-                    "disclaimer",
-                    "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
-                )
-                verdict.setdefault("next_steps", [])
+                verdict = clean_verdict(parsed)
             else:
                 raise ValueError("审判长未返回有效 JSON")
         except Exception:
-            verdict = {
+            verdict = clean_verdict({
                 "truth_hypothesis": "（解析失败，请重试或调整模型）",
                 "evidence_chain": [],
                 "doubts": [],
                 "recommendation": "",
                 "next_steps": [],
                 "disclaimer": "",
-            }
+            })
 
     await sink({"kind": "verdict", "verdict": verdict})
     await sink({"kind": "judge_end", "consensus": True})
-    return {"consensus": True, "verdict": verdict, "log": [{"event": "verdict"}]}
+
+    # 完整性自检（M2.2）+ 证据链强度（M3.2 前置）：裁决后确定性体检，
+    # 结果随事件下发、落盘复盘；有缺项时在裁决上标记，交人类复核而非静默通过
+    selfcheck = _selfcheck_case(state.get("case", {}) or {}, verdict, contradictions)
+    verdict["evidence_strength"] = {
+        "score": selfcheck["strength"],
+        "issues": selfcheck["issues"],
+    }
+    await sink({"kind": "selfcheck", "selfcheck": selfcheck})
+
+    return {
+        "consensus": True,
+        "verdict": verdict,
+        "selfcheck": selfcheck,
+        "log": [{"event": "verdict"}, {"event": "selfcheck", "ok": selfcheck["ok"]}],
+    }
 
 
 # ------------------------- 节点 5：人类审判长落槌 -------------------------

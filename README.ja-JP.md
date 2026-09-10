@@ -182,7 +182,7 @@ python tools/start_all.py
 # 停止：python tools/start_all.py stop
 ```
 
-**本番デプロイ（Docker）**：リポジトリルートで `docker compose up -d --build` → Reactフロントエンド `:8080` / バックエンド内蔵UI `:8787`。詳細は [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照。
+**本番デプロイ（Docker）**：リポジトリルートで `docker compose up -d --build` → 内蔵SPA（バックエンド付属UI）`:8787`。詳細は [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照。
 
 **http://localhost:8787 を開く** → PDF事件記録をドラッグ（または案情を貼り付け/サンプル選択）→ AIが構造化記録を解析する様子を確認 → 「開庭審理」をクリック → 7人のAI専門家によるディベートをリアルタイムで視聴。
 

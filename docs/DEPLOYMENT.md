@@ -123,12 +123,11 @@ server {
 
 ## Docker Deployment
 
-Two services, orchestrated by `docker-compose.yml` at the repo root:
+Single service, orchestrated by `docker-compose.yml` at the repo root (the former React frontend service was retired in 2026-10; the built-in SPA served by the backend is the only UI):
 
 | Service | Image | Exposed Port | Purpose |
 |---|---|---|---|
-| `backend` | `backend/Dockerfile` (python:3.11-slim) | `8787` | FastAPI app + built-in UI + static assets |
-| `frontend` | `frontend/Dockerfile` (node:20 → nginx:1.27) | `8080` | React build served by nginx, reverses `/api` `/ws` `/static` `/sandbox` to backend |
+| `backend` | `backend/Dockerfile` (python:3.11-slim) | `8787` | FastAPI app + built-in SPA + static assets |
 
 The backend image installs `fonts-noto-cjk` so matplotlib charts render Chinese correctly.
 
@@ -143,8 +142,7 @@ docker compose up -d --build
 ```
 
 Then open:
-- **React frontend**: http://<server>:8080
-- **Backend built-in UI**: http://<server>:8787
+- **Backend built-in UI (the only UI)**: http://<server>:8787
 
 Persistent data (case library, debate records, generated charts) lives in `./backend/data`, mounted into the container at `/app/data`.
 
@@ -168,7 +166,7 @@ docker compose up -d --build
 
 - **API keys never enter the image**: `env_file: ./backend/.env` is injected at runtime; `.env` is git- and docker-ignored.
 - **Single backend worker by design**: debate sessions are in-process state; keep 1 replica unless you add a shared store.
-- **CORS**: the React frontend is same-origin through nginx, so no extra CORS config is needed.
+- **CORS**: the built-in SPA is same-origin, so no extra CORS config is needed.
 
 ## Performance Notes
 

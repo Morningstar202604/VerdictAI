@@ -12,9 +12,19 @@ router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 
 @router.get("")
-def get_knowledge(q: str = ""):
-    """知识库：内置法条 + 用户自定义条目，支持关键词检索。"""
-    return {"entries": search_knowledge(q) if q.strip() else list_knowledge()}
+def get_knowledge(q: str = "", semantic: int = 0):
+    """知识库：内置法条 + 用户自定义条目。
+
+    q 为空 → 全部列表；q 非空 → 检索：
+    - semantic=0 纯关键词（精确、确定，供专家工具引用）；
+    - semantic=1 混合检索（关键词精确命中优先 + 向量语义补足，供 UI 探索用）。"""
+    if not q.strip():
+        return {"entries": list_knowledge(), "mode": "all"}
+    if semantic:
+        from app.legal.retriever import hybrid_search
+
+        return {"entries": hybrid_search(q, limit=6), "mode": "hybrid"}
+    return {"entries": search_knowledge(q, limit=6), "mode": "keyword"}
 
 
 @router.post("")

@@ -575,3 +575,53 @@
       }
 
     
+      /* 意图识别预览（M1.5） */
+      .ipv{font-size:12.5px;line-height:1.6;margin-top:10px;border-radius:8px;padding:8px 12px;text-align:left}
+      .ipv-ok{background:var(--panel);border:1px solid var(--line,#d8dee6);box-shadow:0 1px 4px rgba(15,35,60,.06)}
+      .ipv-bad{background:#fdf0ef;border:1px solid #f3c6c2;color:var(--bad,#b3261e)}
+      .ipv-tag{display:inline-block;font-size:10px;color:var(--muted);margin-right:4px}
+      .ipv-val{font-weight:600;color:var(--ink);margin-right:12px}
+      .ipv-chip{display:inline-block;font-size:11px;background:#eef3fa;color:var(--accent,#1f5f8f);border:1px solid var(--line,#d8dee6);border-radius:10px;padding:1px 8px;margin:1px 4px 1px 0}
+      .ipv-chips{margin-top:4px;font-size:11px}
+      .ipv-chips b{color:var(--muted);font-weight:500;margin-right:4px}
+      /* 时间线 & 相似案例弹层（M1.5） */
+      .tl-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:99;padding:20px}
+      .tl-modal{background:var(--panel,#fff);border:1px solid var(--line,#d8dee6);border-radius:12px;max-width:min(980px,96vw);width:100%;max-height:82vh;overflow:auto;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+      .tl-head{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:10px}
+      .tl-scroll{overflow-x:auto;border:1px solid var(--line,#e3e8ef);border-radius:8px;padding:6px 10px;background:rgba(15,35,60,.02)}
+      .tl-sec{margin:12px 0 6px;font-size:12.5px;color:var(--accent,#1f5f8f);font-weight:600}
+      .tl-sim{display:flex;align-items:baseline;gap:8px;padding:7px 10px;border:1px solid var(--line,#e3e8ef);border-radius:8px;margin-bottom:6px;background:var(--panel,#fff)}
+      .tl-sim-t{font-weight:600;font-size:12.5px}
+      .tl-sim-s{margin-left:auto;font-size:11px;color:var(--muted,#6b7682)}
+      .tl-load{color:var(--muted,#6b7682);font-size:13px;padding:20px;text-align:center}
+      .tl-foot{margin-top:10px;font-size:11px}
+      /* M2.1 引用溯源徽标 + M2.2 证据链强度条 + M2.3 反思面板 + M2.4 侦查计划 */
+      .cites{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:10.5px;color:var(--muted,#6b7682);align-items:baseline}
+      .cite-chip{display:inline-block;background:#f4f1e8;border:1px solid #e2d8bd;color:#7a6426;border-radius:8px;padding:1px 7px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+      .strength{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line,#e3e8ef)}
+      .st-ok{background:#f0f8f1;border-color:#cfe7d3}
+      .st-warn{background:#fff8ec;border-color:#f0e0bd}
+      .st-bad{background:#fdf0ef;border-color:#f3c6c2}
+      .st-row{font-size:12.5px;margin-bottom:6px;display:flex;justify-content:space-between}
+      .st-row b{font-size:14px}
+      .st-bar{height:8px;border-radius:5px;background:#e8ecf1;overflow:hidden}
+      .st-bar i{display:block;height:100%;background:linear-gradient(90deg,#9c7c43,#b3923f);border-radius:5px;transition:width .4s}
+      .st-issues{margin:8px 0 0;padding-left:16px;font-size:11.5px;color:var(--bad,#b3261e)}
+      .reflex{margin-top:12px;border:1px solid #e7dcc3;background:#fbf8f0;border-radius:10px;padding:10px 12px}
+      .reflex-t{font-size:12.5px;font-weight:700;color:#7a6426;margin-bottom:8px}
+      .reflex-item{border-top:1px dashed #e7dcc3;padding:7px 0;font-size:12px}
+      .reflex-subj{margin-left:6px;color:var(--ink,#1f2730)}
+      .reflex-o{color:#9a5b2b;font-size:11.5px;margin-top:2px}
+      .iv-plan{margin-top:10px;border:1px solid #d5e3f0;background:#f5f9fd;border-radius:8px;padding:9px 12px}
+      .ip-t{font-size:12px;font-weight:700;color:var(--accent,#1f5f8f);margin-bottom:5px}
+      .ip-i{font-size:11.5px;color:var(--ink,#1f2730);margin:2px 0}
+      /* M3.3 用量面板 + M4 语音输入 */
+      .usage-card{border:1px solid var(--line,#e3e8ef);border-radius:10px;padding:10px 14px;margin-bottom:12px;background:rgba(15,35,60,.02)}
+      .uc-grid{display:flex;gap:16px;flex-wrap:wrap}
+      .uc{display:flex;flex-direction:column;align-items:center;min-width:64px}
+      .uc b{font-size:19px;color:var(--accent,#1f5f8f)}
+      .uc span{font-size:11px;color:var(--muted,#6b7682)}
+      .uc-recent{margin-top:8px;font-size:11px;line-height:1.8}
+      .uc-recent span{display:inline-block;margin-right:6px}
+      .voice-row{margin:-2px 0 8px;text-align:right}
+      .voice-row button{font-size:11.5px}

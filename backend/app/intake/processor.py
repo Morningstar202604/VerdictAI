@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 
 from app.config import settings
 from app.models.llm import get_llm
+from app.models.schemas import clean_intake
 
 # 每个角色在现实中应重点看到的材料类型（用于分案分发）
 ROLE_FOCUS: Dict[str, str] = {
@@ -266,6 +267,9 @@ async def _intake_llm(dossier: str, retries: int = 3, cfg: dict = None) -> Optio
 
 
 async def _extract_images(case: dict) -> List[str]:
+    """图片材料：多模态描述（可用时）+ 本地 OCR 兜底 + 如实占位。"""
+    from app.intake.vision import describe_image
+
     imgs = case.get("images") or []
     captions: List[str] = []
     for im in imgs:
@@ -275,23 +279,8 @@ async def _extract_images(case: dict) -> List[str]:
             captions.append(f"{name}：（图片已附，待专家结合视觉/工具分析）")
             continue
         try:
-            llm = get_llm("分案法官")
-            msg = [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "请简要描述这张图片中与案件相关的信息（场景/文字/物品），用于卷宗预处理。",
-                        },
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                    ],
-                }
-            ]
-            resp = await llm.ainvoke(msg)
-            captions.append(
-                f"{name}：{resp.content if hasattr(resp, 'content') else resp}"
-            )
+            desc = await describe_image(data_url, name)
+            captions.append(f"{name}：{desc}".strip())
         except Exception:
             captions.append(f"{name}：（图片已附，待专家结合视觉/工具分析）")
     return captions
@@ -352,12 +341,21 @@ async def preprocess(raw: dict, use_llm: bool = True, cfg: dict = None) -> dict:
                     dossier = _build_dossier_text(case, image_captions)
 
     per_role_material = build_role_material(case, intent, guidance)
+    # 结构化清洗：案由/置信度/建议策略由确定性推导（不依赖模型契约字段），
+    # 意图与强度经 schema 校验，任何来源的输出都统一为规范结构。
+    cleaned = clean_intake(
+        {
+            "intent": intent,
+            "intent_tags": intent_tags,
+            "reasoning_intensity": intensity,
+            "global_guidance": guidance,
+            "summary": summary,
+        },
+        text_hint=dossier,
+    )
     return {
-        "intent": intent,
-        "intent_tags": intent_tags,
-        "reasoning_intensity": intensity,
-        "global_guidance": guidance,
-        "summary": summary,
+        **cleaned,
+        "investigation_plan": _build_investigation_plan(case),
         "images": [
             {"name": im.get("name", "图片"), "caption": c}
             for im, c in zip(case.get("images", []) or [], image_captions)
@@ -365,3 +363,31 @@ async def preprocess(raw: dict, use_llm: bool = True, cfg: dict = None) -> dict:
         "per_role_material": per_role_material,
         "intake_done": True,
     }
+
+
+def _build_investigation_plan(case: dict) -> List[str]:
+    """侦查计划（M2.4，确定性）：基于卷宗结构找侦办盲区，产出待证问题清单。
+    零模型调用、可复现，供前端在预处理卡片展示并在辩论开场引导专家聚焦。"""
+    plan: List[str] = []
+    evs = case.get("evidence") or []
+    kinds = " ".join(str(e.get("type") or "") for e in evs)
+    flawed = [e for e in evs if e.get("chain_intact") is False]
+    low = [e for e in evs if (float(e.get("reliability") or 1) < 0.6)]
+    tl = case.get("timeline") or []
+    persons = case.get("persons") or []
+
+    for e in flawed[:2]:
+        plan.append(f"补验 {e.get('id', '')} 的保管链（转移记录不完整）并固定原始载体")
+    for e in low[:2]:
+        plan.append(f"复核 {e.get('id', '')} 的来源可靠性，判断是否满足证据三性要求")
+    if not tl:
+        plan.append("卷宗缺少时间线数据，建议依据通话/出行/消费记录重建事发时间轴")
+    if not any(k in kinds for k in ("监控", "勘验", "鉴定", "物证", "现场")):
+        plan.append("客观证据偏少，建议补充现场勘验、监控或鉴定意见类证据")
+    if len(evs) < 3:
+        plan.append(f"证据数量偏少（当前 {len(evs)} 件），需警惕单一口供定案风险")
+    if not any(str(p.get("role") or "") == "证人" for p in persons):
+        plan.append("未登记证人信息，注意证人证言与书证、物证的相互印证")
+    if not plan:
+        plan.append("卷宗结构完整，按现行证据链核验即可")
+    return plan[:6]

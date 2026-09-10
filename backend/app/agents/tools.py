@@ -137,43 +137,18 @@ def web_search(query: str) -> str:
     """联网检索公开信息（法条更新、类案报道、公开事实核查）。输入检索词，返回前若干条结果的标题、摘要与链接。"""
     if not settings.web_search_enabled:
         return "联网搜索未启用（设置 → Agent 工程）。可依据卷宗与知识库作答。"
-    import http.client
-    import urllib.parse
+    from app.agents import search as _search
 
-    # 上游固定为 Bing 国内源，仅查询串动态；显式固定主机避免请求目标被间接改写
-    path = "/search?q=" + urllib.parse.quote(query) + "&count=8"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-        "Accept-Language": "zh-CN,zh;q=0.9",
-    }
-    try:
-        conn = http.client.HTTPSConnection("cn.bing.com", timeout=12)
-        try:
-            conn.request("GET", path, headers=headers)
-            resp = conn.getresponse()
-            if resp.status != 200:
-                return f"联网检索失败（HTTP {resp.status}）。请依据卷宗与知识库继续分析。"
-            html = resp.read().decode("utf-8", "ignore")
-        finally:
-            conn.close()
-    except Exception as ex:  # noqa: BLE001
-        return f"联网检索失败（网络不可达）：{str(ex)[:120]}。请依据卷宗与知识库继续分析。"
-    chunks = html.split('<li class="b_algo"')[1:]
-    items = []
-    for ch in chunks:
-        mh = re.search(r'<h2[^>]*><a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', ch, re.S)
-        if not mh:
-            continue
-        mp = re.search(r'<p[^>]*>(.*?)</p>', ch, re.S)
-        items.append((mh.group(1), mh.group(2), mp.group(1) if mp else ""))
-    out: List[str] = []
-    nl = chr(10)
-    for i, (href, title, snip) in enumerate(items[:5], 1):
-        title_txt = re.sub(r"<[^>]+>", "", title).strip()
-        snip = re.sub(r"<[^>]+>", "", snip).strip()
-        out.append(f"{i}. {title_txt}" + nl + f"   {snip[:140]}" + nl + f"   来源: {href[:110]}")
-    if not out:
+    items = _search.web_search(query)
+    if not items:
         return f"联网检索「{query}」无结果。请依据卷宗与知识库继续分析。"
+    nl = chr(10)
+    out: List[str] = []
+    for i, it in enumerate(items[:5], 1):
+        out.append(
+            f"{i}. {it['title']}" + nl + f"   {(it['snippet'] or '')[:140]}"
+            + nl + f"   来源: {(it['url'] or '')[:110]}"
+        )
     return f"联网检索「{query}」结果：" + nl + nl.join(out)
 
 

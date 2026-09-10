@@ -34,7 +34,7 @@ from ai_engine.statements import (
     _statement,
 )
 
-app = FastAPI(title="VerdictAI Local Engine", version="0.8.0")
+app = FastAPI(title="VerdictAI Local Engine", version="0.9.0")
 
 MODELS = {"object": "list", "data": [{"id": "verdict-local", "object": "model"}, {"id": "verdict-local-intake", "object": "model"}]}
 

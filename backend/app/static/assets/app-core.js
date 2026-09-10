@@ -76,9 +76,17 @@
           selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
         } catch(e){ toast("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
       }
+      function fileToB64(file){
+        return file.arrayBuffer().then(buf => {
+          let s=""; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return btoa(s);
+        });
+      }
       async function uploadCase(evt) {
         const file = evt.target.files[0]; if(!file) return;
-        if (file.name.toLowerCase().endsWith(".pdf")) { uploadPdfFile(file); evt.target.value=""; return; }
+        const name = file.name.toLowerCase();
+        if (name.endsWith(".pdf") || name.endsWith(".docx") || name.endsWith(".doc")
+            || name.endsWith(".txt") || name.endsWith(".md")) { await uploadDocFile(file); evt.target.value=""; return; }
+        if (/\.(png|jpe?g|webp|gif)$/.test(name)) { await uploadImageFile(file); evt.target.value=""; return; }
         try {
           const text = await file.text(); const data = JSON.parse(text);
           showPdfDropMain(false);
@@ -89,21 +97,37 @@
 
       async function uploadPdfMain(evt) {
         const file = evt.target.files[0]; if(!file) return;
-        await uploadPdfFile(file);
+        await uploadDocFile(file);
         evt.target.value="";
       }
-      function handlePdfDropMain(evt) { const f=evt.dataTransfer.files[0]; if(f) uploadPdfFile(f); }
+      function handlePdfDropMain(evt) { const f=evt.dataTransfer.files[0]; if(f) uploadDocFile(f); }
       function showPdfDropMain(show) { const el=$("pdfDropMain"); if(el) el.classList.toggle("hidden",!show); }
 
-      async function uploadPdfFile(file) {
-        if (!file.name.toLowerCase().endsWith(".pdf")) { toast("请选择 PDF 文件"); return; }
+      function docFileType(name){
+        const n = (name||"").toLowerCase();
+        if (n.endsWith(".pdf")) return "pdf";
+        if (n.endsWith(".docx")) return "docx";
+        if (n.endsWith(".doc")) return "doc";
+        if (n.endsWith(".png")) return "png";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "jpeg";
+        if (n.endsWith(".webp")) return "webp";
+        return "txt";
+      }
+      async function uploadDocFile(file) {
+        if (!file) return;
+        const ext = (file.name||"").split(".").pop().toLowerCase();
+        if (!["pdf","docx","doc","txt","md"].includes(ext)) { toast("请选择 PDF / DOCX / TXT 文档"); return; }
         const infoEl=$("pdfFileInfoMain");
         if(infoEl){ infoEl.innerHTML=`<span style="font-size:20px">📄</span><span class="fname">${escape(file.name)}</span><span class="fsize">${(file.size/1024).toFixed(0)} KB</span><span class="fok">✓ 已选择</span>`; infoEl.classList.remove("hidden"); }
         showPdfDropMain(false);
-        const b64 = await file.arrayBuffer().then(buf => {
-          let s=""; const bytes=new Uint8Array(buf); for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return btoa(s);
-        });
-        await startPreprocessing({ file_type:"pdf", file_content:b64, file_name:file.name, title:file.name.replace(/\.pdf$/i,"") }, file.name);
+        const b64 = await fileToB64(file);
+        await startPreprocessing({ file_type: docFileType(file.name), file_content: b64, file_name: file.name, title: file.name.replace(/\.[^.]+$/, "") }, file.name);
+      }
+      async function uploadImageFile(file) {
+        if (!file) return;
+        toast("图片将走 OCR/视觉描述识别，稍候…");
+        const b64 = await fileToB64(file);
+        await startPreprocessing({ file_type: docFileType(file.name), file_content: b64, file_name: file.name, title: file.name.replace(/\.[^.]+$/, "") }, file.name);
       }
 
       const PP_STEPS = [
@@ -203,9 +227,24 @@
 
         // 意图识别结果
         let tags=(b.intent_tags||[]).map(t=>`<span style="display:inline-block;background:#eef3f9;border:1px solid #dde6f0;border-radius:4px;padding:1px 6px;font-size:11px;color:var(--navy);margin:2px">${escape(t)}</span>`).join("");
+        const causeTxt = (b.cause || "案件审查");
+        const conf = Math.round((b.cause_confidence!=null?b.cause_confidence:0.5)*100);
+        const presetHint = b.suggested_preset ? `<div style="margin-top:6px"><b>🎯 建议策略：</b><span class="tchip" style="cursor:default">${escape(b.suggested_preset)}</span><span style="font-size:11px;color:var(--muted)">（可在审理前于专家配置中应用）</span></div>` : "";
         const res=document.createElement("div"); res.className="pp-result"; res.style.marginTop="10px";
-        res.innerHTML=`<div style="margin-bottom:8px"><b>🔍 调查意图：</b><span id="ppIntent"></span></div><div style="margin-bottom:8px">${tags?`<b>🏷 标签：</b>${tags}`:""}</div><div style="margin-bottom:8px"><b>🧠 思考强度：</b>${{low:"低 · 简明推理",medium:"中 · 条理分析",high:"高 · 深度链式推理"}[b.reasoning_intensity]||b.reasoning_intensity}</div><div><b>📋 总体分析提示：</b><span id="ppGuidance"></span></div>`;
+        res.innerHTML=`<div style="margin-bottom:8px"><b>🔍 调查意图：</b><span id="ppIntent"></span></div>`
+          +`<div style="margin-bottom:8px"><b>⚖️ 案件类型（案由推定）：</b>${escape(causeTxt)} <span style="font-size:11px;color:var(--muted)">· 置信度 ${conf}%</span></div>`
+          +`${tags?`<div style="margin-bottom:8px"><b>🏷 标签：</b>${tags}</div>`:""}`
+          +`<div style="margin-bottom:8px"><b>🧠 思考强度：</b>${{low:"低 · 简明推理",medium:"中 · 条理分析",high:"高 · 深度链式推理"}[b.reasoning_intensity]||b.reasoning_intensity}</div>`
+          +`<div><b>📋 总体分析提示：</b><span id="ppGuidance"></span></div>${presetHint}`;
         stage.appendChild(res);
+        // 文档结构摘要（表格 / OCR 页）
+        if((c.tables&&c.tables.length) || (c.ocr_pages&&c.ocr_pages.length)){
+          const ds=document.createElement("div"); ds.className="pp-result"; ds.style.marginTop="8px";
+          const tblTxt=(c.tables||[]).slice(0,2).map(t=>`<div style="font-size:11.5px;margin:3px 0"><b>表格·第${t.page}页</b>：${(t.rows||[]).slice(0,3).map(r=>r.join(" | ")).join("；")}</div>`).join("");
+          const ocrTxt=`<div style="font-size:11.5px;margin:3px 0"><b>扫描页 OCR 识别 ${(c.ocr_pages||[]).length} 页</b>（已并入待分析文本）</div>`;
+          ds.innerHTML=`<b>📑 文档结构：</b>${(c.tables&&c.tables.length?`提取到 ${c.tables.length} 张表格`:"")} ${(c.ocr_pages&&c.ocr_pages.length?`· OCR ${c.ocr_pages.length} 页`:"")}${tblTxt}${ocrTxt}`;
+          stage.appendChild(ds);
+        }
         // 打字机
         await typewrite("ppIntent", b.intent||"未识别");
         await typewrite("ppGuidance", b.global_guidance||"请基于卷宗客观分析");
@@ -349,6 +388,71 @@
         document.querySelectorAll(".mobile-nav button").forEach(b=>b.classList.remove("active"));
         $("navCenter").classList.add("active");
       }
+      let _ipvTimer=null;
+      async function loadUsage(){
+        const box=$("usageCard"); if(!box) return;
+        try{
+          const d=await (await fetch("/api/admin/usage")).json();
+          const fmt=n=>n>=1e4?(n/1e4).toFixed(1)+"万":n;
+          box.innerHTML=`<div class="uc-grid"><div class="uc"><b>${d.sessions||0}</b><span>场审理</span></div><div class="uc"><b>${fmt(d.calls||0)}</b><span>模型调用</span></div><div class="uc"><b>${fmt(d.out_chars||0)}</b><span>输出字符</span></div><div class="uc"><b>${d.audit_entries||0}</b><span>审计条目</span></div></div>`+
+            ((d.recent||[]).length?`<div class="uc-recent muted">最近：${d.recent.slice(0,3).map(r=>`<span title="${escapeHtml(r.case_title||"")}">${escapeHtml((r.case_title||r.session_id||"").slice(0,12))}·${r.calls}次</span>`).join("　")}</div>`:"")+
+            `<div class="muted" style="font-size:10.5px;margin-top:6px">（${d.audit_enabled?"审计记录中":"审计未开启（AUDIT_PROMPTS=false）"}）</div>`;
+        }catch(e){ box.innerHTML=`<div class="muted">用量统计加载失败：${escape(e.message)}</div>`; }
+      }
+      function startVoiceInput(){
+        const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        const hint=$("voiceHint");
+        if(!SR){ hint.textContent="当前浏览器不支持 Web Speech API（建议 Chrome/Edge）"; return; }
+        try{
+          const rec=new SR(); rec.lang="zh-CN"; rec.interimResults=false; rec.maxAlternatives=1;
+          rec.onstart=()=>{ hint.textContent="正在聆听…点击并出声描述案情"; };
+          rec.onresult=(ev)=>{ const t=ev.results[0][0].transcript||""; const box=$("landQuery"); if(box) box.value=t; onIntentPreview(); hint.textContent="已识别："+t.slice(0,30); };
+          rec.onerror=(ev)=>{ hint.textContent="语音识别失败："+(ev.error||"未知错误")+"（请允许麦克风权限）"; };
+          rec.onend=()=>{ if((hint.textContent||"").includes("正在聆听")) hint.textContent=""; };
+          rec.start();
+        }catch(e){ hint.textContent="语音识别不可用："+e.message; }
+      }
+      function renderReflex(){
+        const box=$("reflexBox"); if(!box) return;
+        const r=window._reflections||[];
+        if(!r.length){ box.classList.add("hidden"); return; }
+        box.classList.remove("hidden");
+        box.innerHTML=`<div class="reflex"><div class="reflex-t">可证伪性审查（裁决前反思）<span class="muted" style="font-weight:400">——每项主张均须接受反证检验</span></div>`+
+          r.map(x=>{ const nm=x.role==="critic"?"纠错官":((roleMap[x.role]||{}).name||x.role); return `<div class="reflex-item"><b>${escapeHtml(nm)}</b><span class="reflex-subj">${escapeHtml(String(x.subject||"").slice(0,60))}</span><div class="reflex-o">↳ 待核验：${escapeHtml(x.objection||"")}</div></div>`; }).join("")+
+          `</div>`;
+      }
+      function renderIvPlan(){
+        const box=$("ivPlan"); if(!box) return;
+        const plan=(serverBrief&&serverBrief.investigation_plan)||[];
+        if(!plan.length){ box.classList.add("hidden"); return; }
+        box.classList.remove("hidden");
+        box.innerHTML=`<div class="iv-plan"><div class="ip-t">侦查计划 · 待证问题清单</div>`+plan.map(p=>`<div class="ip-i">☐ ${escapeHtml(String(p))}</div>`).join("")+`</div>`;
+      }
+      async function onIntentPreview(){
+        const q=(((()=>{try{return ($("landQuery")||{}).value||""}catch(e){return ""}})()||"")).trim();
+        const box=$("intentPreview"); if(!box) return;
+        if(q.length<4){ box.classList.add("hidden"); return; }
+        clearTimeout(_ipvTimer);
+        _ipvTimer=setTimeout(async ()=>{
+          try{
+            const d=await (await fetch("/api/intent/preview?text="+encodeURIComponent(q))).json();
+            box.classList.remove("hidden");
+            if(d.relevant===false){ box.innerHTML='<div class="ipv ipv-bad">⚠ '+escapeHtml(d.reject_reason||"输入无法识别为案件描述")+'</div>'; return; }
+            const ent=d.entities||{};
+            const chips=(k)=>(ent[k]||[]).slice(0,4).map(x=>'<span class="ipv-chip">'+escapeHtml(x)+'</span>').join("");
+            const conf=Math.round((d.confidence||0)*100);
+            box.innerHTML='<div class="ipv ipv-ok">'+
+              '<span class="ipv-tag">案由</span><span class="ipv-val">'+escapeHtml(d.cause||"案件审查")+'</span>'+
+              '<span class="ipv-tag">置信度</span><span class="ipv-val">'+conf+'%</span>'+
+              (d.suggested_preset?'<span class="ipv-tag">预设</span><span class="ipv-val">'+escapeHtml(d.suggested_preset)+'</span>':"")+
+              (chips("parties")?'<div class="ipv-chips"><b>当事人</b>'+chips("parties")+'</div>':"")+
+              (chips("datetimes")?'<div class="ipv-chips"><b>时间</b>'+chips("datetimes")+'</div>':"")+
+              (chips("amounts")?'<div class="ipv-chips"><b>金额</b>'+chips("amounts")+'</div>':"")+
+              (chips("places")?'<div class="ipv-chips"><b>地点</b>'+chips("places")+'</div>':"")+
+              '</div>';
+          }catch(e){ box.classList.add("hidden"); }
+        }, 450);
+      }
       async function landStart(){
         if(enabledAgents.size===0){ toast("请先在设置中至少选择一位出庭专家"); return; }
         // 粘贴文本开庭：填了案情文字就以粘贴内容新建案件——
@@ -444,7 +548,7 @@
         switch(ev.kind){
           case "batch": { /* 断线重连水合：一次性重放历史事件，抑制 toast，最后统一渲染 */ window._replaying=true; try{ (ev.events||[]).forEach(x=>{ if(x.kind!=="batch") handle(x); }); } finally { window._replaying=false; } renderDebate(); break; }
            case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); const _sb=$("btnStop"); if(_sb) _sb.style.display=""; if(!messages.length){ $("debate").innerHTML='<div class="thread"><div class="skeleton"><div class="sk-ava"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div><div style="text-align:center;color:var(--faint);font-size:12px;margin-top:8px">专家们正在阅卷、准备首轮举证…</div></div>'; } break;
-          case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary}; break;
+          case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary,investigation_plan:ev.investigation_plan||[]}; renderIvPlan(); break;
           case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
           case "round_start": round=ev.round; maxRounds=ev.max_rounds||3; activeRole=null; $("prog").style.width=((round-1)/maxRounds*100)+"%"; renderRoster(); break;
           case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false,time:Date.now()}); renderDebate(); renderRoster(); break; }
@@ -456,6 +560,9 @@
             case "critic_end": (ev.contradictions||[]).forEach(c=>addContra(c)); break;
             case "judge_start": setPhase("verdict"); setSpeak("审判长 正在综合全案、形成裁决", true); break;
             case "agent_note": addRecording(ev.role, ev.name, ev.note||{}); break;
+          case "citations": { const _mc=messages.find(x=>x.id===ev.id); if(_mc){ _mc.citations=(ev.citations||[]).slice(0,8); renderDebate(); } break; }
+          case "reflect": window._reflections=(ev.reflections||[]); renderReflex(); break;
+          case "selfcheck": window._selfcheck=(ev.selfcheck||null); if(lastVerdict) renderVerdict(lastVerdict); break;
           case "verdict": setPhase("verdict"); lastVerdict=ev.verdict; renderVerdict(ev.verdict); $("dlReport").classList.remove("hidden"); break;
           case "awaiting_human": setPhase("review"); renderHitl(ev.draft||null, ev.final); break;
           case "human_reminder": setPhase("review"); break;
@@ -577,8 +684,9 @@
           const rk=parseInt(m.id.split("-")[1]); const isRoundId=Number.isInteger(rk)&&rk>=1&&rk<=maxRounds+2;
           if(isRoundId&&rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
            const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escapeHtml(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
+          const cite=m.citations&&m.citations.length?`<div class="cites">来源${m.citations.map(c=>`<span class="cite-chip" title="${escapeHtml(c)}">${escapeHtml(String(c).slice(0,26))}</span>`).join("")}</div>`:"";
           const el=document.createElement("div"); el.className="rec";
-           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}</div>`;
+           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}${cite}</div>`;
           wrap.appendChild(el);
         });
         box.innerHTML="";

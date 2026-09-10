@@ -1,0 +1,8 @@
+# ===== 可选智能能力依赖（按需安装，非核心） =====
+# 不装时对应能力自动降级，主流程不受影响：
+#   扫描件 OCR / 图片文字识别 → RapidOCR/onnxruntime（本地，无需联网）
+#   知识库语义检索         → chromadb + sentence-transformers（bge-small-zh 本地嵌入）
+# 安装：pip install -r requirements-ai.txt
+rapidocr-onnxruntime>=1.3
+chromadb>=0.5
+sentence-transformers>=3.0

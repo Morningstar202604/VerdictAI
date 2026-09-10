@@ -8,6 +8,7 @@ from app.agents.nodes import (
     experts_node,
     human_final_node,
     judge_node,
+    reflect_node,
 )
 from app.config import settings
 from app.models.state import DebateState
@@ -31,12 +32,14 @@ def build_graph():
 
     builder.add_node("experts", experts_node)
     builder.add_node("critic", critic_node)
+    builder.add_node("reflect", reflect_node)  # M2.3 可证伪性审查（Reflexion）
     builder.add_node("judge", judge_node)
     builder.add_node("human_final", human_final_node)
 
     builder.add_edge(START, "experts")
     builder.add_edge("experts", "critic")
-    builder.add_edge("critic", "judge")
+    builder.add_edge("critic", "reflect")
+    builder.add_edge("reflect", "judge")
 
     builder.add_conditional_edges(
         "judge",

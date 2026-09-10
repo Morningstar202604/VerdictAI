@@ -3,12 +3,12 @@
 ## Working rules for this repository
 
 * Dependency updates: search the whole repository for every occurrence of a dependency (build files, lockfiles, CI workflows, docs) before bumping. A partial bump — declaration updated but the lockfile or a pinned action left behind — is the most common cause of "works locally, CI fails". Keep lockfiles in the same commit as the declaration. Move version-coupled toolchain upgrades (e.g. Gradle/AGP/Kotlin/Hilt or the Python/uv pair) together in one commit.
-* Refactoring: pull latest main first, work on a fresh branch, keep commits atomic with messages that state the why, and always run the full check suite before pushing (for this repo: `pytest` for the backend and `npm run build` for the frontend). A branch left behind main cannot be merged under the repository's branch protection.
+* Refactoring: pull latest main first, work on a fresh branch, keep commits atomic with messages that state the why, and always run the full check suite before pushing (for this repo: `pytest` for the backend, `ruff check app/`, and the CI frontend syntax check for the built-in SPA). A branch left behind main cannot be merged under the repository's branch protection.
 * Merge conflicts: resolve conflicts in the working tree against the latest main; never force-push shared branches; never resolve a conflict by blindly taking either side — re-read both sides and keep both changes when they are both valid.
 * Versioning: releases follow X.Y.Z starting at 0.0.0. Last digit = fixes, middle digit = feature work, first digit stays 0 until a stable release is declared. Bump the version in code, CHANGELOG.md and the tag in the same change.
 * Runtime data discipline: everything the server writes at runtime (cases, debates, `agent_config.json`, `knowledge_base.json`, `presets.json`, chart assets) stays out of version control. JSON stores must go through `app.data.store.atomic_write_json` (temp file + atomic replace) and readers must tolerate a corrupt file by falling back to defaults — a half-written store degrades one feature, never the whole service.
 * Secrets: provider keys and the access password must never reach child processes (the sandbox strips `LLM_*`/`ACCESS_*` env — new sensitive settings must use one of those prefixes or extend the strip list in `app/agents/tools.py`), and never appear in logs, API responses or the frontend.
-* Frontend layout: the built-in single-file UI (`backend/app/static/index.html`) is the canonical product UI; the React app in `frontend/` is a frozen demo reference — do not port new features into it without a maintainer decision.
+* Frontend layout: the built-in SPA (`backend/app/static/index.html` + `assets/app.css` / `assets/app-core.js` / `assets/app-ui.js`) is the one and only UI. The former React app in `frontend/` was retired in 2026-10; do not reintroduce a second frontend without a maintainer decision.
 * Untrusted input: every value that ends up in a server-side file path (`case_id`, WebSocket `session_id`, …) goes through `validate_id` before first use. Outbound HTTP uses fixed, literal hosts (`http.client`) — a request target is never assembled by string concatenation from user-controlled parts.
 * Python version: the floor advertised in the README must appear in the CI matrix. If a version cannot be tested, the documented floor moves up.
 * Dependency additions: runtime deps go in `requirements.txt`, dev-only tools in `requirements-dev.txt`; CI installs both. Before bumping a version, grep the whole repository — including `package-lock.json`, CI workflows, Dockerfiles and the built-in UI (`backend/app/static/index.html`).
@@ -34,7 +34,7 @@ Open `http://localhost:8787` to test.
 ## Code Style
 
 - Python: Follow PEP 8. `ruff` (baseline config: `backend/ruff.toml`) and `pytest` (tests: `backend/tests/`) run in CI; dev-only dependencies live in `backend/requirements-dev.txt`.
-- Frontend: two deliverables — the built-in single-file UI `backend/app/static/index.html` (vanilla JS, no build step; CI syntax-checks it) and the React/Vite app in `frontend/` (`npm run build`, also run by CI).
+- Frontend: single deliverable — the built-in SPA (`backend/app/static/index.html`) with externalized CSS/JS assets (`assets/app.css`, `assets/app-core.js`, `assets/app-ui.js`); no build step, CI syntax-checks the JS files.
 - Run `ruff check app/` and `pytest` from `backend/` before committing.
 
 ## Project Layout

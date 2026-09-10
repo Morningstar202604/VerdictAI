@@ -2,8 +2,6 @@
 data/ 下的私有存储（agent_config、知识库、辩论记录、presets）
 必须没有任何 URL 可直达。"""
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
