@@ -6,6 +6,15 @@ All request/response bodies are JSON unless noted. When `ACCESS_PASSWORD` is set
 in `backend/.env`, every endpoint except `/login`, `/api/health` and
 `/static/assets/*` requires the session cookie issued by `POST /login`.
 
+## Intent Preview
+
+### `GET /api/intent/preview?text=<case description>`
+
+Zero-LLM intent routing used by the new-trial input live preview. Returns
+`{ relevant, reject_reason, cause, suggested_preset, confidence, entities }`
+where `entities` holds `parties` / `datetimes` / `amounts` / `places`. Greetings
+and irrelevant input are rejected (`relevant: false`).
+
 ## Health
 
 ### `GET /api/health`
@@ -57,11 +66,32 @@ Persists the same shape. Used by Settings → 专家配置 and by config import.
 
 Lists all cases (id, title, summary, `brief.intake_done` marker).
 
+### `GET /api/cases/tags`
+
+Case tag histogram for library filtering.
+
 ### `GET /api/cases/{id}`
 
 Full case JSON: `summary`, `persons`, `evidence`, `timeline`, `statutes`,
 `finance`, `dna_persons`, `contacts`, `charts`, `brief` (AI intake result with
 `per_role_material`), optional `pdf_text`, `ai_extracted`.
+
+### `GET /api/cases/{id}/evidence-audit`
+
+Deterministic evidence self-check: numbering uniqueness, format, description
+completeness, custody chain, parseable timestamps. Returns audit lines plus an
+`ok` verdict.
+
+### `GET /api/cases/{id}/timeline`
+
+Evidence-timeline extraction: events sorted by time, each linked to `source`
+and optionally an evidence reference. Deterministic fallback when no LLM is
+configured.
+
+### `GET /api/cases/{id}/similar?limit=3`
+
+Similar-case recommendations from embedding neighbors (deterministic fallback
+when semantic search is off). Returns `[ { id, title, score } ]`.
 
 ### `POST /api/cases/generate`
 
@@ -95,6 +125,13 @@ Lists persisted trials (newest first): `session_id`, `case_title`,
 ### `GET /api/debates/{session_id}`
 
 Full transcript: every event, final verdict, usage.
+
+### `GET /api/debates/{session_id}/report?format=markdown|docx`
+
+Trial review report (verdict / contradictions / timeline / evidence chain /
+citations). `markdown` always available; `docx` requires `python-docx` and
+falls back to markdown content when the library is missing. Response is a file
+download.
 
 ## Knowledge Base
 
@@ -180,10 +217,13 @@ Real-time debate event stream.
 | `tool` | Tool invocation `{tool, args, result}` |
 | `agent_end` | Expert finished |
 | `agent_note` | Clerk summary `{role, name, note:{claim, evidence_ids, doubts, implicates}}` |
+| `citations` | Grounding citations `{role, id, citations[]}` — sources for the expert's latest message (rendered as 来源 chips) |
 | `round_end` | Round completed |
 | `critic_start` / `critic_end` | Contradiction scan (`contradictions` list) |
 | `judge_start` | Judge convergence begins |
 | `verdict` | Full verdict `{truth_hypothesis, evidence_chain, doubts, recommendation, next_steps, disclaimer}` |
+| `reflect` | Reflection node — falsifiability review `{reflections:[{role, subject, objection}]}` |
+| `selfcheck` | Pre-verdict completeness audit `{strength, issues, ok}` — unexplained evidence, unresolved contradictions, missing citations |
 | `judge_end` | `{consensus}` |
 | `awaiting_human` | HITL pause (human judge mode) |
 | `human_reminder` | Nudge while waiting for the human verdict |
@@ -195,3 +235,17 @@ Real-time debate event stream.
 
 Client disconnect cancels a running trial. On reconnect the client starts a
 new session; past trials remain available via `/api/debates`.
+
+## Admin & Observability
+
+### `GET /api/admin/usage`
+
+Usage / audit aggregation across persisted trials: `{ sessions, calls,
+in_chars, out_chars, audit_entries, audit_enabled, recent[] }` (`recent` lists
+the newest trials with model / rounds / calls). Backed by the usage panel in
+the built-in UI.
+
+### `GET /api/events`
+
+SSE stream (text/event-stream) emitting `heartbeat` events every few seconds,
+for live monitoring and external watchers.

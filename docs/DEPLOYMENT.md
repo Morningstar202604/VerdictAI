@@ -123,7 +123,7 @@ server {
 
 ## Docker Deployment
 
-Single service, orchestrated by `docker-compose.yml` at the repo root (the former React frontend service was retired in 2026-10; the built-in SPA served by the backend is the only UI):
+Single service, orchestrated by `docker-compose.yml` at the repo root (the former React frontend service was retired in 2026-09; the built-in SPA served by the backend is the only UI):
 
 | Service | Image | Exposed Port | Purpose |
 |---|---|---|---|

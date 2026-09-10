@@ -3,7 +3,7 @@
 #   cp backend/.env.example backend/.env   # 填写 LLM 密钥等配置
 #   docker compose up -d --build
 # 访问：内置 SPA（后端自带 UI） http://<server>:8787
-# 说明：React 版前端已下线（2026-10），唯一前端为后端托管的
+# 说明：React 版前端已下线（2026-09），唯一前端为后端托管的
 #       内置单页应用（backend/app/static/），无需额外服务。
 services:
   backend:

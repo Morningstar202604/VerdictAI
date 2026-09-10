@@ -155,6 +155,29 @@
 </details>
 
 <details>
+<summary><strong>🧑‍⚖️ 审议质量——反思 · 自检 · 侦查计划</strong></summary>
+
+- **反思节点（Reflexion 式）**——审判长收敛前，对每位专家的核心主张做可证伪性审查，反对理由必须被记录
+- **完整性自检**——裁决前确定性体检：未解释证据 / 未解决矛盾 / 缺法条引用，交人类复核而非静默通过
+- **侦查计划**——复杂卷宗先产出"待证问题清单"再分发给全体专家
+- **案例沉淀**——每场结案裁决回填案件文件作为类案/判例，后续相似检索可复用
+- **相似案例推荐**——案例详情页展示 embedding 近邻
+- **证据链强度**——裁决附带强度评分与明确的不确定性声明
+
+</details>
+
+<details>
+<summary><strong>🔎 检索 · 引用溯源与报告导出</strong></summary>
+
+- **引用溯源 grounding**——专家发言携带其真实依据（法条/知识条目/来源 URL），前端渲染「来源」徽标（对标 Perplexity）；混合检索可叠加可选 BGE reranker 精排（`requirements-ai.txt` 安装，缺失自动跳过）
+- **庭审核查报告**——一键导出 Markdown / DOCX，涵盖裁决、矛盾、时间线、证据链与引用
+- **证据时间线视图**——跨证据抽取时间戳 → 交互式横向时间线
+- **用量与审计面板**——`/api/admin/usage` 聚合每场会话的推理次数/字符量 + SSE 事件流实时监控
+- **语音输入**——Chrome/Edge 支持 Web Speech API（zh-CN）时可直接口述案情
+
+</details>
+
+<details>
 <summary><strong>🏛️ 部署就绪</strong></summary>
 
 - 一键启动/停止（`tools/start_all.py`）——无窗口守护进程，崩溃自动重启

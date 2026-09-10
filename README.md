@@ -158,6 +158,29 @@ Platform-grade runtime controls, inspired by Dify/Coze:
 </details>
 
 <details>
+<summary><strong>🧑‍⚖️ Deliberation Quality — Reflect · Self-Check · Investigation Plan</strong></summary>
+
+- **Reflection node (Reflexion-style)** — before the judge converges, each expert's core claims pass a falsifiability review; counter-arguments are recorded instead of being dropped
+- **Completeness self-check** — a deterministic pre-verdict audit surfaces unexplained evidence, unresolved contradictions and missing statute citations to the human reviewer
+- **Investigation plan** — complex dossiers first produce a "facts-to-prove checklist" that is handed to every expert
+- **Case sediment** — finished trials backfill the case file as a reference precedent, so later similar-case retrieval reuses them
+- **Similar-case suggestions** — embedding neighbors on the case detail page
+- **Evidence-chain strength** — the verdict carries an explicit strength score and uncertainty statement
+
+</details>
+
+<details>
+<summary><strong>🔎 Retrieval, Citations & Reporting</strong></summary>
+
+- **Grounding citations** — expert statements carry the actual statute / knowledge entry / source URL they relied on, rendered as "来源" chips (Perplexity-style); hybrid retrieval can be refined by an optional BGE reranker (via `requirements-ai.txt`, silently skipped when absent)
+- **Trial review report** — one-click Markdown / DOCX export covering verdict, contradictions, timeline, evidence chain and citations
+- **Evidence timeline view** — timestamps extracted across evidence into an interactive horizontal timeline
+- **Usage & audit panel** — `/api/admin/usage` aggregates inference calls / characters per session, with an SSE stream for live monitoring
+- **Voice input** — dictate the case description via the Web Speech API (zh-CN) in Chrome/Edge
+
+</details>
+
+<details>
 <summary><strong>🏛️ Deployment-Ready</strong></summary>
 
 - **One-command start/stop** (`tools/start_all.py`) — windowless daemons with auto-restart
