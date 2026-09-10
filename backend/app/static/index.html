@@ -19,12 +19,13 @@
         </div>
       </div>
       <div class="controls">
+        <span id="userBadge" class="badge" style="display:none"></span>
         <span id="modelBadge" class="badge">模型: …</span>
         <span id="connBadge" class="badge"><span id="connDot" class="dot"></span><span id="connText">未连接</span></span>
         <button class="ghost" onclick="openHelp()" title="使用指南" aria-label="打开使用指南">❓ 帮助</button>
         <button class="ghost" id="btnTheme" onclick="toggleTheme()" title="切换明暗主题" aria-label="切换明暗主题">🌙</button>
         <button class="ghost" onclick="goHome()" aria-label="新建庭审">🏛 新庭审</button>
-        <button class="ghost" onclick="openSettings()" aria-label="打开设置">⚙ 设置</button>
+        <button class="ghost" id="btnSettings" onclick="openSettings()" aria-label="打开设置">⚙ 设置</button>
       </div>
     </header>
 
@@ -181,6 +182,7 @@
             </div>
             <div id="reflexBox"></div>
             <div id="nextSteps" class="next-steps hidden"></div>
+            <div id="traceBox" class="trace hidden"></div>
             <div id="qaBox" class="qa hidden">
               <div class="qa-title">⚖ 裁决质询 <span class="muted" style="font-weight:400">（就裁决继续追问，审判长答复）</span></div>
               <div id="qaChips" class="iv-chips" style="padding:0 0 8px"></div>

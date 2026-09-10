@@ -62,6 +62,12 @@ class Settings:
     code_sandbox_python: str = os.getenv(
         "CODE_SANDBOX_PYTHON", sys.executable or "python3"
     )
+    # 沙箱静态命令黑名单（M3.5 审批约束）：子进程模式缺容器网络隔离，
+    # 解析执行前先做静态检查，命中以下命令前缀即拒绝（逗号分隔，忽略空白项）。
+    code_sandbox_deny_cmds: str = os.getenv(
+        "CODE_SANDBOX_DENY_CMDS",
+        "socket,urllib,requests,httpx,http.client,curl,wget,subprocess,os.system,os.popen,pty,shutil.rmtree",
+    )
     # 服务
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8787"))
@@ -71,6 +77,16 @@ class Settings:
     )
     max_request_size: int = int(os.getenv("MAX_REQUEST_SIZE", str(25 * 1024 * 1024)))
     access_password: str = os.getenv("ACCESS_PASSWORD", "")
+    # API 限流（P2-4）：按客户端 IP 在窗口内的最大请求数；0=关闭。
+    # 大厂 Agent 平台的标配——防脚本滥用/打爆模型额度，登录页与健康检查豁免。
+    rate_limit_max: int = int(os.getenv("RATE_LIMIT_MAX", "0"))
+    rate_limit_window: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    # 成本核算（P2-6）：每千 token 单价（美元/千 token），用于用量面板换算成本。
+    # 默认 0=不核算（用户可评估后填入，如 agnes-flash 类低价模型可填 0.15/0.60）
+    llm_cost_per_1k_in: float = float(os.getenv("LLM_COST_PER_1K_IN", "0"))
+    llm_cost_per_1k_out: float = float(os.getenv("LLM_COST_PER_1K_OUT", "0"))
+    # 字符→token 估算系数（中文约 1字≈1.5 token；英文比例更低）
+    llm_chars_per_token: float = float(os.getenv("LLM_CHARS_PER_TOKEN", "1.5"))
     # Agent 工程
     memory_rounds: int = int(os.getenv("MEMORY_ROUNDS", "2"))
     context_char_limit: int = int(os.getenv("CONTEXT_CHAR_LIMIT", "12000"))
@@ -79,6 +95,8 @@ class Settings:
     # 单次 LLM 调用最大输出 token 数（思维链类模型 reasoning_content 占用 token，
     # 若限制过小会导致 JSON/长分析被截断），0 表示交给平台默认
     llm_max_tokens: int = int(os.getenv("LLM_MAX_TOKENS", "0"))
+    # LLM 响应 LRU 缓存（条数）：同一 prompt 命中直接回放，降本提速；0=关闭
+    llm_cache_size: int = int(os.getenv("LLM_CACHE_SIZE", "0"))
     # 专家发言流式输出：auto=非 mock 供应商启用（端点不支持自动回退），on=强制，off=关闭
     stream_experts: str = os.getenv("STREAM_EXPERTS", "auto")
     # 同轮专家并行：auto=非 mock 供应商并行（真实 LLM 耗时降为 1/4~1/6），on=强制，off=串行
@@ -133,6 +151,9 @@ class Settings:
         if self.context_char_limit != 0 and self.context_char_limit < MIN_CONTEXT_CHAR_LIMIT:
             self.context_char_limit = DEFAULT_CONTEXT_CHAR_LIMIT
         self.max_request_size = max(MIN_REQUEST_SIZE, int(self.max_request_size))
+        self.llm_cache_size = max(0, min(100000, int(self.llm_cache_size)))
+        self.rate_limit_max = max(0, min(100000, int(self.rate_limit_max)))
+        self.rate_limit_window = max(1, min(86400, int(self.rate_limit_window)))
         if not os.path.isabs(self.data_dir):
             self.data_dir = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), "..", self.data_dir)
@@ -165,6 +186,7 @@ _SNAPSHOT_FIELDS = (
     "max_concurrency",
     "llm_timeout",
     "llm_max_tokens",
+    "llm_cache_size",
     "web_search_enabled",
     "intake_model",
     "parallel_experts",

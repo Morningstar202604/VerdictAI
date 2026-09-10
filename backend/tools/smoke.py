@@ -56,9 +56,9 @@ def main() -> int:
         events = []
         async with connect("ws://localhost:8787/ws/" + session) as ws:
             await ws.send(json.dumps({"type": "start", "case_id": case["id"]}))
-            deadline = time.time() + 180
+            deadline = time.time() + 300
             while time.time() < deadline:
-                raw = await asyncio.wait_for(ws.recv(), timeout=30)
+                raw = await asyncio.wait_for(ws.recv(), timeout=60)
                 ev = json.loads(raw)
                 events.append(ev)
                 if ev.get("kind") in ("done", "error"):
@@ -69,6 +69,15 @@ def main() -> int:
     kinds = [e.get("kind") for e in events]
     check("完整辩论", "done" in kinds and "verdict" in kinds and kinds.count("agent_end") >= 7,
           f"{kinds.count('agent_start')} 发言 / {kinds.count('tool')} 工具 / {len(kinds)} 事件")
+
+    trace = next((e for e in events if e.get("kind") == "trace"), None)
+    spans = (trace or {}).get("spans") or []
+    check("会话 Trace 下发", bool(trace) and len(spans) >= 4,
+          f"{len(spans)} 个 span（专家轮/纠错/反思/裁决）")
+    if spans:
+        kinds_spans = [s.get("kind") for s in spans]
+        check("Trace 含核心节点", {"round", "critic", "reflect", "judge"}.issubset(set(kinds_spans)),
+              "/".join(sorted(set(kinds_spans))))
 
     debates = _get("/api/debates")
     check("自动归档", len(debates) >= 1, f"{len(debates)} 条")

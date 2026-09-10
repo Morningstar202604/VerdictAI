@@ -6,3 +6,5 @@
 rapidocr-onnxruntime>=1.3
 chromadb>=0.5
 sentence-transformers>=3.0
+# MCP 工具接入（P1-5）：配置 data/mcp_servers.json 后启用外部 MCP server 工具
+mcp>=1.2

@@ -142,6 +142,8 @@ def role_list() -> List[Dict]:
                 "order": r["order"],
                 "tools": [t.name for t in tools_for_role(r["key"])],
                 "model": r.get("model"),
+                "prompt_version": r.get("prompt_version"),
+                "few_shot_count": len(r.get("few_shot") or []) if isinstance(r.get("few_shot"), list) else 0,
             }
         )
     return out

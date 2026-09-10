@@ -1,5 +1,8 @@
 from __future__ import annotations
 import asyncio
+import hashlib
+import json
+from collections import OrderedDict
 from typing import Any, AsyncIterator, List
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
@@ -14,6 +17,64 @@ from app.config import settings
 # LLM 客户端缓存：按 (provider, model, base_url, temperature) 复用实例，
 # 避免每场辩论 7 专家 × N 轮创建数十个 HTTP 客户端。
 _llm_cache: dict = {}
+
+# LLM 响应缓存（P0-2）：同一 prompt（模型+消息序列哈希）命中直接回放，
+# 大幅降低重复推理的 API 成本与首字延迟；LRU 上限由 settings.llm_cache_size 控制。
+_response_cache: "OrderedDict[str, str]" = OrderedDict()
+_cache_stats: dict = {"hits": 0, "misses": 0}
+
+
+def llm_cache_stats() -> dict:
+    return dict(_cache_stats)
+
+
+def llm_cache_enabled() -> bool:
+    return settings.llm_cache_size > 0
+
+
+def _cache_key(model: str, messages: List[BaseMessage]) -> str:
+    """响应缓存键：模型名 + 每条消息的类型/名称/内容（JSON 序列化）。"""
+    parts: List[str] = [model or ""]
+    for m in messages:
+        seg = type(m).__name__
+        if getattr(m, "name", None):
+            seg += "|" + str(m.name)
+        try:
+            seg += "|" + json.dumps(m.content, ensure_ascii=False, default=str)
+        except Exception:
+            seg += "|" + str(m.content)
+        parts.append(seg)
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
+def response_cache_get(model: str, messages: List[BaseMessage]) -> str | None:
+    """命中返回缓存文本；未命中返回 None 并累计 miss 计数。上限 0 时关闭。"""
+    if not llm_cache_enabled() or not messages:
+        return None
+    key = _cache_key(model, messages)
+    text = _response_cache.get(key)
+    if text is None:
+        _cache_stats["misses"] += 1
+        return None
+    _cache_stats["hits"] += 1
+    _response_cache.move_to_end(key)  # LRU：命中提升到末尾
+    return text
+
+
+def response_cache_put(model: str, messages: List[BaseMessage], text: str) -> None:
+    if not llm_cache_enabled() or not messages or not text:
+        return
+    key = _cache_key(model, messages)
+    _response_cache[key] = text
+    _response_cache.move_to_end(key)
+    while len(_response_cache) > settings.llm_cache_size:
+        _response_cache.popitem(last=False)  # 淘汰最久未用
+
+
+def clear_response_cache() -> None:
+    _response_cache.clear()
+    _cache_stats["hits"] = 0
+    _cache_stats["misses"] = 0
 
 
 class MockChatModel(BaseChatModel):
@@ -341,3 +402,176 @@ async def stream_or_invoke(llm, messages, on_chunk=None, timeout=None, key: str 
 def clear_llm_cache() -> None:
     """清空 LLM 客户端缓存（设置变更后调用）。"""
     _llm_cache.clear()
+
+
+# ------------------------- 成本核算（P2-6） -------------------------
+# 用量面板/辩论记录把字符数换算为 token 与费用（USD）：默认单价 0=不核算。
+# 对标大厂 Agent 平台的成本观测（OpenAI/LangSmith usage.cost）。
+
+
+def estimate_cost(in_chars: int, out_chars: int) -> dict:
+    """按配置单价估算一场/一次调用成本；单价为 0 时返回 cost=0（未核算）。"""
+    cpt = max(0.1, float(getattr(settings, "llm_chars_per_token", 1.5)))
+    in_tk = max(0, int(in_chars or 0)) / cpt
+    out_tk = max(0, int(out_chars or 0)) / cpt
+    p_in = float(getattr(settings, "llm_cost_per_1k_in", 0) or 0)
+    p_out = float(getattr(settings, "llm_cost_per_1k_out", 0) or 0)
+    return {
+        "in_tokens": round(in_tk),
+        "out_tokens": round(out_tk),
+        "cost_usd": round((in_tk / 1000 * p_in) + (out_tk / 1000 * p_out), 6),
+        "priced": bool(p_in or p_out),
+    }
+
+
+# ------------------------- 结构化输出统一设施（P2-1） -------------------------
+# 大厂 Agent 的标准做法：输出必须强制 schema，而不是「提示词里写一句 + 正则碰运气」。
+# 两级策略：
+#   1) 模型侧原生结构化输出（with_structured_output Pydantic schema 强制解析）——
+#      OpenAI/兼容端点用 function/tool calling 或 json_object 模式，模型侧保证结构；
+#   2) 失败/不支持时回退「契约 + 严格解析 + 失败自动修复」：把解析错误回喂模型，
+#      让模型在有错误提示的情况下自行修正一次（对标 DSPy/Self-Correction）。
+# 全部失败返回 None，由调用方按节点既有降级策略处理，绝不中断辩论。
+
+
+def _to_str_llm(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(p if isinstance(p, str) else str(p) for p in content)
+    return str(content)
+
+
+Sink = Any
+
+
+async def structured_call(
+    llm,
+    messages: List[BaseMessage],
+    parse: callable,  # 输入模型文本 -> 输出结构化对象；解析失败抛异常
+    repair_hint: str = "",  # 修复提示词模板，可用 {error} 占位；
+    fix_messages_builder: callable = None,  # 可覆盖默认修复消息构造（默认 原消息+解析失败+提示）
+    with_schema: Any = None,  # Pydantic schema：开启模型侧结构化输出
+    retries: int = 1,  # 契约路径的自动修复轮数
+    timeout: int = None,
+    sink: Sink = None,
+    role_key: str = "",
+    cache: bool = True,
+):
+    """结构化输出统一设施：优先 with_structured_output，回退契约+修复。
+    返回 parse 的产物（dict/list），全部失败返回 None。"""
+    if timeout is None:
+        timeout = settings.llm_timeout
+    model = getattr(llm, "model_name", "") or ""
+    cacheable = (
+        cache
+        and bool(model)
+        and type(llm).__name__ != "MockChatModel"
+        and settings.llm_cache_size > 0
+    )
+    if cacheable:
+        hit = response_cache_get(model, messages)
+        if hit is not None:
+            try:
+                obj = parse(hit)
+                if sink is not None:
+                    try:
+                        await sink(
+                            {"kind": "llm_cache", "role": role_key, "hit": True, "model": model}
+                        )
+                    except Exception:
+                        pass
+                return obj
+            except Exception:
+                pass  # 缓存内容结构异常：按未命中重新生成
+
+    async def _emit(kind: str, **kw) -> None:
+        if sink is None:
+            return
+        try:
+            await sink({"kind": kind, **kw})
+        except Exception:
+            pass
+
+    # ── 路径 A：模型侧结构化输出（schema 强制） ──
+    if with_schema is not None:
+        try:
+            sllm = llm.with_structured_output(with_schema)
+            resp = await asyncio.wait_for(
+                sllm.ainvoke(messages), timeout=timeout
+            ) if timeout and timeout > 0 else await sllm.ainvoke(messages)
+            if resp is None:
+                raise ValueError("结构化输出返回空")
+            # with_structured_output 返回 Pydantic 或 list[Pydantic]
+            if hasattr(resp, "model_dump"):
+                obj = resp.model_dump()
+            elif isinstance(resp, list):
+                obj = [m.model_dump() if hasattr(m, "model_dump") else m for m in resp]
+            else:
+                obj = resp
+            if cacheable:
+                try:
+                    response_cache_put(model, messages, json.dumps(obj, ensure_ascii=False, default=str))
+                except Exception:
+                    pass
+            await _emit("structured", role=role_key, method="schema", ok=True)
+            return obj
+        except Exception as e:  # noqa: BLE001
+            # 端点不支持 tool calling / json_object：回退契约路径
+            await _emit("structured", role=role_key, method="schema", ok=False, error=str(e)[:120])
+
+    # ── 路径 B：契约 + 严格解析 + 自动修复 ──
+    last_text = ""
+    try:
+        if timeout and timeout > 0:
+            resp = await asyncio.wait_for(llm.ainvoke(messages), timeout=timeout)
+        else:
+            resp = await llm.ainvoke(messages)
+        last_text = _to_str_llm(resp.content)
+    except Exception as e:  # noqa: BLE001
+        await _emit("structured", role=role_key, method="contract", ok=False, error=str(e)[:120])
+        return None
+
+    for attempt in range(retries + 1):
+        if last_text and last_text.strip():
+            try:
+                obj = parse(last_text)
+                if cacheable:
+                    try:
+                        response_cache_put(model, messages, last_text)
+                    except Exception:
+                        pass
+                await _emit("structured", role=role_key, method="contract", ok=True, attempts=attempt + 1)
+                return obj
+            except Exception as pe:  # noqa: BLE001
+                err = str(pe)[:200]
+                if attempt >= retries:
+                    await _emit(
+                        "structured", role=role_key, method="contract", ok=False,
+                        error=f"解析失败：{err}", attempts=attempt + 1,
+                    )
+                    return None
+        else:
+            err = "模型返回空内容"
+        # 自动修复：把解析失败原因回喂模型让它自己修正（Self-Correct 路径）
+        try:
+            if fix_messages_builder is not None:
+                fix_msgs = fix_messages_builder(last_text, err)
+            else:
+                fix_prompt = (
+                    (repair_hint + "\n\n") if repair_hint else ""
+                    + "你上一轮输出的结构无法解析：{error}\n"
+                    "请重新输出，只包含合法的 JSON（不要代码块、不要额外文字）。"
+                )
+                fix_msgs = messages + [
+                    AIMessage(content=last_text or "（空）"),
+                    HumanMessage(content=fix_prompt.replace("{error}", err)),
+                ]
+            if timeout and timeout > 0:
+                resp = await asyncio.wait_for(llm.ainvoke(fix_msgs), timeout=timeout)
+            else:
+                resp = await llm.ainvoke(fix_msgs)
+            last_text = _to_str_llm(resp.content)
+        except Exception:  # noqa: BLE001
+            return None
+    return None

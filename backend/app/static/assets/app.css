@@ -615,6 +615,13 @@
       .iv-plan{margin-top:10px;border:1px solid #d5e3f0;background:#f5f9fd;border-radius:8px;padding:9px 12px}
       .ip-t{font-size:12px;font-weight:700;color:var(--accent,#1f5f8f);margin-bottom:5px}
       .ip-i{font-size:11.5px;color:var(--ink,#1f2730);margin:2px 0}
+      /* P0-1 会话时间线 */
+      .trace{margin-top:12px;border:1px solid #d9e3ee;background:#f4f8fc;border-radius:10px;padding:10px 12px}
+      .trace-t{font-size:12.5px;font-weight:700;color:#1f5f8f;margin-bottom:8px}
+      .tr-row{display:grid;grid-template-columns:110px 1fr auto;gap:8px;align-items:center;font-size:11.5px;margin:5px 0}
+      .tr-k{color:var(--ink,#1f2730);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .tr-bar{height:7px;border-radius:4px;background:linear-gradient(90deg,#3d74a8,#7bb0dd);min-width:3px}
+      .tr-ms{color:#687a8c;font-variant-numeric:tabular-nums;white-space:nowrap}
       /* M3.3 用量面板 + M4 语音输入 */
       .usage-card{border:1px solid var(--line,#e3e8ef);border-radius:10px;padding:10px 14px;margin-bottom:12px;background:rgba(15,35,60,.02)}
       .uc-grid{display:flex;gap:16px;flex-wrap:wrap}

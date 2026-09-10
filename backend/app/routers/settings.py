@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.auth import require_admin
 from app.runtime import current as current_settings
 from app.runtime import update as update_settings
 
@@ -17,7 +18,7 @@ def get_settings():
 
 
 @router.post("")
-def post_settings(payload: dict):
+def post_settings(payload: dict, _: dict = Depends(require_admin)):
     return update_settings(payload)
 
 

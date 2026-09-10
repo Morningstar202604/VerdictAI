@@ -15,8 +15,23 @@ from app.agents import agent_config
 from app.config import debate_snapshot, settings
 from app.data.store import validate_id
 from app.intake.processor import _extract_json
-from app.models.llm import get_llm, is_mock, stream_enabled, stream_or_invoke
-from app.models.schemas import clean_contradictions, clean_verdict
+from app.models.llm import (
+    get_llm,
+    is_mock,
+    response_cache_get,
+    response_cache_put,
+    stream_enabled,
+    stream_or_invoke,
+    structured_call,
+)
+from app.models.schemas import (
+    clean_contradictions,
+    clean_verdict,
+    ContradictionList,
+    NoteItem,
+    ReflectionList,
+    Verdict,
+)
 from app.models.state import DebateState
 
 log = logging.getLogger("debate.nodes")
@@ -58,19 +73,71 @@ def _to_str(content) -> str:
     return str(content)
 
 
+# P0-4 备用工具链：某工具反复失败（重试耗尽）时自动降级的替代工具。
+# 语义上保持贴近原意图：联网检索失败→退回法条/知识库检索；
+# 沙箱执行失败→退回证据核阅。越小众的职责越优先给兜底，避免专家空转。
+_TOOL_FALLBACK = {
+    "web_search": "search_case_law",
+    "cite_source": "search_case_law",
+    "run_code": "read_evidence",
+    "install_package": "read_evidence",
+}
+
+
 async def _retry_ainvoke(
-    llm, messages, retries: int = 3, base: float = 1.5, timeout: int = None
+    llm,
+    messages,
+    retries: int = 3,
+    base: float = 1.5,
+    timeout: int = None,
+    sink: Sink = None,
+    role_key: str = "",
+    cache: bool = True,
 ):
     """对 JSON 关键的 LLM 调用做指数退避重试，吸收瞬时限流（如 1302）。
-    timeout 优先取辩论配置快照；未传时回退全局 settings，防引擎挂死拖垮辩论。"""
+    timeout 优先取辩论配置快照；未传时回退全局 settings，防引擎挂死拖垮辩论。
+    缓存（P0-2）：真实模型 + 同 prompt 命中直接回放，节省重复 API 成本；
+    sink 传入时命中/写入下发 llm_cache 事件供前端与 trace 观测。"""
     if timeout is None:
         timeout = settings.llm_timeout
+    model = getattr(llm, "model_name", "") or ""
+    cacheable = (
+        cache
+        and bool(model)
+        and type(llm).__name__ != "MockChatModel"
+        and settings.llm_cache_size > 0
+    )
+    if cacheable:
+        hit = response_cache_get(model, messages)
+        if hit is not None:
+            log.info("LLM 缓存命中 role=%s（prompt 重复，回放缓存）", role_key or "-")
+            if sink is not None:
+                try:
+                    await sink(
+                        {"kind": "llm_cache", "role": role_key, "hit": True, "model": model}
+                    )
+                except Exception:
+                    pass
+            return AIMessage(content=hit)
     last: Exception | None = None
     for i in range(retries):
         try:
             if timeout and timeout > 0:
-                return await asyncio.wait_for(llm.ainvoke(messages), timeout=timeout)
-            return await llm.ainvoke(messages)
+                resp = await asyncio.wait_for(llm.ainvoke(messages), timeout=timeout)
+            else:
+                resp = await llm.ainvoke(messages)
+            if cacheable:
+                text = _to_str(resp.content)
+                if text.strip():
+                    response_cache_put(model, messages, text)
+                    if sink is not None:
+                        try:
+                            await sink(
+                                {"kind": "llm_cache", "role": role_key, "hit": False, "model": model}
+                            )
+                        except Exception:
+                            pass
+            return resp
         except Exception as e:  # noqa: BLE001
             last = e
             if i < retries - 1:
@@ -105,7 +172,7 @@ async def _run_agent(
 ) -> str:
     cfg = cfg or {}
     role = ROLES[role_key]
-    sys_prompt = agent_config.effective_prompt(role_key, role_material)
+    sys_prompt, prompt_ver = agent_config.effective_prompt(role_key, role_material)
     _cfg = agent_config.load().get(role_key, {})
     llm = get_llm(role["name"], model=(_cfg.get("model") or None), cfg=cfg)
     tools = agent_config.effective_tools(role_key)
@@ -137,6 +204,26 @@ async def _run_agent(
     stream_on = stream_enabled(cfg)
     endpoint_key = "|".join(str(cfg.get(k) or "") for k in ("llm_provider", "llm_base_url", "llm_model"))
     timeout = cfg.get("llm_timeout")
+
+    # 整段缓存（P0-2）：无工具角色的最终答复在流式/非流式前先查缓存，
+    # 命中则模拟流式下发缓存文本，跳过全部 LLM 调用（含工具循环）。
+    llm_model_name = str(getattr(llm, "model_name", "") or "")
+    if llm_model_name and not is_mock(cfg) and settings.llm_cache_size > 0 and not tools:
+        _cached_text = response_cache_get(llm_model_name, messages)
+        if _cached_text is not None:
+            log.info("[%s] 专家发言命中 LLM 响应缓存，回放 %d 字", role_key, len(_cached_text))
+            for seg in _chunk(_cached_text):
+                await sink({"kind": "token", "role": role_key, "text": seg, "id": msg_id})
+                await asyncio.sleep(0.004)
+            await sink({"kind": "llm_cache", "role": role_key, "hit": True, "model": llm_model_name})
+            if citations:
+                try:
+                    await sink(
+                        {"kind": "citations", "role": role_key, "citations": list(dict.fromkeys(citations)), "id": msg_id}
+                    )
+                except Exception:
+                    pass
+            return _cached_text
 
     async def _stream_once():
         """一次流式尝试：chunk 到达即按增量下发 token（30ms 节流合并）。
@@ -180,18 +267,103 @@ async def _run_agent(
                 break
             if getattr(resp, "tool_calls", None):
                 messages.append(resp)
-                for tc in resp.tool_calls:
+                # P2-2 工具并行编排：单轮可多次工具调用（模型并行发起多个 tool_calls）
+                # 时，用 asyncio.gather 并发执行——大厂 Agent 标配（OpenAI/Claude 均支持），
+                # 避免串行排队拖慢整轮；仍保持 LangGraph 事件顺序一致（按 gather 原序回填）。
+                async def _exec_one(tc: Dict) -> str:
                     fn = next((t for t in tools if t.name == tc["name"]), None)
-                    try:
-                        raw_args = tc.get("args") or {}
-                        if not isinstance(raw_args, dict):
-                            raw_args = {}
-                        # ainvoke：同步工具（如 run_code 沙箱 subprocess）在线程池执行，
-                        # 避免长任务阻塞事件循环导致 WebSocket keepalive 超时断连
-                        result = (await fn.ainvoke(raw_args)) if fn else "工具未找到"
-                    except Exception as ex:
-                        # 工具参数缺失/校验失败等：返回友好错误而非中断整场辩论
-                        result = "工具调用失败：" + str(ex)[:300]
+                    if fn is None:
+                        return "工具未找到：" + str(tc.get("name"))[:40]
+                    raw_args = tc.get("args") or {}
+                    if not isinstance(raw_args, dict):
+                        raw_args = {}
+                    # P0-4 工具重试编排：单次失败指数退避重试（吸收沙箱超时/
+                    # 网络抖动等瞬态错误），仍失败则按备用工具链降级，
+                    # 每次重试/降级下发事件供前端与 trace 观测；绝不中断辩论。
+                    attempts = 0
+                    last_err = ""
+                    t0 = __import__("time").time()
+                    while True:
+                        attempts += 1
+                        try:
+                            # ainvoke：同步工具（如 run_code 沙箱 subprocess）在线程池执行，
+                            # 避免长任务阻塞事件循环导致 WebSocket keepalive 超时断连
+                            result = await fn.ainvoke(raw_args)
+                            if attempts > 1:
+                                await sink(
+                                    {
+                                        "kind": "tool_retry",
+                                        "role": role_key,
+                                        "tool": tc["name"],
+                                        "attempts": attempts,
+                                        "status": "ok_after_retry",
+                                        "id": msg_id,
+                                    }
+                                )
+                            try:
+                                from app.agents.tools import tool_stats_record
+                                tool_stats_record(tc["name"], True, (__import__("time").time() - t0) * 1000)
+                            except Exception:
+                                pass
+                            return result
+                        except Exception as ex:  # noqa: BLE001
+                            last_err = str(ex)[:200]
+                            try:
+                                from app.agents.tools import tool_stats_record_error
+                                tool_stats_record_error(tc["name"], last_err)
+                            except Exception:
+                                pass
+                            if attempts < 3:
+                                await sink(
+                                    {
+                                        "kind": "tool_retry",
+                                        "role": role_key,
+                                        "tool": tc["name"],
+                                        "attempts": attempts,
+                                        "status": "retrying",
+                                        "error": last_err,
+                                        "id": msg_id,
+                                    }
+                                )
+                                await asyncio.sleep(0.8 * (2 ** (attempts - 1)))
+                                continue
+                            # 重试耗尽：查备用工具链
+                            backup = _TOOL_FALLBACK.get(tc["name"])
+                            fn_b = next(
+                                (t for t in tools if t.name == backup and t.name != tc["name"]),
+                                None,
+                            )
+                            if fn_b is not None:
+                                await sink(
+                                    {
+                                        "kind": "tool_retry",
+                                        "role": role_key,
+                                        "tool": tc["name"],
+                                        "attempts": attempts,
+                                        "status": "fallback",
+                                        "backup": fn_b.name,
+                                        "error": last_err,
+                                        "id": msg_id,
+                                    }
+                                )
+                                try:
+                                    result = await fn_b.ainvoke(raw_args)
+                                    try:
+                                        from app.agents.tools import tool_stats_record
+                                        tool_stats_record(tc["name"], False, (__import__("time").time() - t0) * 1000)
+                                    except Exception:
+                                        pass
+                                    return (
+                                        f"（{tc['name']} 连续 {attempts} 次失败：{last_err}；"
+                                        f"已降级调用备用工具 {fn_b.name}）\n{result}"
+                                    )
+                                except Exception as ex2:  # noqa: BLE001
+                                    last_err = str(ex2)[:200]
+                            # 无备用或备用也失败：返回友好错误而非中断整场辩论
+                            return f"工具调用失败（已重试 {attempts} 次）：{last_err}"
+
+                results = await asyncio.gather(*[_exec_one(tc) for tc in resp.tool_calls])
+                for tc, result in zip(resp.tool_calls, results):
                     messages.append(
                         ToolMessage(content=str(result), tool_call_id=tc["id"])
                     )
@@ -206,6 +378,16 @@ async def _run_agent(
                         }
                     )
                     citations.extend(_extract_citations(str(result), tc["name"]))
+                if len(resp.tool_calls) > 1:
+                    await sink(
+                        {
+                            "kind": "tool_batch",
+                            "role": role_key,
+                            "count": len(resp.tool_calls),
+                            "tools": [tc["name"] for tc in resp.tool_calls],
+                            "id": msg_id,
+                        }
+                    )
                 continue
             full = _to_str(resp.content)
             break
@@ -229,6 +411,14 @@ async def _run_agent(
     if not full.strip():
         role = ROLES.get(role_key, {})
         full = f"（{role.get('name', role_key)}未能生成有效分析，请检查模型可用性。）"
+    # 写入响应缓存（P0-2）：无工具角色的完整答复落缓存，供重复会话/重跑复用
+    if llm_model_name and not is_mock(cfg) and settings.llm_cache_size > 0 and not tools and full.strip():
+        try:
+            response_cache_put(llm_model_name, messages, full)
+            if not final_streamed:
+                await sink({"kind": "llm_cache", "role": role_key, "hit": False, "model": llm_model_name})
+        except Exception:
+            pass
     if not final_streamed:
         # 非流式路径：保留分片下发以维持逐字显示效果
         for seg in _chunk(full):
@@ -258,6 +448,7 @@ async def _run_agent(
                 "role": role_key,
                 "model": str(getattr(llm, "model_name", "") or ""),
                 "system": sys_prompt,
+                "system_prompt_version": prompt_ver,  # P2-5：-1=手工覆写，N=注册中心版本
                 "user": user_content,
                 "response": full,
                 "phase_hint": phase_hint,
@@ -285,6 +476,74 @@ _DOUBT_KW = (
     "伪造",
     "缺失",
 )
+
+
+def _strict_json(text: str) -> Any:
+    """契约路径的严格解析：文本必须是合法 JSON，且首层类型与要求一致，
+    否则抛异常交给 structured_call 的自动修复路径（对标模型自纠错）。"""
+    parsed = _extract_json(text)
+    if parsed is None:
+        raise ValueError("输出不是合法 JSON 对象/数组（代码块包裹也会被剥离）")
+    return parsed
+
+
+def _parse_contradictions(text: str) -> List[Dict]:
+    parsed = _strict_json(text)
+    if isinstance(parsed, dict):
+        for v in parsed.values():
+            if isinstance(v, list):
+                return clean_contradictions(v)
+        raise ValueError("矛盾清单 JSON 对象中未找到数组字段")
+    if isinstance(parsed, list):
+        return clean_contradictions(parsed)
+    raise ValueError("矛盾清单顶层必须是数组或包含数组的对象")
+
+
+def _parse_reflections(text: str) -> List[Dict]:
+    parsed = _strict_json(text)
+    if isinstance(parsed, dict):
+        for v in parsed.values():
+            if isinstance(v, list):
+                parsed = v
+                break
+    if not isinstance(parsed, list):
+        raise ValueError("反思清单顶层必须是数组")
+    out = []
+    for r in parsed:
+        if not isinstance(r, dict):
+            continue
+        if not r.get("objection"):
+            raise ValueError("反思条目缺少 objection 字段")
+        out.append(
+            {
+                "role": str(r.get("role") or "")[:24],
+                "subject": str(r.get("subject") or "")[:70],
+                "objection": str(r.get("objection") or "")[:110],
+            }
+        )
+    if not out:
+        raise ValueError("反思清单为空")
+    return out[:8]
+
+
+def _parse_verdict(text: str) -> Dict:
+    parsed = _strict_json(text)
+    if not isinstance(parsed, dict):
+        raise ValueError("裁决 JSON 顶层必须是对象")
+    return clean_verdict(parsed)
+
+
+def _parse_note(text: str) -> Dict:
+    """合议书记录的严格解析：顶层必须是包含四个字段的 JSON 对象。"""
+    parsed = _strict_json(text)
+    if not isinstance(parsed, dict):
+        raise ValueError("合议记录 JSON 顶层必须是对象")
+    return {
+        "claim": str(parsed.get("claim") or "")[:90],
+        "evidence_ids": [str(x) for x in (parsed.get("evidence_ids") or []) if str(x)],
+        "doubts": [str(x) for x in (parsed.get("doubts") or []) if str(x)],
+        "implicates": [str(x) for x in (parsed.get("implicates") or []) if str(x)],
+    }
 
 _CITE_TITLE_RE = re.compile(r"《([^》]{2,40})》")
 _CITE_URL_RE = re.compile(r"https?://[^\s\"'<>()）]+")
@@ -378,22 +637,38 @@ async def _summarize_note(
                 temperature=0.0,
                 cfg=cfg,
             )
-            resp = await _retry_ainvoke(
-                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
-            )
-            parsed = _extract_json(_to_str(resp.content))
-            if not isinstance(parsed, dict):
-                parsed = {}
-            note = {
-                "claim": str(parsed.get("claim") or "")[:90],
-                "evidence_ids": [
-                    str(x) for x in (parsed.get("evidence_ids") or []) if str(x)
-                ],
-                "doubts": [str(x) for x in (parsed.get("doubts") or []) if str(x)],
-                "implicates": [
-                    str(x) for x in (parsed.get("implicates") or []) if str(x)
-                ],
-            }
+            try:
+                parsed = await structured_call(
+                    llm,
+                    [HumanMessage(content=prompt)],
+                    parse=_parse_note,
+                    repair_hint="请重新输出 JSON 对象，包含 claim/evidence_ids/doubts/implicates 四个字段。",
+                    with_schema=NoteItem,
+                    timeout=cfg.get("llm_timeout"),
+                    sink=sink,
+                    role_key="note",
+                )
+                if isinstance(parsed, dict):
+                    note = {
+                        "claim": str(parsed.get("claim") or "")[:90],
+                        "evidence_ids": [
+                            str(x) for x in (parsed.get("evidence_ids") or []) if str(x)
+                        ],
+                        "doubts": [
+                            str(x) for x in (parsed.get("doubts") or []) if str(x)
+                        ],
+                        "implicates": [
+                            str(x) for x in (parsed.get("implicates") or []) if str(x)
+                        ],
+                    }
+            except Exception:
+                # 失败回退到抽取
+                note = {
+                    "claim": (text or "").strip().split("\n")[0][:90],
+                    "evidence_ids": _DEVID_RE.findall(text or ""),
+                    "doubts": [],
+                    "implicates": [],
+                }
         if not note.get("claim"):
             note["claim"] = (text or "").strip().split("\n")[0][:90]
         if not note.get("evidence_ids"):
@@ -601,22 +876,27 @@ async def critic_node(state: DebateState, config) -> Dict:
                 ]
             )
     else:
-        prompt = agent_config.prompt_for_critic(
+        prompt, critic_ver = agent_config.prompt_for_critic(
             json.dumps(claims, ensure_ascii=False, indent=2)
         )
         llm = get_llm("纠错官", cfg=cfg)
+        # P2-1 结构化输出：优先 Pydantic schema 强制（ContradictionList），
+        # 回退契约+严格解析+失败自动修复；失败静默降级（保持旧行为）
         try:
-            resp = await _retry_ainvoke(
-                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            parsed = await structured_call(
+                llm,
+                [HumanMessage(content=prompt)],
+                parse=_parse_contradictions,
+                repair_hint="请把矛盾清单输出为一个 JSON 数组，每项含 issue（问题描述）与 parties（角色 key 数组）。",
+                with_schema=ContradictionList,
+                timeout=cfg.get("llm_timeout"),
+                sink=sink,
+                role_key="critic",
             )
-            parsed = _extract_json(_to_str(resp.content))
+            if isinstance(parsed, dict):
+                parsed = parsed.get("items") or parsed.get("contradictions") or []
             if isinstance(parsed, list):
                 new_contradictions = clean_contradictions(parsed)
-            elif isinstance(parsed, dict):
-                for v in parsed.values():
-                    if isinstance(v, list):
-                        new_contradictions = clean_contradictions(v)
-                        break
         except Exception:
             pass
 
@@ -641,6 +921,7 @@ async def reflect_node(state: DebateState, config) -> Dict:
     claims = state.get("claims", {})
     contradictions = state.get("contradictions", [])
     reflections: List[Dict] = []
+    await sink({"kind": "reflect_start"})  # 供会话 trace 计算反思阶段耗时
 
     if is_mock(cfg):
         for role_key, txt in (claims or {}).items():
@@ -657,35 +938,36 @@ async def reflect_node(state: DebateState, config) -> Dict:
                 "objection": "矛盾尚未闭环：建议人类法官在落槌前复核双方依据的原始证据",
             })
     else:
+        # P2-5 提示词版本：正文从注册中心解析（配置可钉版本号），审计可回溯
+        from app.agents import prompts as prompts_center
+
+        refl_cfg_ = (agent_config.load().get("reflect", {}) or {})
+        _rv = refl_cfg_.get("prompt_version")
+        body, reflect_ver = prompts_center.resolve(
+            "reflect", int(_rv) if _rv else None
+        )
         prompt = (
-            "你是庭审反思官。请对以下各专家主张进行可证伪性审查：对每条主张给出最有力的"
-            "反对理由或必须补齐的证据（反对理由不得重复），只输出 JSON 数组：\n"
-            '[{"role":"角色key","subject":"该条主张(≤40字)","objection":"反对理由/待核验点(≤80字)"}]\n'
-            "禁止输出代码块或额外文字。\n\n"
+            body + "\n\n"
             f"专家主张：\n{json.dumps(claims, ensure_ascii=False, indent=2)}\n\n"
             f"矛盾清单：\n{json.dumps(contradictions, ensure_ascii=False, indent=2)}"
         )
         llm = get_llm("反思官", cfg=cfg)
         try:
-            resp = await _retry_ainvoke(
-                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            # P2-1 结构化输出：schema 路径返回 {"items":[...]}，契约路径返回数组
+            parsed = await structured_call(
+                llm,
+                [HumanMessage(content=prompt)],
+                parse=_parse_reflections,
+                repair_hint="请把反思清单输出为 JSON 数组，每项含 role/subject/objection 三个字符串字段。",
+                with_schema=ReflectionList,
+                timeout=cfg.get("llm_timeout"),
+                sink=sink,
+                role_key="reflect",
             )
-            parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, dict):
-                for v in parsed.values():
-                    if isinstance(v, list):
-                        parsed = v
-                        break
+                parsed = parsed.get("items") or []
             if isinstance(parsed, list):
-                reflections = [
-                    {
-                        "role": str(r.get("role") or "")[:24],
-                        "subject": str(r.get("subject") or "")[:70],
-                        "objection": str(r.get("objection") or "")[:110],
-                    }
-                    for r in parsed
-                    if isinstance(r, dict) and r.get("objection")
-                ][:8]
+                reflections = [r for r in parsed if isinstance(r, dict) and r.get("objection")][:8]
         except Exception:  # noqa: BLE001
             log.warning("反思节点解析失败，跳过（不影响裁决）")
 
@@ -734,20 +1016,32 @@ async def judge_node(state: DebateState, config) -> Dict:
             "disclaimer": "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。",
         })
     else:
+        # P2-5 提示词版本：正文从注册中心解析（配置可钉版本号），审计可回溯
+        from app.agents import prompts as prompts_center
+
+        judge_cfg_ = (agent_config.load().get("judge", {}) or {})
+        _jv = judge_cfg_.get("prompt_version")
+        body, judge_ver = prompts_center.resolve(
+            "judge", int(_jv) if _jv else None
+        )
         prompt = (
-            "你是审判长。请综合各专家主张与矛盾清单，输出 JSON："
-            '{"truth_hypothesis": "...", "evidence_chain": [...], "doubts": [...], '
-            '"recommendation": "...", "next_steps": ["给司法机关的可执行后续流程，3-6条"], '
-            '"disclaimer": "..."}。不要输出其他内容。\n\n'
+            body + "\n\n"
             f"各专家主张：\n{json.dumps(claims, ensure_ascii=False, indent=2)}\n\n"
             f"矛盾清单：\n{json.dumps(contradictions, ensure_ascii=False, indent=2)}"
         )
         llm = get_llm("审判长", cfg=cfg)
         try:
-            resp = await _retry_ainvoke(
-                llm, [HumanMessage(content=prompt)], timeout=cfg.get("llm_timeout")
+            # P2-1 结构化输出：schema 路径返回裁决 dict，契约路径文本经 _parse_verdict
+            parsed = await structured_call(
+                llm,
+                [HumanMessage(content=prompt)],
+                parse=_parse_verdict,
+                repair_hint="请输出裁决 JSON 对象，键为 truth_hypothesis/evidence_chain/doubts/recommendation/next_steps/disclaimer。",
+                with_schema=Verdict,
+                timeout=cfg.get("llm_timeout"),
+                sink=sink,
+                role_key="judge",
             )
-            parsed = _extract_json(_to_str(resp.content))
             if isinstance(parsed, dict):
                 verdict = clean_verdict(parsed)
             else:

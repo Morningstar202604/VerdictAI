@@ -6,9 +6,10 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app.auth import require_admin
 from app.config import settings
 from app.data.store import atomic_write_json
 
@@ -52,7 +53,7 @@ def get_presets():
 
 
 @router.post("")
-def save_preset(payload: dict):
+def save_preset(payload: dict, _: dict = Depends(require_admin)):
     data = payload if isinstance(payload, dict) else {}
     name = str(data.get("name") or "").strip()
     if not name:
@@ -73,7 +74,7 @@ def save_preset(payload: dict):
 
 
 @router.delete("/{name}")
-def delete_preset(name: str):
+def delete_preset(name: str, _: dict = Depends(require_admin)):
     if name in _BUILTIN_PRESETS:
         return JSONResponse({"error": "内置模板不可删除"}, status_code=400)
     custom = {}
@@ -90,7 +91,7 @@ def delete_preset(name: str):
 
 
 @router.post("/apply")
-def apply_preset(payload: dict):
+def apply_preset(payload: dict, _: dict = Depends(require_admin)):
     """应用策略模板：写入各专家系统提示词（持久化到 agent_config），返回总体指导语。"""
     from app.agents import agent_config as ac
 

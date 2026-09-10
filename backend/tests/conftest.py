@@ -9,3 +9,7 @@ import tempfile
 
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="vai-test-data-")
 os.environ["LLM_PROVIDER"] = "mock"
+# 测试环境不受本地 .env 影响：流式/并行/缓存等开关以默认值运行
+os.environ["STREAM_EXPERTS"] = "auto"
+os.environ["PARALLEL_EXPERTS"] = "auto"
+os.environ["LLM_CACHE_SIZE"] = "0"

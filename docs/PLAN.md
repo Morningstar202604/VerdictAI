@@ -16,7 +16,7 @@
 | PDF/DOCX/TXT 多格式解析 | ✅ | [documents.py](../backend/app/intake/documents.py)：PyMuPDF/pypdf 文本层 + pdfplumber 表格 + 60K 上限分段摘要 |
 | 扫描件 OCR | ✅ | RapidOCR 本地 onnx（OCR_ENABLED 开关），缺失自动降级 |
 | 图片视觉理解 | ✅ | [vision.py](../backend/app/intake/vision.py)：多模态描述 + OCR 兜底 |
-| 意图识别（案由→预设） | 🟡 | [schemas.py](../backend/app/models/schemas.py) `cause_from_text`：确定性案由推导。**缺：实体槽位（当事人/时间/地点/金额）、置信度、无关输入门禁、多意图** |
+| 意图识别（案由→预设） | ✅ | [schemas.py](../backend/app/models/schemas.py) `intent_router`：确定性案由推导 + 多案由候选 `causes[]` + 实体槽位（当事人/时间/地点/金额）+ 置信度 + 无关输入门禁 |
 | Pydantic 结构清洗 | ✅ | Intake/Verdict/Contradiction 三个模型全链路清洗 |
 
 ### 1.2 推理编排层（Reasoning）
@@ -45,7 +45,7 @@
 |---|---|---|
 | 证据查阅/时间线核校/矛盾调取/法条检索/要求举证 | ✅ | 六件套 + TOOL_LABELS 前端标签 |
 | 联网搜索（免 API） | ✅ | [search.py](../backend/app/agents/search.py)：SearXNG 主 + Bing HTML 兜底 + Tavily 预留，结果 TTL 缓存（30min）、URL 去重聚合、source_url 引用溯源 |
-| Python 沙箱 | ✅ | docker/venv 双后端。容器模式默认断网 + 512MB/1 核/128 进程限额，subprocess 60s 超时；缺命令审批白名单 UI |
+| Python 沙箱 | ✅ | docker/venv 双后端。容器模式默认断网 + 512MB/1 核/128 进程限额，subprocess 60s 超时；静态命令黑名单 `CODE_SANDBOX_DENY_CMDS`（联网/进程/破坏性命令执行前拒绝）|
 
 ### 1.5 知识层（Knowledge）
 | 能力 | 状态 | 说明 |
@@ -73,7 +73,7 @@
 | 配置管理（Settings + 运行快照） | ✅ | [config.py](../backend/app/config.py) + test_config_snapshot |
 | 降级容错 | ✅ | 所有可选能力缺失静默降级不阻断 |
 | **可观测性（trace）** | ✅ | [runner.py](../backend/app/graph/runner.py)：每节点/轮次耗时落盘 + 用量统计 + SSE 事件流（`/api/events`） |
-| **评估回归（eval set）** | ✅ | [test_evals.py](../backend/tests/test_evals.py)：golden case 断言（确定性意图、schema 清洗、输出结构、搜索缓存） |
+| **评估回归（eval set）** | ✅ | [test_evals.py](../backend/tests/test_evals.py)：golden 断言（确定性意图/多案由、schema 清洗、输出结构、搜索缓存）+ [tools/evaluate.py](../backend/tools/evaluate.py) 可选 LLM-as-judge 五维评分 |
 | CI（矩阵 + 语法 + 冒烟） | ✅ | [ci.yml](../.github/workflows/ci.yml) 4 个 Python 版本 |
 
 ---
@@ -164,8 +164,20 @@
 | 3.4 | 实时流程图 | 辩论中 LangGraph Studio 式节点实时点亮（复用 WS 事件） |
 | 3.5 | 沙箱强化 | 超时/资源限额 UI、默认禁网、命令审批白名单 |
 
-### M4（平台轮）
-用户体系/RBAC、多人协同审阅、i18n/无障碍、语音录入(Whisper 本地)、联邦多来源知识库、SSE 接入层。
+### M4（✅ 已完成，2026-09-10 · 平台轮：基础设施补齐）
+> 目标：补齐「市面上完整 Agent 该有的基础设施」——对标大厂 Agent 平台
+> （LangSmith/Dify/DSPy/开源 Agent 框架）的横切能力，不引入新框架。
+| # | 任务 | 说明 | 验证 |
+|---|---|---|---|
+| 4.1 | **会话 Trace** | runner 为每个审判节点（专家轮/纠错/反思/裁决/人类落槌）记录 start/end/耗时/LLM 调用量与字数量 span，收尾下发 `trace` 事件并随记录落盘；前端裁决区渲染「会话时间线」视图 | smoke 断言 8 个 span 含全核心节点；Agnes 实测 |
+| 4.2 | **LLM 响应缓存** | LRU 响应缓存（LLM_CACHE_SIZE 上限，0=关闭）：同 prompt（模型+消息哈希）命中直接回放，跳过调用与工具循环；命中/写入下发 `llm_cache` 事件；用量面板展示缓存命中率 | unit: miss→hit、stats、LRU 淘汰、关闭；真实辩论命中率 31% |
+| 4.3 | **评估回归进 CI** | evaluate.py 增加 `--mock/--check`：离线 mock 跑完整辩论并断言确定性门槛（裁决完整/自检达标/反思产出），ci.yml 新增 job | `evaluate.py --check` 通过 |
+| 4.4 | **工具重试编排** | 工具调用失败指数退避重试（最多 3 次），耗尽后按 `_TOOL_FALLBACK` 备用工具链降级（web_search→search_case_law、run_code→read_evidence 等）；每次重试/降级下发 `tool_retry` 事件 | unit 复刻循环 + 事件断言 |
+| 4.5 | **MCP 工具接入** | 可配置外部 MCP server（data/mcp_servers.json 或 MCP_SERVERS_JSON），工具以 `mcp_<server>_<tool>` 注册进角色工具表（角色白名单）；官方 mcp SDK 为可选依赖（requirements-ai.txt），缺失/未配置静默降级 | `/api/admin/mcp` 状态端点 + 角色授权 |
+| 4.6 | **多用户 RBAC** | users 表（data/users.json）+ admin/viewer 角色：令牌携带身份、写端点 require_admin 门禁、前端用户徽标与只读门禁；完全兼容单口令模式（无用户表时固定 admin） | 11 个 RBAC 测试（登录/门禁/最后一管理员保护/伪造令牌） |
+
+### M5（后续候选）
+多人协同审阅、i18n/无障碍、语音录入（Whisper 本地）、联邦多来源知识库、SSE 接入层、Prompt 版本管理 / 实验对比（A/B eval）。
 
 ---
 

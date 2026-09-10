@@ -77,6 +77,11 @@ jobs:
           print("API smoke OK")
           PY
 
+      - name: Evaluation regression (mock, offline)
+        env:
+          LLM_PROVIDER: mock
+        run: python tools/evaluate.py --check --case case_001
+
   frontend:
     name: Frontend (inline app syntax)
     runs-on: ubuntu-latest

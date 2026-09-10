@@ -12,6 +12,7 @@ from app.config import debate_snapshot, settings
 from app.data.store import atomic_write_json, validate_id
 from app.graph.builder import build_graph
 from app.intake.processor import build_role_material, preprocess
+from app.models.llm import estimate_cost
 from app.ws.manager import manager
 
 log = logging.getLogger("debate")
@@ -82,6 +83,34 @@ async def run_debate(
     event_count = 0
     transcript: list = []
     final_verdict: dict | None = None
+    # 会话 Trace（P0-1）：记录每个审判节点的耗时/用量 span，随 done 事件下发。
+    open_spans: dict = {}  # span_id -> {"ts": float, "usage": dict}
+    trace_spans: list = []  # 已闭合的 span，按开始时间排序
+
+    def _usage_snap() -> dict:
+        u = config["configurable"].get("usage") or {}
+        return {"calls": u.get("calls", 0), "in_chars": u.get("in_chars", 0), "out_chars": u.get("out_chars", 0)}
+
+    def _close_span(span_id: str, end_ts: float) -> None:
+        opened = open_spans.pop(span_id, None)
+        if not opened:
+            return
+        us = opened["usage"]
+        ue = _usage_snap()
+        trace_spans.append(
+            {
+                "span": span_id,
+                "kind": span_id.split("|")[0],
+                "start": opened["ts"],
+                "end": end_ts,
+                "ms": round((end_ts - opened["ts"]) * 1000, 1),
+                "usage": {
+                    "calls": max(0, ue["calls"] - us["calls"]),
+                    "in_chars": max(0, ue["in_chars"] - us["in_chars"]),
+                    "out_chars": max(0, ue["out_chars"] - us["out_chars"]),
+                },
+            }
+        )
 
     async def sink(event: dict) -> None:
         nonlocal event_count, final_verdict
@@ -90,10 +119,28 @@ async def run_debate(
         kind = event.get("kind")
         if kind == "round_start":
             round_ts[event.get("round")] = {"start": now}
+            open_spans[f"round|{event.get('round')}"] = {"ts": now, "usage": _usage_snap()}
         elif kind == "round_end":
             r = event.get("round")
             if r in round_ts:
                 round_ts[r]["end"] = now
+            _close_span(f"round|{r}", now)
+        elif kind == "critic_start":
+            open_spans["critic"] = {"ts": now, "usage": _usage_snap()}
+        elif kind == "critic_end":
+            _close_span("critic", now)
+        elif kind == "reflect_start":
+            open_spans["reflect"] = {"ts": now, "usage": _usage_snap()}
+        elif kind == "reflect":
+            _close_span("reflect", now)
+        elif kind == "judge_start":
+            open_spans["judge"] = {"ts": now, "usage": _usage_snap()}
+        elif kind == "judge_end":
+            _close_span("judge", now)
+        elif kind == "awaiting_human":
+            open_spans["human"] = {"ts": now, "usage": _usage_snap()}
+        elif kind == "human_done" or kind == "human_timeout":
+            _close_span("human", now)
         elif kind == "verdict":
             final_verdict = event.get("verdict")
         transcript.append(event)
@@ -172,17 +219,37 @@ async def run_debate(
             event_count,
             cfg["llm_model"],
         )
-        # 用量统计随辩论落盘，供复盘与成本评估
+        # 会话 Trace 下发：审判节点时间线（含每节点 LLM 调用数/字数量），
+        # 前端据此渲染时间线视图，也随记录落盘供复盘回放。
         try:
-            await manager.send(session_id, {"kind": "usage", "usage": config["configurable"].get("usage") or {}})
+            await manager.send(
+                session_id,
+                {
+                    "kind": "trace",
+                    "spans": trace_spans,
+                    "total_ms": round(elapsed * 1000, 1),
+                },
+            )
+        except Exception:
+            pass
+        # 用量统计随辩论落盘，供复盘与成本评估（P2-6：附 token/费用换算）
+        try:
+            _usage = config["configurable"].get("usage") or {}
+            _usage_payload = dict(_usage)
+            _usage_payload["cost"] = estimate_cost(
+                _usage.get("in_chars", 0), _usage.get("out_chars", 0)
+            )
+            await manager.send(session_id, {"kind": "usage", "usage": _usage_payload})
         except Exception:
             pass
         # 持久化整场辩论记录，便于复盘（刷新/断线不丢失）；原子替换，
         # 中断不会留下半截记录让复盘页解析失败
         try:
+            _usage = config["configurable"].get("usage") or {}
             record = {
                 "session_id": session_id,
-                "usage": config["configurable"].get("usage") or {},
+                "usage": _usage,
+                "cost": estimate_cost(_usage.get("in_chars", 0), _usage.get("out_chars", 0)),
                 "case_id": case.get("id"),
                 "case_title": case.get("title"),
                 "started_at": time.strftime(
@@ -191,6 +258,7 @@ async def run_debate(
                 "model": cfg["llm_model"],
                 "rounds": sum(1 for e in transcript if e.get("kind") == "round_start"),
                 "final_verdict": final_verdict,
+                "trace": {"spans": trace_spans, "total_ms": round((time.time() - start_ts) * 1000, 1)},
                 "events": transcript,
             }
             debates_dir = os.path.join(settings.data_dir, "debates")

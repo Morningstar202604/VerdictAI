@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app.auth import require_admin
 from app.config import settings
 
 router = APIRouter(prefix="/api/sandbox", tags=["sandbox"])
 
 
 @router.post("/install")
-def sandbox_install(payload: dict):
+def sandbox_install(payload: dict, _: dict = Depends(require_admin)):
     from app.agents.tools import install_package
 
     pkg = (payload or {}).get("package", "")
@@ -23,7 +24,7 @@ def sandbox_install(payload: dict):
 
 
 @router.post("/run")
-def sandbox_run(payload: dict):
+def sandbox_run(payload: dict, _: dict = Depends(require_admin)):
     from app.agents.tools import run_code
 
     code = (payload or {}).get("code", "")

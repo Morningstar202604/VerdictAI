@@ -1,6 +1,6 @@
       const $ = (id) => document.getElementById(id);
       function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
-      let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = []; let qaHistory = []; let nsDone = new Set(); let lastUsage = null;
+      let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = []; let qaHistory = []; let nsDone = new Set(); let lastUsage = null; let lastTrace = null;
       const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", web_search:"联网检索", cite_source:"要求举证", run_code:"Python 沙箱", install_package:"安装依赖" };
       const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","web_search","cite_source","run_code"];
       const GROUP_LABELS = { investigation:"侦查阶段", trial:"庭审阶段", other:"其他" };
@@ -12,6 +12,7 @@
       async function init() {
         try { settingsCache = await (await fetch("/api/settings")).json(); } catch(e){ settingsCache={}; }
         applyModelBadge();
+        await applyAuthBadge();
         try { const ac = await (await fetch("/api/agent-config")).json(); ac.agents.forEach(a => agentsCfg[a.key]=a); } catch(e){ toast("加载专家配置失败"); }
         roleMap = {}; Object.values(agentsCfg).forEach(a => roleMap[a.key]=a);
         let cases = [];
@@ -39,12 +40,36 @@
         $("modelBadge").textContent = "模型: "+txt; $("landModel").textContent = txt;
       }
 
+      // P1-6 多用户 RBAC：展示当前用户与角色；viewer 只读门禁
+      let currentRole = "admin";
+      async function applyAuthBadge(){
+        try{
+          const me = await (await fetch("/api/auth/me")).json();
+          currentRole = (me&&me.role)||"admin";
+          const badge=$("userBadge");
+          if(badge && me && me.auth_enabled){
+            const tag = currentRole==="viewer" ? "👁 只读" : "🛡 管理员";
+            badge.textContent = escapeHtml(me.user||"") + " " + tag;
+            badge.style.display="";
+            badge.title="当前登录角色："+tag+"（viewer 仅可浏览与参与庭审，管理设置需管理员）";
+          }
+          if(currentRole!=="admin") applyViewerGating();
+        }catch(e){ /* 开放模式无 /api/auth/me 权限差异，保持默认 admin */ }
+      }
+      function applyViewerGating(){
+        // viewer：隐藏管理入口（设置；案例库管理类按钮由各渲染处按角色隐藏）
+        document.querySelectorAll(".btn-admin").forEach(b=>b.style.display="none");
+        const gs=$("btnSettings"); if(gs) gs.style.display="none";
+        const gsc=$("btnSettingsChip"); if(gsc) gsc.style.display="none";
+        if(window._applyViewerHooks) window._applyViewerHooks();
+      }
+
       function sortedAgents() { return Object.values(agentsCfg).slice().sort((a,b)=>a.order-b.order); }
       function isDebatable(k){ return k!=="judge" && k!=="critic"; }
       function renderCaseChips(cases, _titleDup){
         const box=$("caseChips"); if(!box) return; box.innerHTML="";
         cases.slice(0,6).forEach(c=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=_titleDup&&_titleDup[c.id] ? c.title+" ["+c.id.slice(-4)+"]" : c.title; b.setAttribute("aria-label","选择案件："+b.textContent); b.onclick=()=>{ const land=$("landCase"); land.value=c.id; selectedCase=c.id; loadCase(); }; box.appendChild(b); });
-        const set=document.createElement("button"); set.className="chip"; set.textContent="⚙ 设置"; set.setAttribute("aria-label","打开设置"); set.onclick=()=>openSettings(); box.appendChild(set);
+        const set=document.createElement("button"); set.className="chip"+(currentRole!=="admin"?" hidden":""); set.id="btnSettingsChip"; set.textContent="⚙ 设置"; set.setAttribute("aria-label","打开设置"); set.onclick=()=>openSettings(); box.appendChild(set);
       }
       function renderLandRoster(){
         const box=$("landRoster"); if(!box) return; box.innerHTML="";
@@ -421,6 +446,22 @@
           r.map(x=>{ const nm=x.role==="critic"?"纠错官":((roleMap[x.role]||{}).name||x.role); return `<div class="reflex-item"><b>${escapeHtml(nm)}</b><span class="reflex-subj">${escapeHtml(String(x.subject||"").slice(0,60))}</span><div class="reflex-o">↳ 待核验：${escapeHtml(x.objection||"")}</div></div>`; }).join("")+
           `</div>`;
       }
+      function renderTrace(){
+        const box=$("traceBox"); if(!box) return;
+        const tr=lastTrace||{}; const spans=(tr.spans||[]);
+        if(!spans.length){ box.classList.add("hidden"); return; }
+        box.classList.remove("hidden");
+        const LABEL={round:"专家发言轮",critic:"矛盾纠错",reflect:"可证伪性审查",judge:"审判长裁决",human:"人类落槌"};
+        const rows=spans.map(s=>{
+          const kind=String(s.kind||"");
+          const label=(kind==="round"?"第 "+String(s.span.split("|")[1])+" 轮 · ":LABEL[kind]||kind+" · ")+(kind==="round"?"专家发言":"");
+          const us=s.usage||{}; const lu=us.calls?" · "+us.calls+" 次推理":"";
+          return `<div class="tr-row"><span class="tr-k">${escapeHtml(label)}</span><span class="tr-bar" style="width:${Math.min(100,Math.max(4,(s.ms||0)/(tr.total_ms||1)*100))}%"></span><span class="tr-ms">${Math.round(s.ms||0)}ms${lu}</span></div>`;
+        }).join("");
+        box.innerHTML=`<div class="trace">`+
+          `<div class="trace-t">会话时间线 <span class="muted" style="font-weight:400">——各审判节点耗时与调用量，总 ${((tr.total_ms||0)/1000).toFixed(1)}s</span></div>`+
+          rows+`</div>`;
+      }
       function renderIvPlan(){
         const box=$("ivPlan"); if(!box) return;
         const plan=(serverBrief&&serverBrief.investigation_plan)||[];
@@ -441,8 +482,10 @@
             const ent=d.entities||{};
             const chips=(k)=>(ent[k]||[]).slice(0,4).map(x=>'<span class="ipv-chip">'+escapeHtml(x)+'</span>').join("");
             const conf=Math.round((d.confidence||0)*100);
+            const extraCauses=((d.causes||[]).filter(c=>c.cause!==d.cause).slice(0,3)||[]);
             box.innerHTML='<div class="ipv ipv-ok">'+
               '<span class="ipv-tag">案由</span><span class="ipv-val">'+escapeHtml(d.cause||"案件审查")+'</span>'+
+              (extraCauses.length?'<div class="ipv-chips" style="flex-basis:100%"><b>涉及案由</b>'+extraCauses.map(c=>'<span class="ipv-chip">'+escapeHtml(c.cause)+'</span>').join("")+'</div>':"")+
               '<span class="ipv-tag">置信度</span><span class="ipv-val">'+conf+'%</span>'+
               (d.suggested_preset?'<span class="ipv-tag">预设</span><span class="ipv-val">'+escapeHtml(d.suggested_preset)+'</span>':"")+
               (chips("parties")?'<div class="ipv-chips"><b>当事人</b>'+chips("parties")+'</div>':"")+
@@ -570,6 +613,7 @@
           case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
           case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#b45309", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
           case "usage": lastUsage=ev.usage||null; break;
+          case "trace": lastTrace=ev||null; renderTrace(); break;
           case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
           case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
           case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }

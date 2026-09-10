@@ -62,6 +62,36 @@ def test_mixed_input_kept_relevant():
     assert r["cause"] == "故意伤害案"
 
 
+def test_multi_cause_recognition_returns_ordered_candidates():
+    """多案由识别：复杂卷宗同时命中多个案由时，causes[] 按命中数降序返回。"""
+    from app.models.schemas import causes_from_text, intent_router
+
+    text = "张三长期欠款不还，双方签订合同后违约，还虚构事实骗取货款且盗走了公司现金"
+    cs = causes_from_text(text, limit=3)
+    assert len(cs) >= 2, cs
+    # 排序：按命中关键词数降序（首项即主案由）
+    hits = [c["hits"] for c in cs]
+    assert hits == sorted(hits, reverse=True), cs
+    for c in cs:
+        assert c.get("cause") and c.get("preset")
+        assert c.get("hits", 0) >= 1
+
+    r = intent_router(text)
+    assert r.get("causes") and len(r["causes"]) >= 2, r
+    # 兼容旧契约：cause 仍返回单一主案由，且与 causes 首项一致
+    assert r["cause"] == r["causes"][0]["cause"]
+    assert r["relevant"] is True
+
+
+def test_cause_single_still_works_after_multi_extension():
+    """多案由扩展不破坏单一案由输入：无命中时 causes 为空、cause 回退。"""
+    from app.models.schemas import intent_router
+
+    r = intent_router("这是一般的案情描述，没有任何特定案由关键词的普通文本内容")
+    assert r["cause"] == "案件审查"
+    assert r.get("causes") == []
+
+
 # ---------------- 1.5.5 结构清洗回归 ----------------
 
 def test_clean_contradictions_tolerates_bad_party_field():

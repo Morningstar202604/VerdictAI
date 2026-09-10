@@ -32,6 +32,46 @@ def test_docker_command_is_network_isolated_with_limits():
     assert cmd[-1] == "print(1)"
 
 
+def test_deny_list_blocks_network_and_process_commands(monkeypatch):
+    """沙箱静态命令黑名单（M3.5）：联网/进程/破坏性命令在执行前被拒绝。"""
+    from app.agents.tools import check_denied
+
+    blocked = [
+        "import socket; s=socket.socket()",
+        "requests.get('http://x')",
+        "from urllib.request import urlopen",
+        "curl -s http://x",
+        "os.system('rm -rf /')",
+        "subprocess.run(['ls'])",
+        "shutil.rmtree('/opt')",
+        "http.client.HTTPConnection('x')",
+    ]
+    for code in blocked:
+        hit = check_denied(code)
+        assert hit, f"应命中黑名单: {code}"
+
+    ok_codes = [
+        "import numpy as np; print(np.mean([1,2,3]))",
+        "x = 1 + 2",
+        "import matplotlib.pyplot as plt; plt.plot([1,2]); plt.savefig('a.png')",
+    ]
+    for code in ok_codes:
+        assert check_denied(code) is None, f"不应误伤: {code}"
+
+
+def test_deny_list_customizable_and_disabled(monkeypatch):
+    """黑名单可配置：清空后不拦截；自定义项立即生效。"""
+    from app.agents.tools import _deny_pattern, check_denied
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "code_sandbox_deny_cmds", "")
+    assert _deny_pattern("") is None
+    assert check_denied("import socket") is None
+
+    monkeypatch.setattr(settings, "code_sandbox_deny_cmds", "danger_thing")
+    assert check_denied("danger_thing(1)") == "danger_thing"
+
+
 def test_docker_backend_forces_container(monkeypatch):
     monkeypatch.setattr(settings, "code_sandbox_backend", "docker")
     monkeypatch.setattr(T, "_docker_ok", True)

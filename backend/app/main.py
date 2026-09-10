@@ -16,6 +16,7 @@ from app.data.store import load_case, validate_id
 from app.graph.runner import run_debate
 from app.routers import admin, agents, cases, debates, intent, knowledge, presets, qa, reports, sandbox
 from app.routers import settings as settings_router
+from app.routers import users as users_router
 from app.ws.manager import manager
 
 log = logging.getLogger("verdictai")
@@ -61,6 +62,7 @@ async def global_exception_handler(request, exc):
 
 
 # ---------------- 中间件（注册顺序决定执行顺序：限流 → CORS → 访问口令） ----------------
+app.middleware("http")(auth.rate_limit_middleware)
 app.middleware("http")(auth.access_gate)
 
 _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -93,6 +95,8 @@ app.post("/login")(auth.login_submit)
 # ---------------- REST 路由 ----------------
 for r in (cases, debates, reports, settings_router, agents, sandbox, presets, knowledge, qa, intent, admin):
     app.include_router(r.router)
+app.include_router(users_router.router)
+app.include_router(users_router.admin_router)
 
 
 # ---------------- 静态资源 ----------------

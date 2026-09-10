@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app.auth import require_admin
 from app.legal.knowledge import add_knowledge, delete_knowledge, list_knowledge, search_knowledge
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
@@ -28,7 +29,7 @@ def get_knowledge(q: str = "", semantic: int = 0):
 
 
 @router.post("")
-def post_knowledge(payload: dict):
+def post_knowledge(payload: dict, _: dict = Depends(require_admin)):
     """新增自定义知识条目（标题/正文/关键词）。"""
     data = payload if isinstance(payload, dict) else {}
     title = str(data.get("title") or "").strip()
@@ -43,7 +44,7 @@ def post_knowledge(payload: dict):
 
 
 @router.delete("/{entry_id}")
-def remove_knowledge(entry_id: str):
+def remove_knowledge(entry_id: str, _: dict = Depends(require_admin)):
     """删除自定义知识条目（内置法条不可删除）。"""
     if not delete_knowledge(entry_id):
         return JSONResponse({"error": "条目不存在或为内置法条（不可删除）"}, status_code=400)

@@ -9,9 +9,10 @@ import os
 import re
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app.auth import require_admin
 from app.config import settings
 from app.data import generate_case
 from app.data.store import atomic_write_json, list_cases, load_case, validate_id
@@ -195,7 +196,7 @@ def similar_cases(case_id: str, limit: int = 3):
 
 
 @router.post("/generate")
-async def regenerate():
+async def regenerate(_: dict = Depends(require_admin)):
     """生成一个示例案件并加入案例库（用唯一 ID，不再硬编码 case_001）。"""
     from app.intake.processor import preprocess
 
@@ -326,7 +327,7 @@ def _apply_document(data: dict) -> str | None:
 
 
 @router.post("/upload")
-async def upload_case(payload: dict):
+async def upload_case(payload: dict, _: dict = Depends(require_admin)):
     if not isinstance(payload, dict):
         return JSONResponse({"error": "案件须为 JSON 对象"}, status_code=400)
     data = dict(payload)
@@ -340,7 +341,7 @@ async def upload_case(payload: dict):
 
 
 @router.post("/import_batch")
-async def import_batch(payload: dict):
+async def import_batch(payload: dict, _: dict = Depends(require_admin)):
     """批量导入：files=[{file_type,file_content,file_name}, ...]（PDF/DOCX/TXT）。逐份处理，单份失败不影响其余。"""
     files = (payload or {}).get("files")
     if not isinstance(files, list) or not files:
@@ -368,8 +369,8 @@ async def import_batch(payload: dict):
 
 
 @router.delete("/{case_id}")
-async def delete_case(case_id: str):
-    """删除案件（案例库管理）。"""
+async def delete_case(case_id: str, _: dict = Depends(require_admin)):
+    """删除案件（案例库管理，需管理员权限）。"""
     import shutil
 
     if not validate_id(case_id):

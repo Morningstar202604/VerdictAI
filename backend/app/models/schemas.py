@@ -68,6 +68,25 @@ def cause_from_text(text: str) -> tuple[str, str]:
     return "案件审查", ""
 
 
+def causes_from_text(text: str, limit: int = 3) -> List[Dict[str, Any]]:
+    """多案由识别（M1.1 扩展）：返回文本命中的所有案由（按命中关键词数降序）。
+
+    复杂卷宗常同时涉及多个案由（如"借贷 + 合同 + 担保"），单一主案由会
+    丢失信息。返回列表形如 [{"cause": "...", "preset": "...", "hits": n}, ...]，
+    首项即主案由（与 cause_from_text 保持一致）；未命中返回空列表。"""
+    t = text or ""
+    scored: Dict[str, Dict[str, Any]] = {}
+    for kws, cause, preset in CAUSE_CASE_MAP:
+        n = sum(1 for k in kws if k in t)
+        if n == 0:
+            continue
+        prev = scored.get(cause)
+        if prev is None or n > prev["hits"]:
+            scored[cause] = {"cause": cause, "preset": preset, "hits": n}
+    items = sorted(scored.values(), key=lambda x: (-x["hits"], x["cause"]))
+    return items[:limit]
+
+
 # ----------------------------- 意图路由（M1.5） -----------------------------
 
 _GREETING = ("你好", "您好", "谢谢", "感谢", "hello", "hi", "哈哈", "嗯", "哦", "？", "?", "在吗", "有人吗", "拜拜", "再见", "测试一下", "试验")
@@ -138,10 +157,14 @@ def gate_input(text: str) -> tuple[bool, str]:
 
 
 def intent_router(text: str) -> Dict[str, Any]:
-    """意图路由：门禁 → 案由/预设 → 置信度 → 实体槽位。一个函数给前端/向导复用的全量结果。"""
+    """意图路由：门禁 → 案由（多候选）→ 预设 → 置信度 → 实体槽位。一个函数给前端/向导复用的全量结果。"""
     t = (text or "").strip()
     relevant, reason = gate_input(t)
     cause, preset = cause_from_text(t)
+    causes = causes_from_text(t)
+    if causes and not cause.startswith("案件"):
+        # 主案由与多候选保持一致；多候选优先返回复杂卷宗命中的全部案由
+        cause, preset = causes[0]["cause"], causes[0]["preset"]
     entities = extract_entities(t) if relevant else {"parties": [], "datetimes": [], "amounts": [], "places": []}
     # 置信度启发式：命中案由关键词越直接、文本越结构化越高
     conf = 0.5
@@ -157,6 +180,7 @@ def intent_router(text: str) -> Dict[str, Any]:
         "reject_reason": reason,
         "cause": cause,
         "suggested_preset": preset,
+        "causes": causes,
         "confidence": round(conf, 2),
         "entities": entities,
         "length": len(t),
@@ -219,6 +243,40 @@ class Contradiction(BaseModel):
         if not isinstance(v, list):
             return []
         return [str(p) for p in v if str(p or "").strip()][:8]
+
+
+# --------------------- 结构化输出契约（P2-1，强约束 JSON） ---------------------
+# 供 llm.with_structured_output 使用的 Pydantic 契约（模型原生 schema 强制解析，
+# 最大程度消除 JSON 漂移）；字段全默认 → 解析宽容，坏结构回退默认而非拒绝，
+# 与既有 clean_* 清洗入口语义一致。
+
+class ReflectionItem(BaseModel):
+    """反思/可证伪性审查单条记录的结构。"""
+
+    role: str = ""
+    subject: str = ""
+    objection: str = ""
+
+
+class NoteItem(BaseModel):
+    """合议书记录单条记录的结构。"""
+
+    claim: str = ""
+    evidence_ids: List[str] = Field(default_factory=list)
+    doubts: List[str] = Field(default_factory=list)
+    implicates: List[str] = Field(default_factory=list)
+
+
+class ContradictionList(BaseModel):
+    """矛盾清单的结构化输出包装（列表型契约）。"""
+
+    items: List[Contradiction] = Field(default_factory=list)
+
+
+class ReflectionList(BaseModel):
+    """反思清单的结构化输出包装（列表型契约）。"""
+
+    items: List[ReflectionItem] = Field(default_factory=list)
 
 
 # ----------------------------- 清洗入口 -----------------------------

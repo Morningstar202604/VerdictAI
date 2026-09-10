@@ -13,6 +13,37 @@ _IMG_EXT = (".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp")
 _base_checked = False
 _docker_ok: bool | None = None
 
+# 沙箱静态命令黑名单正则缓存（按 deny 串粒度，避免每次编译）
+_DENY_RE_CACHE: dict = {}
+
+
+def _deny_pattern(deny: str):
+    """把黑名单串（逗号分隔）编译为静态检查正则；空串返回 None（不拦截）。"""
+    if deny not in _DENY_RE_CACHE:
+        parts = []
+        for item in (p.strip() for p in (deny or "").split(",")):
+            if not item:
+                continue
+            parts.append(r"\b" + re.escape(item) + r"\b")
+        _DENY_RE_CACHE[deny] = (
+            re.compile("|".join(parts)) if parts else None
+        )
+    return _DENY_RE_CACHE[deny]
+
+
+def check_denied(code: str) -> str | None:
+    """静态命令白名单检查（M3.5）：命中黑名单命令返回命中项，否则返回 None。
+
+    容器模式已有断网/资源隔离，此处作为第二道防线（subprocess 模式缺
+    容器隔离尤其依赖它）：只拦明显的联网/进程/破坏性命令，正常数据统计
+    与 matplotlib 绘图不受影响。
+    """
+    pat = _deny_pattern(settings.code_sandbox_deny_cmds)
+    if pat is None:
+        return None
+    hit = pat.search(code or "")
+    return hit.group(0) if hit else None
+
 # 沙箱/pip 子进程不得继承敏感配置：专家生成的代码是任意代码，环境里的
 # LLM 密钥、访问口令一旦可见即可被读取外传。新增敏感配置项时必须使用
 # 以下前缀之一，或把变量名加进剥离逻辑（见 CONTRIBUTING「Secrets」）。
@@ -222,6 +253,13 @@ def run_code(code: str) -> str:
     """
     if not settings.code_sandbox_enabled:
         return "代码沙箱未启用。请在「设置 → 运行环境」中开启「启用 Python 代码沙箱」。"
+    denied = check_denied(code)
+    if denied:
+        return (
+            f"沙箱命令黑名单命中（{denied}）：该操作被安全策略拒绝。"
+            "沙箱不允许联网、拉起子进程或破坏性目录操作，仅限数据分析与图表生成；"
+            "如需调整请编辑 CODE_SANDBOX_DENY_CMDS。"
+        )
     eff = _effective_backend()
     if eff == "unavailable":
         return (
@@ -364,13 +402,94 @@ def builtin_tool_names(role_key: str) -> list:
 
 
 def tools_for_role(role_key: str):
-    """不同角色挂载不同工具；若 agent_config 覆写了工具则采用覆写。"""
+    """不同角色挂载不同工具；若 agent_config 覆写了工具则采用覆写。
+    最后合并该角色可见的 MCP 外部工具（P1-5），失败/未配置时自动为空。"""
     names = builtin_tool_names(role_key)
     try:
         from app.agents import agent_config
-        cfg = agent_config.load().get(role_key, {})
-        if cfg.get("tools") is not None:
-            names = list(cfg["tools"])
+        out_cfg = agent_config.load().get(role_key, {})
+        if out_cfg.get("tools") is not None:
+            names = list(out_cfg["tools"])
     except Exception:
         pass
-    return [TOOLS_BY_NAME[n] for n in names if n in TOOLS_BY_NAME]
+    tools = [TOOLS_BY_NAME[n] for n in names if n in TOOLS_BY_NAME]
+    # MCP 外部工具：name 前缀 mcp_<server>_<tool>，避免与内置工具冲突
+    try:
+        from app.agents import mcp as mcp_mod
+        mcp_tools = mcp_mod.mcp_tools_for_role(role_key)
+        names = {t.name for t in tools}
+        for t in mcp_tools:
+            if getattr(t, "name", "") and t.name not in names:
+                tools.append(t)
+                names.add(t.name)
+    except Exception:
+        pass  # MCP 未配置/SDK 未装：不影响内置工具
+    return tools
+
+
+def all_tool_names() -> list:
+    """全部可用工具名（内置 + MCP），供前端设置页展示。"""
+    names = list(TOOLS_BY_NAME.keys())
+    try:
+        from app.agents import mcp as mcp_mod
+        if mcp_mod.sdk_available() and mcp_mod.configured_servers():
+            for t in mcp_mod.mcp_tools_for_role(""):
+                if getattr(t, "name", "") and t.name not in names:
+                    names.append(t.name)
+    except Exception:
+        pass
+    return names
+
+
+# ------------------------- 工具级指标（P2-3） -------------------------
+# 每工具 调用数 / 成功 / 失败 / 累加耗时，供 /api/admin/usage 与前端工具
+# 面板展示成功率、平均耗时与失败工具清单（对标 LangSmith 工具级观测）。
+TOOL_STATS: dict = {}
+
+
+def tool_stats_record(name: str, ok: bool, ms: float) -> None:
+    """记录一次工具调用的结果与耗时（进程内聚合）。"""
+    s = TOOL_STATS.setdefault(
+        name, {"calls": 0, "ok": 0, "fail": 0, "ms": 0.0, "last_err": ""}
+    )
+    s["calls"] += 1
+    s["ms"] += ms
+    if ok:
+        s["ok"] += 1
+    else:
+        s["fail"] += 1
+        s["last_err"] = ""
+
+
+def tool_stats_record_error(name: str, err: str) -> None:
+    """记录一次失败的工具名与最近错误（重试期间累计的失败也归入统计）。"""
+    s = TOOL_STATS.setdefault(
+        name, {"calls": 0, "ok": 0, "fail": 0, "ms": 0.0, "last_err": ""}
+    )
+    s["fail"] += 1
+    s["last_err"] = str(err)[:200]
+
+
+def tool_stats_snapshot() -> dict:
+    """快照：每工具 调用/成功/失败/成功率/平均耗时；整体成功率与最慢工具 TOP。"""
+    out = {}
+    for name, s in TOOL_STATS.items():
+        calls = max(1, int(s.get("calls") or 0))
+        ok = int(s.get("ok") or 0)
+        out[name] = {
+            "calls": calls,
+            "ok": ok,
+            "fail": int(s.get("fail") or 0),
+            "success_rate": round(ok / calls, 3),
+            "avg_ms": round(float(s.get("ms") or 0) / calls, 1),
+            "last_err": str(s.get("last_err") or "")[:120],
+        }
+    total_ok = sum(s.get("ok", 0) for s in TOOL_STATS.values())
+    total = sum(s.get("calls", 0) for s in TOOL_STATS.values())
+    slowest = max(out.items(), key=lambda kv: kv[1]["avg_ms"], default=None)
+    return {
+        "tools": out,
+        "total_calls": total,
+        "overall_success_rate": round(total_ok / total, 3) if total else 0.0,
+        "slowest": {"tool": slowest[0], "avg_ms": slowest[1]["avg_ms"]} if slowest else None,
+    }

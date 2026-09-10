@@ -29,6 +29,11 @@ _MAP = {k: k.upper() for k in (
     "intake_model",
     "stream_experts",
     "parallel_experts",
+    "llm_cache_size",
+    "rate_limit_max",
+    "rate_limit_window",
+    "llm_cost_per_1k_in",
+    "llm_cost_per_1k_out",
     "code_sandbox_enabled",
     "code_sandbox_backend",
     "code_sandbox_docker_image",
@@ -55,6 +60,11 @@ def current() -> dict:
         "max_concurrency": settings.max_concurrency,
         "llm_timeout": settings.llm_timeout,
         "llm_max_tokens": settings.llm_max_tokens,
+        "llm_cache_size": settings.llm_cache_size,
+        "rate_limit_max": settings.rate_limit_max,
+        "rate_limit_window": settings.rate_limit_window,
+        "llm_cost_per_1k_in": settings.llm_cost_per_1k_in,
+        "llm_cost_per_1k_out": settings.llm_cost_per_1k_out,
         "web_search_enabled": settings.web_search_enabled,
         "intake_model": settings.intake_model,
         "stream_experts": settings.stream_experts,
@@ -113,6 +123,37 @@ def update(payload: dict) -> dict:
         if _f in payload and payload[_f] is not None:
             try:
                 setattr(settings, _f, max(0, min(50000, int(payload[_f]))))
+            except (TypeError, ValueError):
+                pass
+    if "llm_cache_size" in payload and payload["llm_cache_size"] is not None:
+        try:
+            new_size = max(0, min(100000, int(payload["llm_cache_size"])))
+            grew = new_size > settings.llm_cache_size
+            settings.llm_cache_size = new_size
+            if not grew:
+                from app.models.llm import clear_response_cache
+                clear_response_cache()  # 缩容即清空，避免残留超限条目
+        except (TypeError, ValueError):
+            pass
+
+    # P2-4 限流 / P2-6 成本核算：运行期可调
+    if "rate_limit_max" in payload and payload["rate_limit_max"] is not None:
+        try:
+            settings.rate_limit_max = max(0, min(100000, int(payload["rate_limit_max"])))
+            if settings.rate_limit_max == 0:
+                from app.auth import reset_rate_limits
+                reset_rate_limits()
+        except (TypeError, ValueError):
+            pass
+    if "rate_limit_window" in payload and payload["rate_limit_window"] is not None:
+        try:
+            settings.rate_limit_window = max(1, min(86400, int(payload["rate_limit_window"])))
+        except (TypeError, ValueError):
+            pass
+    for _f in ("llm_cost_per_1k_in", "llm_cost_per_1k_out"):
+        if _f in payload and payload[_f] is not None:
+            try:
+                setattr(settings, _f, max(0.0, float(payload[_f])))
             except (TypeError, ValueError):
                 pass
 
@@ -187,6 +228,11 @@ def _persist() -> None:
         "MAX_CONCURRENCY": str(settings.max_concurrency),
         "LLM_TIMEOUT": str(settings.llm_timeout),
         "LLM_MAX_TOKENS": str(settings.llm_max_tokens),
+        "LLM_CACHE_SIZE": str(settings.llm_cache_size),
+        "RATE_LIMIT_MAX": str(settings.rate_limit_max),
+        "RATE_LIMIT_WINDOW": str(settings.rate_limit_window),
+        "LLM_COST_PER_1K_IN": str(settings.llm_cost_per_1k_in),
+        "LLM_COST_PER_1K_OUT": str(settings.llm_cost_per_1k_out),
         "WEB_SEARCH_ENABLED": "true" if settings.web_search_enabled else "false",
         "INTAKE_MODEL": settings.intake_model,
         "CODE_SANDBOX_ENABLED": "true" if settings.code_sandbox_enabled else "false",
