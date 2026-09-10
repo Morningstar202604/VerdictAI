@@ -310,6 +310,17 @@ async def preprocess(raw: dict, use_llm: bool = True, cfg: dict = None) -> dict:
     case = raw
     image_captions = await _extract_images(case) if use_llm else []
     dossier = _build_dossier_text(case, image_captions)
+    # PDF/长文本案件：把全文交给抽取模型（受上下文上限保护），
+    # 否则抽取只能看到 summary 前 2000 字，正文后半部分的结构信息全部丢失
+    if case.get("pdf_text"):
+        src = str(case["pdf_text"])
+        cap = max(
+            4000,
+            int((cfg or {}).get("context_char_limit") or settings.context_char_limit or 12000),
+        )
+        dossier += "\n\n# 卷宗全文（供结构化抽取，优先依据）\n" + (
+            src[:cap] if len(src) > cap else src
+        )
 
     intent = "未指定"
     intent_tags: List[str] = []

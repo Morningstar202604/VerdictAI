@@ -26,7 +26,7 @@ class MockChatModel(BaseChatModel):
     role_hint: str = "expert"
     _INTAKE_MARK = "只输出一个 JSON 对象"
     _IMG_MARK = "请简要描述这张图片中与案件相关的信息"
-    _QA_MARK = "你是审判长。 辩论已终结、裁决已作出。"
+    _QA_MARK = "你是审判长。辩论已终结、裁决已作出。"
 
     @property
     def _llm_type(self) -> str:

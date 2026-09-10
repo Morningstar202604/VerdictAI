@@ -89,7 +89,21 @@ jobs:
 
       - name: Inline application syntax check
         run: |
-          node -e "const fs=require('fs');const h=fs.readFileSync('backend/app/static/index.html','utf8');const m=h.match(/<script>([\s\S]*)<\/script>/);if(!m)throw new Error('inline script not found');new Function(m[1]);if(!h.includes('id=\"tab-agent\"'))throw new Error('agent tab missing');if(!h.includes('id=\"tab-kb\"'))throw new Error('kb tab missing');console.log('frontend OK')"
+          node -e "
+          const fs=require('fs');
+          for (const n of ['app-core','app-ui']) {
+            const p='backend/app/static/assets/'+n+'.js';
+            new Function(fs.readFileSync(p,'utf8'));
+          }
+          const c=fs.readFileSync('backend/app/static/assets/app.css','utf8');
+          if(c.length<1000) throw new Error('app.css too small');
+          const h=fs.readFileSync('backend/app/static/index.html','utf8');
+          if(!h.includes('/static/assets/app-core.js')) throw new Error('core.js link missing');
+          if(!h.includes('/static/assets/app-ui.js')) throw new Error('ui.js link missing');
+          if(!h.includes('id=\"tab-agent\"')) throw new Error('agent tab missing');
+          if(!h.includes('id=\"tab-kb\"')) throw new Error('kb tab missing');
+          console.log('frontend OK')
+          "
 
   frontend-build:
     name: Frontend (React build)

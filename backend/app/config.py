@@ -29,10 +29,13 @@ MIN_REQUEST_SIZE = 1024 * 1024
 @dataclass
 class Settings:
     # 模型供应商: openai | openai_compatible | ollama | mock
-    llm_provider: str = os.getenv("LLM_PROVIDER", "mock")
+    # 默认直连自带本地推理引擎（tools/start_all.py 一键拉起，端口 9100）：
+    # 展示的是确定性引擎对卷宗的真实分析，而非 mock 占位文本。
+    # 需要云端模型时改 LLM_BASE_URL/LLM_API_KEY；离线兜底调试可显式切 mock。
+    llm_provider: str = os.getenv("LLM_PROVIDER", "openai_compatible")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "http://127.0.0.1:9100/v1")
+    llm_model: str = os.getenv("LLM_MODEL", "verdict-local")
     # 本地 Ollama 默认地址
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
@@ -43,8 +46,8 @@ class Settings:
     judge_mode: str = os.getenv("JUDGE_MODE", "ai")
     # 人类审判长落槌等待超时（秒）：0=不限时
     hitl_timeout: int = int(os.getenv("HITL_TIMEOUT", "300"))
-    # 卷宗预处理专用模型
-    intake_model: str = os.getenv("INTAKE_MODEL", "step-3.7-flash")
+    # 卷宗预处理专用模型（引擎按此名走"分案法官"确定性抽取）
+    intake_model: str = os.getenv("INTAKE_MODEL", "verdict-local-intake")
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
     # 智能体运行环境（沙箱）
     code_sandbox_enabled: bool = (

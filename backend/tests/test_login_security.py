@@ -9,9 +9,10 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main as app_main
+from app import auth as app_auth
+from app.auth import _issue_session_token, _verify_session
 from app.config import settings
-from app.main import app, _issue_session_token, _verify_session
+from app.main import app
 
 # 测试口令分段构造，避免在源码中出现完整口令字面量（门禁规则）
 PW = os.environ.get("TEST_LOGIN_PW", "test" + "-pw-" + "123")
@@ -24,9 +25,9 @@ def client():
 
 @pytest.fixture(autouse=True)
 def _reset_login_state():
-    app_main._login_fails.clear()
+    app_auth._login_fails.clear()
     yield
-    app_main._login_fails.clear()
+    app_auth._login_fails.clear()
 
 
 @pytest.fixture()

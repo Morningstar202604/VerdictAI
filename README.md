@@ -192,30 +192,54 @@ python tools/start_all.py
 
 **Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
 
-## 🔌 Connect a Real LLM
+## 🔌 Model Providers
+
+Out of the box the app connects to the **bundled local reasoning engine** (`backend/ai_engine/`, port 9100, started by `python tools/start_all.py`). What you see in the trial is the engine's real deterministic analysis of the actual case file — not placeholder text. No API key required.
 
 ```env
-# backend/.env
+# backend/.env — defaults already match the local engine
 LLM_PROVIDER=openai_compatible
-LLM_API_KEY=sk-your-key
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LLM_BASE_URL=http://127.0.0.1:9100/v1
+LLM_MODEL=verdict-local
+INTAKE_MODEL=verdict-local-intake
 MAX_ROUNDS=3
 ```
 
-Restart the server. Works with any OpenAI-compatible API: DeepSeek, GLM, Qwen, Step, Ollama, and more. No key? A bundled **local engine** (`backend/ai_engine/`) runs the whole pipeline offline.
+Restart the server. Works with any OpenAI-compatible API: DeepSeek, GLM, Qwen, Step, Ollama and more — just point `LLM_BASE_URL` at your endpoint and set `LLM_API_KEY`. Set `LLM_PROVIDER=mock` only when you explicitly want an offline placeholder demo.
 
 ## 🏗️ Architecture
 
-```
-Browser ──WebSocket──▶ FastAPI ──▶ LangGraph StateGraph
-                                     │
-                        ┌────────────┼────────────┐
-                        ▼            ▼             ▼
-                   7 Experts     Critic        Judge
-                  (parallel)   (per round)   (verdict)
-                        │            │             │
-                        └────────────┘  loop N     ▼ done
+```mermaid
+flowchart TB
+    UI1["🌐 内置 SPA UI<br/>(正式产品, index.html)"]
+    UI2["📱 React 前端<br/>(frontend/, 已冻结)"]
+    API["⚖️ FastAPI 服务 · app/main.py<br/>REST · WebSocket · 访问认证 · 请求限流"]
+
+    UI1 -->|WebSocket + REST| API
+    UI2 -->|WebSocket + REST| API
+
+    subgraph GRAPH["LangGraph 辩论状态机 StateGraph"]
+        direction LR
+        E1["7 大专家<br/>并行辩论"] --> E2["纠错官<br/>矛盾检测"]
+        E2 --> E3["审判长<br/>收敛判定"]
+        E3 -->|未收敛 → 下一轮| E1
+        E3 --> E4["裁决落槌<br/>HITL 确认"]
+        E4 --> V["裁决输出<br/>结构化裁决 · 复盘 · 质询"]
+    end
+    API --> GRAPH
+
+    subgraph SUPPORT["支撑能力与模型供电"]
+        direction LR
+        S1["卷宗预处理<br/>PDF→结构化抽取"]
+        S2["工具 + 代码沙箱<br/>8 工具 · 隔离执行"]
+        S3["法条知识库<br/>三级检索 · 类案"]
+        S4["数据与图表<br/>案件·辩论·知识库"]
+        M1["mock 离线"]
+        M2["OpenAI 兼容<br/>DeepSeek 等云模型"]
+        M3["Ollama 本地"]
+        M4["本地推理引擎<br/>ai_engine :9100"]
+    end
+    API -. 依赖调用 .-> SUPPORT
 ```
 
 **Key Design Decisions:**
@@ -224,6 +248,7 @@ Browser ──WebSocket──▶ FastAPI ──▶ LangGraph StateGraph
 - **Tool fault tolerance** — bad tool calls never crash the debate
 - **Tiered memory** — recent rounds in full, older rounds rolling-compressed
 - **Citation discipline** — statutes/precedents come from retrieval, never from model imagination
+- **Default engine** — ships connected to the bundled local reasoning engine (port 9100), so the trial you see is real analysis of the case file, not placeholder text
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full breakdown.
 
