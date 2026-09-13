@@ -19,7 +19,7 @@ def _defaults() -> dict:
     out = {}
     for key, r in ROLES.items():
         grp = (
-            "investigation"
+            "expert"
             if key in INVESTIGATION_ORDER
             else "trial"
             if key in TRIAL_ORDER
@@ -94,7 +94,9 @@ def load() -> dict:
 
 def save(data: dict) -> dict:
     clean = {}
-    for k, v in data.items():
+    for k, v in (data or {}).items():
+        if not isinstance(v, dict):
+            continue
         clean[k] = {
             "enabled": bool(v.get("enabled", True)),
             "order": int(v.get("order", 99)),

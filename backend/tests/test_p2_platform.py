@@ -211,15 +211,15 @@ def test_estimate_cost(monkeypatch):
 def test_prompt_registry_versions_and_resolve():
     from app.agents import prompts
 
-    assert prompts.prompt_latest("judge") == 2  # judge 登记了 v1/v2
-    assert prompts.prompt_versions("judge") == [1, 2]
+    assert prompts.prompt_latest("judge") == 3  # judge 登记了 v1/v2/v3（判决化）
+    assert prompts.prompt_versions("judge") == [1, 2, 3]
     body, ver = prompts.resolve("judge", 1)
     assert ver == 1 and "truth_hypothesis" in body
-    body2, ver2 = prompts.resolve("judge", None)
-    assert ver2 == 2 and "错误事实" in body2
+    body3, ver3 = prompts.resolve("judge", None)
+    assert ver3 == 3 and "findings_of_fact" in body3 and "evidence_findings" in body3
     # 非法版本回退最新
-    body3, ver3 = prompts.resolve("judge", 99)
-    assert ver3 == 2
+    body4, ver4 = prompts.resolve("judge", 99)
+    assert ver4 == 3
 
 
 def test_agent_config_prompt_version_persist(monkeypatch):

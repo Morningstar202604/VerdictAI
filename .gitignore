@@ -43,6 +43,7 @@ node_modules/
 
 # Logs
 *.log
+backend/logs/
 
 # Test artifacts
 _verify*.py
@@ -64,6 +65,9 @@ backend/data/agent_config.json
 backend/data/knowledge_base.json
 backend/data/presets.json
 
+# Auth & user accounts (never commit credentials)
+backend/data/users.json
+
 # Runtime-generated case charts (regenerated per case; generate_case.py
 # redraws the template charts on every call, so tracked copies go stale)
 backend/data/cases/assets/
@@ -80,3 +84,6 @@ backend/data/logs/
 
 # Prompt audit trail (opt-in AUDIT_PROMPTS)
 backend/data/audit/
+
+# Service logs & runtime scratch
+logs/

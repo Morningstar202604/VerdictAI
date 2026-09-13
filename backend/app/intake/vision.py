@@ -43,7 +43,7 @@ def ocr_data_url(data_url: str) -> str:
 
 async def describe_image(data_url: str, name: str = "图片", cfg: Optional[dict] = None) -> str:
     """返回该图片的案情描述。优先级：多模态 LLM → OCR → 如实占位。"""
-    ocr = ocr_data_url(data_url)
+    ocr = await asyncio.to_thread(ocr_data_url, data_url)
     if not is_mock(cfg):
         try:
             llm = get_llm("分案法官", cfg=cfg)

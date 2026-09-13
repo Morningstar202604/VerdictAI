@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -283,7 +284,7 @@ async def _store_upload(data: dict) -> dict:
     try:
         from app.charts import generate_charts
 
-        data["charts"] = generate_charts(data)
+        data["charts"] = await asyncio.to_thread(generate_charts, data)
     except Exception as ex:
         log.warning("chart generation failed for %s: %s", cid, ex)
         data["charts"] = {}
@@ -331,7 +332,8 @@ async def upload_case(payload: dict, _: dict = Depends(require_admin)):
     if not isinstance(payload, dict):
         return JSONResponse({"error": "案件须为 JSON 对象"}, status_code=400)
     data = dict(payload)
-    err = _apply_document(data)
+    # PDF 解析/OCR 是秒级同步重活，丢线程池执行，避免卡死事件循环
+    err = await asyncio.to_thread(_apply_document, data)
     if err:
         return JSONResponse({"error": err}, status_code=400)
     try:
@@ -352,7 +354,7 @@ async def import_batch(payload: dict, _: dict = Depends(require_admin)):
             results.append({"ok": False, "error": "文件项格式错误"})
             continue
         data = dict(f)
-        err = _apply_document(data)
+        err = await asyncio.to_thread(_apply_document, data)
         if err:
             data["title"] = data.get("file_name") or data.get("title") or "未命名"
             results.append({"ok": False, "file_name": data["title"], "error": err})

@@ -42,10 +42,27 @@ _MAP = {k: k.upper() for k in (
 _MAP["temperature"] = "LLM_TEMPERATURE"
 
 
+_MASK_PREFIX = "••••"
+
+
+def mask_key(key: str) -> str:
+    """API Key 展示态：只露末 4 位，接口不下发明文。"""
+    key = str(key or "")
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return _MASK_PREFIX
+    return _MASK_PREFIX + key[-4:]
+
+
+def _is_masked(v: str) -> bool:
+    return str(v or "").startswith(_MASK_PREFIX)
+
+
 def current() -> dict:
     return {
         "llm_provider": settings.llm_provider,
-        "llm_api_key": settings.llm_api_key,
+        "llm_api_key": mask_key(settings.llm_api_key),
         "llm_base_url": settings.llm_base_url,
         "llm_model": settings.llm_model,
         "ollama_base_url": settings.ollama_base_url,
@@ -91,6 +108,9 @@ def update(payload: dict) -> dict:
                 v = v.strip().lower()
                 if v not in ("mock", "openai", "openai_compatible", "ollama"):
                     v = "mock"  # 非法值回退到 mock，避免静默使用未知 provider
+            if f == "llm_api_key" and (not v.strip() or _is_masked(v)):
+                # 空值/展示态打码值都视为"保持原 key"，防止把密钥改坏
+                continue
             setattr(settings, f, v)
 
     if "temperature" in payload and payload["temperature"] is not None:
@@ -236,7 +256,11 @@ def _persist() -> None:
         "WEB_SEARCH_ENABLED": "true" if settings.web_search_enabled else "false",
         "INTAKE_MODEL": settings.intake_model,
         "CODE_SANDBOX_ENABLED": "true" if settings.code_sandbox_enabled else "false",
+        "CODE_SANDBOX_BACKEND": settings.code_sandbox_backend,
+        "CODE_SANDBOX_DOCKER_IMAGE": settings.code_sandbox_docker_image,
         "CODE_SANDBOX_PYTHON": settings.code_sandbox_python,
+        "STREAM_EXPERTS": settings.stream_experts,
+        "PARALLEL_EXPERTS": settings.parallel_experts,
     }
 
     out: list[str] = []

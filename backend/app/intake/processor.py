@@ -17,6 +17,7 @@ ROLE_FOCUS: Dict[str, str] = {
     "law": "证据资格、非法证据排除、证明标准、程序正义",
     "prosecutor": "整合证据形成指控逻辑链、指出证明缺口",
     "defense": "质疑控方链节、提出替代解释与合理怀疑",
+    "assessor": "生活经验与常情常理：证据还原的事实是否可信、结论是否合常识",
     "judge": "全局事实汇总、矛盾点、收敛判断",
 }
 
@@ -52,6 +53,7 @@ ROLE_EVIDENCE_KEYWORDS: Dict[str, List[str]] = {
     ],
     "prosecutor": [],
     "defense": [],
+    "assessor": [],
     "judge": [],
 }
 

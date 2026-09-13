@@ -6,6 +6,7 @@ app.config.Settings 在导入时读取环境变量，因此 DATA_DIR / LLM_PROVI
 
 import os
 import tempfile
+from pathlib import Path
 
 os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="vai-test-data-")
 os.environ["LLM_PROVIDER"] = "mock"
@@ -13,3 +14,11 @@ os.environ["LLM_PROVIDER"] = "mock"
 os.environ["STREAM_EXPERTS"] = "auto"
 os.environ["PARALLEL_EXPERTS"] = "auto"
 os.environ["LLM_CACHE_SIZE"] = "0"
+# 测试默认开放模式（无访问口令）；登录/RBAC 用例自行 monkeypatch 口令
+os.environ["ACCESS_PASSWORD"] = ""
+
+# runtime 的设置持久化会改写 backend/.env：测试必须指向临时文件，
+# 否则跑一次测试就会把开发者/部署的真实 .env 覆盖成 mock 配置
+from app import runtime as _runtime  # noqa: E402
+
+_runtime.ENV_PATH = Path(os.environ["DATA_DIR"]) / ".env"

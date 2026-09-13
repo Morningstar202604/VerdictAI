@@ -27,33 +27,72 @@ def _kb_path() -> str:
 
 # ----------------------------- 内置法条库 -----------------------------
 
+_CN_DIGITS = {"零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+              "六": 6, "七": 7, "八": 8, "九": 9,
+              "壹": 1, "贰": 2, "叁": 3, "肆": 4, "伍": 5,
+              "陆": 6, "柒": 7, "捌": 8, "玖": 9}
+_CN_UNITS = {"十": 10, "拾": 10, "百": 100, "佰": 100, "千": 1000, "仟": 1000}
+
+
+def cn_to_int(s: str) -> int:
+    """中文数字（至多四位）→ int；已是阿拉伯数字则直接解析；解析失败返回 -1。
+    仅服务法条编号匹配，不支持「万」及以上。"""
+    s = (s or "").strip()
+    if not s:
+        return -1
+    if all(ch.isdigit() for ch in s):
+        return int(s)
+    total = 0
+    num = 0
+    ok = False
+    for ch in s:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+            ok = True
+        elif ch in _CN_UNITS:
+            unit = _CN_UNITS[ch]
+            total += (num or 1) * unit
+            num = 0
+            ok = True
+        else:
+            return -1
+    return total + num if ok else -1
+
+
 BUILTIN: list[dict] = [
     {
         "id": "b-csl-50", "source": "builtin", "category": "刑事 · 证据规则",
+        "law": "中华人民共和国刑事诉讼法", "article_no": 50,
         "title": "《中华人民共和国刑事诉讼法》第50条（证据定义）",
         "keywords": ["证据", "查证属实", "定案", "物证", "书证"],
         "text": "可以用于证明案件事实的材料，都是证据。证据包括：物证；书证；证人证言；被害人陈述；犯罪嫌疑人、被告人供述和辩解；鉴定意见；勘验、检查、辨认、侦查实验等笔录；视听资料、电子数据。证据必须经过查证属实，才能作为定案的根据。",
     },
     {
         "id": "b-csl-55", "source": "builtin", "category": "刑事 · 证明标准",
+        "law": "中华人民共和国刑事诉讼法", "article_no": 55,
         "title": "《中华人民共和国刑事诉讼法》第55条（重证据、证明标准）",
         "keywords": ["证明标准", "排除合理怀疑", "口供", "证据确实充分", "孤证"],
         "text": "对一切案件的判处都要重证据，重调查研究，不轻信口供。只有被告人供述，没有其他证据的，不能认定被告人有罪；没有被告人供述，证据确实、充分的，可以认定被告人有罪。证据确实、充分的条件：定罪量刑的事实都有证据证明；证据经法定程序查证属实；综合全案证据，对所认定事实已排除合理怀疑。",
     },
     {
         "id": "b-csl-56", "source": "builtin", "category": "刑事 · 非法证据排除",
+        "law": "中华人民共和国刑事诉讼法", "article_no": 56,
         "title": "《中华人民共和国刑事诉讼法》第56条（非法证据排除）",
         "keywords": ["非法证据", "排除", "刑讯逼供", "违法取证", "取证程序"],
         "text": "采用刑讯逼供等非法方法收集的犯罪嫌疑人、被告人供述和采用暴力、威胁等非法方法收集的证人证言、被害人陈述，应当予以排除。收集物证、书证不符合法定程序，可能严重影响司法公正的，应当予以补正或者作出合理解释；不能补正或者作出合理解释的，对该证据应当予以排除。",
     },
     {
         "id": "b-cl-232", "source": "builtin", "category": "刑事 · 罪名",
+        "law": "中华人民共和国刑法", "article_no": 232, "charge": "故意杀人罪",
+        "penalty_range": {"min_years": 0, "max_years": None, "kinds": ["管制", "拘役", "有期徒刑", "无期徒刑", "死刑"]},
         "title": "《中华人民共和国刑法》第232条（故意杀人罪）",
         "keywords": ["故意杀人", "命案", "他杀", "死亡", "剥夺他人生命"],
         "text": "故意杀人的，处死刑、无期徒刑或者十年以上有期徒刑；情节较轻的，处三年以上十年以下有期徒刑。",
     },
     {
         "id": "b-cl-233", "source": "builtin", "category": "刑事 · 罪名",
+        "law": "中华人民共和国刑法", "article_no": 233, "charge": "过失致人死亡罪",
+        "penalty_range": {"min_years": 0, "max_years": 7, "kinds": ["有期徒刑"]},
         "title": "《中华人民共和国刑法》第233条（过失致人死亡罪）",
         "keywords": ["过失致人死亡", "过失", "疏忽大意", "过于自信"],
         "text": "过失致人死亡的，处三年以上七年以下有期徒刑；情节较轻的，处三年以下有期徒刑。本法另有规定的，依照规定。",
@@ -78,12 +117,14 @@ BUILTIN: list[dict] = [
     },
     {
         "id": "b-mcl-577", "source": "builtin", "category": "民事 · 合同",
+        "law": "中华人民共和国民法典", "article_no": 577,
         "title": "《中华人民共和国民法典》第577条（违约责任）",
         "keywords": ["违约", "合同", "继续履行", "违约责任"],
         "text": "当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。",
     },
     {
         "id": "b-mcl-590", "source": "builtin", "category": "民事 · 合同",
+        "law": "中华人民共和国民法典", "article_no": 590,
         "title": "《中华人民共和国民法典》第590条（不可抗力）",
         "keywords": ["不可抗力", "免责", "不能预见", "不能避免"],
         "text": "当事人一方因不可抗力不能履行合同的，根据不可抗力的影响，部分或者全部免除责任，但法律另有规定的除外。因不可抗力不能履行合同的，应当及时通知对方，以减轻可能给对方造成的损失，并应当在合理期限内提供证明。",
@@ -108,6 +149,85 @@ BUILTIN: list[dict] = [
         "text": "主张不可抗力免责须同时满足：事件不能预见、不能避免且不能克服；义务人已及时通知对方以减损；并在合理期限内提供证明。迟延履行期间发生的「不可抗力」不免责。法院还会审查违约是否系多因一果，按原因力比例分配责任。",
     },
 ]
+
+
+# --------------------- 结构化法条查询（B 阶段引用核验） ---------------------
+
+_LAW_ALIASES = {
+    "刑事诉讼法": "中华人民共和国刑事诉讼法",
+    "刑诉法": "中华人民共和国刑事诉讼法",
+    "中华人民共和国刑事诉讼法": "中华人民共和国刑事诉讼法",
+    "刑法": "中华人民共和国刑法",
+    "中华人民共和国刑法": "中华人民共和国刑法",
+    "民法典": "中华人民共和国民法典",
+    "中华人民共和国民法典": "中华人民共和国民法典",
+}
+
+
+def canon_law(title: str) -> str | None:
+    """把《…法》各种写法归一到标准法名；不认识返回 None。"""
+    t = (title or "").strip().strip("《》").replace(" ", "")
+    if not t:
+        return None
+    if t in _LAW_ALIASES:
+        return _LAW_ALIASES[t]
+    for alias, canon in _LAW_ALIASES.items():
+        if alias and alias in t:
+            return canon
+    return None
+
+
+def parse_article_no(article: str) -> int:
+    """从「第55条 / 五十五 / 55」提取条号；解析失败返回 -1。"""
+    import re
+    a = (article or "").strip()
+    if not a:
+        return -1
+    m = re.search(r"(\d+)", a)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"[零一二三四五六七八九十百千壹贰叁肆伍陆柒捌玖拾佰仟两]+", a)
+    if m:
+        s = m.group(0).replace("两", "二")
+        return cn_to_int(s)
+    return -1
+
+
+def find_statute(title: str, article: str) -> dict | None:
+    """按（法名, 条号）精确查内置法条库；命中返回条目，未命中返回 None。"""
+    canon = canon_law(title)
+    if not canon:
+        return None
+    no = parse_article_no(article)
+    if no < 0:
+        return None
+    for e in BUILTIN:
+        if e.get("law") == canon and e.get("article_no") == no:
+            return e
+    return None
+
+
+def law_known(title: str) -> bool:
+    """法名是否为库内已知法律（条文收录与否不保证）。"""
+    return canon_law(title) is not None
+
+
+def article_numbers_of_law(canon: str) -> list[int]:
+    return sorted(
+        e["article_no"] for e in BUILTIN
+        if e.get("law") == canon and isinstance(e.get("article_no"), int)
+    )
+
+
+def find_statute_by_charge(charge: str) -> dict | None:
+    """按罪名（如「故意杀人罪」）找罪名条文条目。"""
+    c = (charge or "").strip()
+    if not c:
+        return None
+    for e in BUILTIN:
+        if e.get("charge") and (e["charge"] == c or c in e["charge"] or e["charge"] in c):
+            return e
+    return None
 
 
 def _load_custom() -> list[dict]:

@@ -1,7 +1,8 @@
 """专家并行发言测试。
 
 铁律：gather 保持传入顺序 → 无论完成先后，claims 与轮次摘要的
-角色顺序都确定；mock 演示保持串行（auto 语义）；并发上限真实生效。"""
+角色顺序都确定；mock 演示保持串行（auto 语义）；并发上限真实生效。
+断言一律用 DEBATE_ROLES 数量驱动，角色增减不用改测试。"""
 
 import asyncio
 import json
@@ -10,6 +11,8 @@ import pytest
 
 from app.agents.nodes import DEBATE_ROLES, _parallel_enabled, experts_node
 from app.config import debate_snapshot, settings
+
+N_EXPERTS = len(DEBATE_ROLES)
 
 
 @pytest.fixture()
@@ -25,7 +28,7 @@ def debate_env(monkeypatch):
         return None
 
     cfg = debate_snapshot()
-    cfg["max_concurrency"] = 7
+    cfg["max_concurrency"] = N_EXPERTS
     config = {"configurable": {"sink": sink, "cfg": cfg, "note_tasks": [], "usage": {}}}
     state = {
         "case": {"id": "case_par", "title": "并行测试案件", "summary": "并行测试。",
@@ -94,19 +97,19 @@ def test_concurrency_cap_serializes_when_one(debate_env, monkeypatch):
 
     starts = [i for i, e in enumerate(debate_env["events"]) if e["kind"] == "agent_start"]
     ends = [i for i, e in enumerate(debate_env["events"]) if e["kind"] == "agent_end"]
-    assert len(starts) == 7 and len(ends) == 7
+    assert len(starts) == N_EXPERTS and len(ends) == N_EXPERTS
     # 串行：第 1 个 agent_end 必然早于最后 1 个 agent_start
     assert ends[0] < starts[-1]
 
 
 def test_parallel_overlaps_in_flight(debate_env, monkeypatch):
-    """默认并发 7：多个专家在他人结束前就已开始（真并行在飞）。"""
+    """并发数 = 专家数：所有专家在他人结束前就已开始（真并行在飞）。"""
     _patch_note_tasks(monkeypatch)
     monkeypatch.setattr(settings, "parallel_experts", "on")
     cfg = debate_env["config"]["configurable"]["cfg"]
     cfg["parallel_experts"] = "on"
     cfg["llm_provider"] = "mock"
-    cfg["max_concurrency"] = 7
+    cfg["max_concurrency"] = N_EXPERTS
     monkeypatch.setattr(settings, "llm_provider", "mock")
 
     asyncio.run(experts_node(debate_env["state"], debate_env["config"]))

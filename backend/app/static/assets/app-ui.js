@@ -10,7 +10,16 @@
         if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t,done)); }
         else fallbackCopy(t,done);
       });
-      function addContra(c){ contraList.push(c); const wrap=$("contra"); if(wrap.querySelector(".muted")) wrap.innerHTML=""; const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); const el=document.createElement("div"); el.className="contra"; el.innerHTML=`<div class="cp">${parties?"⚠ "+parties:"⚠ 矛盾点"}</div><div class="ci md">${renderMarkdown(c.issue)}</div>`; wrap.appendChild(el); }
+      function addContra(c){
+        contraList.push(c); const wrap=$("contra"); if(wrap.querySelector(".muted")) wrap.innerHTML="";
+        const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ ");
+        const el=document.createElement("details"); el.className="contra contra-fold";
+        // 当事人常显，长段论证默认折叠，展开才阅读
+        el.innerHTML=`<summary class="cp"><span>⚠ ${parties?escape(parties):"矛盾点"}</span><span class="fold-hint">展开论证</span></summary><div class="ci md">${renderMarkdown(c.issue)}</div>`;
+        wrap.appendChild(el);
+        const hint=$("contraHint"); if(hint) hint.textContent = contraList.length + " 项 · ";
+        const cf=wrap.closest(".card-fold"); if(cf && !cf.open && contraList.length===1) cf.open=true;
+      }
       function addRecording(role, name, note){
         recNotes.push({role, name, note});
         const wrap=$("recording"); if(!wrap) return;
@@ -19,19 +28,51 @@
         const evs=(note.evidence_ids||[]).map(e=>`<span class="ev-tag">${escape(e)}</span>`).join("");
         const ds=(note.doubts||[]).map(d=>`${escape(d)}`).join("；");
         const imp=(note.implicates||[]).map(k=>`${escape((roleMap[k]||{}).name||k)}`).join("、");
-        const el=document.createElement("div"); el.className="rec-note";
-        el.innerHTML=`<div class="rn-head"><span class="rn-dot" style="background:${color}"></span>${escape(name||role)}</div>`+
+        const el=document.createElement("details"); el.className="rec-note rec-fold";
+        // 专家与核心主张常显（阅读主线），证据/指向/存疑默认折叠
+        el.innerHTML=`<summary class="rn-head"><span class="rn-dot" style="background:${color}"></span><span class="rn-name">${escape(name||role)}</span><span class="rn-caret"></span></summary>`+
           `<div class="rn-sec">核心主张</div><div class="rn-claim md">${renderMarkdown(note.claim||"（无摘要）")}</div>`+
-          (evs?`<div class="rn-sec">依据证据</div><div class="rn-evs">${evs}</div>`:"")+
-          (imp?`<div class="rn-sec">指向人员</div><div class="rn-imp">👤 ${imp}</div>`:"")+
-          (ds?`<div class="rn-sec">存疑事项</div><div class="rn-doubt">⚠ ${ds}</div>`:"");
+          (evs?`<details class="rc-sub"><summary>🔗 依据证据 · ${(note.evidence_ids||[]).length} 项</summary><div class="rn-evs">${evs}</div></details>`:"")+
+          (imp?`<details class="rc-sub"><summary>👤 指向人员</summary><div class="rn-imp">${imp}</div></details>`:"")+
+          (ds?`<details class="rc-sub"><summary>⚠ 存疑事项</summary><div class="rn-doubt">${ds}</div></details>`:"");
         wrap.appendChild(el);
       }
       function renderVerdict(v){ if(!v) return;
-        const sec=(t,arr)=>(arr&&arr.length)?`<div class="vsec">${t}</div><ul>${arr.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:"";
+        // 恢复已持久化的「后续流程」勾选（复盘/刷新后不丢）
+        if(Array.isArray(v.ns_done)){ nsDone=new Set(v.ns_done.map(Number).filter(i=>i>=0)); }
+        const mdList=(arr)=>(arr&&arr.length)?`<ul>${arr.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:"";
+        // 证据链强度条：百分比常显，主要问题默认收起
         const es=v.evidence_strength||{}; const pct=Math.round((es.score||0)*100);
-        const bar=(es.score!=null)?`<div class="strength st-${pct>=75?"ok":pct>=45?"warn":"bad"}"><div class="st-row">证据链强度<b>${pct}%</b></div><div class="st-bar"><i style="width:${pct}%"></i></div>${(es.issues||[]).length?`<ul class="st-issues">${es.issues.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:""}</div>`:"";
-        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${bar}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
+        const bar=(es.score!=null)?`<details class="vfold vfold-strength st-${pct>=75?"ok":pct>=45?"warn":"bad"}"><summary><span class="sf-title">证据链强度 <b class="st-pct">${pct}%</b></span><span class="st-bar mini"><i style="width:${pct}%"></i></span></summary>${(es.issues||[]).length?`<div class="rn-sec">主要问题</div><ul class="st-issues">${es.issues.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:""}</details>`:"";
+        const secFold=(icon,t,n,arr)=>(arr&&arr.length)?`<details class="vfold"><summary>${icon} ${t} · ${n} 项 <span class="fold-hint">点击展开</span></summary>${mdList(arr)}</details>`:"";
+        const fold=(icon,t,body)=>body?`<details class="vfold"><summary>${icon} ${t} <span class="fold-hint">点击展开</span></summary>${body}</details>`:"";
+        // 判决式裁决书：事实认定与裁决主文常显，质证/说理/法条/量刑等过程内容折叠
+        const facts=(v.findings_of_fact||v.truth_hypothesis||"")?`<div class="vsec">经审理查明</div><div class="vcore md">${renderMarkdown(v.findings_of_fact||v.truth_hypothesis)}</div>`:"";
+        const ef=(v.evidence_findings||[]);
+        const efTable=ef.length?`<table class="vf-table"><thead><tr><th>编号</th><th>证据</th><th>三性意见</th><th>认定</th></tr></thead><tbody>${ef.map(f=>`<tr class="${f.admitted?"adm":"rej"}"><td>${escape(f.id||"—")}</td><td class="md">${renderMarkdown(f.name||"")}${f.reason?`<div class="vf-reason md">${renderMarkdown(f.reason)}</div>`:""}</td><td class="md">${renderMarkdown(f.opinion||"")}</td><td><span class="vf-tag ${f.admitted?"ok":"no"}">${f.admitted?"采信":"排除"}</span></td></tr>`).join("")}</tbody></table>`:"";
+        const lc=(v.law_citations||[]);
+        // B 阶段引用核验徽标：selfcheck.verification.citations 按 title+article 对齐
+        const ver=(window._selfcheck&&window._selfcheck.verification)||null;
+        const verOf=(c)=>{ if(!ver||!(ver.citations||[]).length) return null;
+          const norm=s=>String(s||"").replace(/[《》\s]/g,"");
+          return ver.citations.find(r=>norm(r.title).includes(norm(c.title))||norm(c.title).includes(norm(r.title)))||null; };
+        const verTag=(c)=>{ const r=verOf(c); if(!r) return "";
+          const map={verified:["ok","✓ 已核验"],not_in_library:["no","✗ 疑似虚构"],unknown_law:["warn","? 待人工核验"]};
+          const m=map[r.status]; return m?`<span class="vf-verify ${m[0]}" title="${escape(r.note||"")}">${m[1]}</span>`:""; };
+        const lcList=lc.length?`<ul class="vf-cites">${lc.map(c=>`<li>《${escape(String(c.title||"").replace(/[《》]/g,""))}》${escape(c.article||"")} ${verTag(c)}<span class="muted"> · ${renderMarkdown(c.purpose||"")}</span></li>`).join("")}</ul>`+(ver?`<div class="ver-sum ${ver.flagged?"bad":"ok"}">${ver.flagged?`⚠ ${ver.verified} 条已核验，${ver.flagged} 条待复核（详见下方主要问题）`:`✓ ${ver.verified} 条引用全部通过内置法条库核验`}</div>`:""):"";
+        const rulingMain=(v.ruling||"")?`<div class="vsec">裁决主文</div><div class="vruling md">${renderMarkdown(v.ruling)}</div>`:"";
+        const sent=(v.sentencing||"")?`<div class="vsec">量刑与责任承担</div><div class="vsent md">${renderMarkdown(v.sentencing)}${(ver&&ver.sentencing_check)?`<div class="ver-sum ${ver.sentencing_check.ok?"ok":"bad"}">${ver.sentencing_check.ok?"✓":"⚠"} ${escape(ver.sentencing_check.note||"")}（${escape(ver.sentencing_check.range_text||"")}）</div>`:""}</div>`:"";
+        const extras=[
+          fold("🧾","证据认定 · "+ef.length+" 项",efTable),
+          fold("⚖️","裁判说理",v.reasoning?`<div class="md">${renderMarkdown(v.reasoning)}</div>`:""),
+          fold("📜","引用法条 · "+lc.length+" 条",lcList),
+          rulingMain,sent,
+          secFold("❓","存疑点",v.doubts.length,v.doubts),
+          secFold("🔗","证据链",v.evidence_chain.length,v.evidence_chain),
+          (v.recommendation)?`<details class="vfold"><summary>📋 处置建议 <span class="fold-hint">点击展开</span></summary><div class="md">${renderMarkdown(v.recommendation)}</div></details>`:"",
+          bar,
+        ].join("");
+        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${facts}${extras}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
         // 裁决后处理工具条 + 质询面板
         $("verdictTools").classList.remove("hidden");
         $("qaBox").classList.remove("hidden");
@@ -67,22 +108,39 @@
         box.classList.remove("hidden");
         const items = steps.map((s,i)=>`<label class="ns-item${nsDone.has(i)?" done":""}"><input type="checkbox" data-i="${i}" ${nsDone.has(i)?"checked":""} onchange="toggleNs(this)"><span><span class="no">${i+1}.</span>${escapeHtml(s)}</span></label>`).join("");
         const pct = steps.length ? Math.round(nsDone.size/steps.length*100) : 0;
-        box.innerHTML=`<div class="ns-head"><span>后续流程清单（可勾选跟踪）</span><span class="muted" id="nsProg">${nsDone.size}/${steps.length} 已完成</span></div><div class="ns-bar"><div style="width:${pct}%"></div></div>${items}`;
+        // 清单默认收起，进度常显；勾选或点开时再展开明细
+        box.innerHTML=`<details class="ns-fold"><summary><span>后续流程清单</span><span class="ns-prog" id="nsProg">${nsDone.size}/${steps.length} 已完成 · ${pct}%</span><span class="fold-hint">点击展开</span></summary><div class="ns-bar"><div style="width:${pct}%"></div></div>${items}</details>`;
         box.dataset.total = steps.length;
+      }
+      let _nsTimer=null;
+      function persistNextSteps(){
+        if(!session || currentRole!=="admin"){ return; }
+        clearTimeout(_nsTimer);
+        _nsTimer=setTimeout(async()=>{
+          try{
+            const r=await fetch(`/api/debates/${session}/next-steps`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({done:[...nsDone]})});
+            if(!r.ok){ toast("后续流程勾选保存失败（需管理员）"); }
+          }catch(e){ /* 网络断时不阻塞交互，下次勾选再试 */ }
+        }, 600);
       }
       function toggleNs(cb){
         const i = +cb.dataset.i;
         if(cb.checked) nsDone.add(i); else nsDone.delete(i);
         const box=$("nextSteps");
         cb.closest(".ns-item").classList.toggle("done", cb.checked);
-        const p=$("nsProg"); if(p) p.textContent = `${nsDone.size}/${box.dataset.total} 已完成`;
+        // 折叠头同步进度；首次勾选时自动展开明细便于继续勾选
+        const total=box.dataset.total||1; const pct=Math.round(nsDone.size/total*100);
+        const p=$("nsProg"); if(p) p.textContent = `${nsDone.size}/${total} 已完成 · ${pct}%`;
         const bar=$("nextSteps").querySelector(".ns-bar > div");
-        if(bar) bar.style.width = (box.dataset.total ? Math.round(nsDone.size/box.dataset.total*100) : 0) + "%";
+        if(bar) bar.style.width = pct + "%";
+        const fold=$("nextSteps").querySelector(".ns-fold");
+        if(fold && cb.checked && !fold.open && nsDone.size===1){ fold.open=true; }
+        persistNextSteps();
       }
       function speakVerdict(){
         if(!("speechSynthesis" in window)){ toast("当前浏览器不支持语音朗读"); return; }
         if(window.__speaking){ speechSynthesis.cancel(); window.__speaking=false; $("btnSpeak").textContent="🔊 朗读"; return; }
-        const t = (lastVerdict||{}).truth_hypothesis || "裁决尚未生成";
+        const t = (lastVerdict||{}).ruling || (lastVerdict||{}).findings_of_fact || (lastVerdict||{}).truth_hypothesis || "裁决尚未生成";
         const u = new SpeechSynthesisUtterance(t);
         u.lang = "zh-CN"; u.rate = 1;
         u.onend = ()=>{ window.__speaking=false; const b=$("btnSpeak"); if(b) b.textContent="🔊 朗读"; };
@@ -93,7 +151,17 @@
       function verdictPlainText(){
         const v = lastVerdict||{};
         const list=(a)=>(a&&a.length)?a.map((x,i)=>`${i+1}. ${x}`).join("\n"):"（无）";
-        return `【真相推定】\n${v.truth_hypothesis||""}\n\n【证据链】\n${list(v.evidence_chain)}\n\n【存疑点】\n${list(v.doubts)}\n\n【处置建议】\n${v.recommendation||""}\n\n【后续流程】\n${list(v.next_steps||[])}\n\n${v.disclaimer||""}`;
+        let t="";
+        if(v.findings_of_fact) t+=`【经审理查明】\n${v.findings_of_fact}\n\n`;
+        if((v.evidence_findings||[]).length) t+=`【证据认定】\n${v.evidence_findings.map(f=>`- [${f.id||""}] ${f.name||""}：${f.opinion||""}（${f.admitted?"采信":"排除"}${f.reason?"，"+f.reason:""}）`).join("\n")}\n\n`;
+        if(v.reasoning) t+=`【裁判说理】\n${v.reasoning}\n\n`;
+        if((v.law_citations||[]).length) t+=`【引用法条】\n${v.law_citations.map(c=>`- ${c.title||""}${c.article||""}${c.purpose?"（"+c.purpose+"）":""}`).join("\n")}\n\n`;
+        if(v.ruling) t+=`【裁决主文】\n${v.ruling}\n\n`;
+        else if(v.truth_hypothesis) t+=`【真相推定】\n${v.truth_hypothesis}\n\n`;
+        if(v.sentencing) t+=`【量刑与责任承担】\n${v.sentencing}\n\n`;
+        if((v.evidence_chain||[]).length) t+=`【证据链】\n${list(v.evidence_chain)}\n\n`;
+        t+=`【存疑点】\n${list(v.doubts)}\n\n【处置建议】\n${v.recommendation||""}\n\n【后续流程】\n${list(v.next_steps||[])}\n\n${v.disclaimer||""}`;
+        return t;
       }
       function copyVerdict(){
         const t = verdictPlainText();
@@ -105,7 +173,7 @@
       function reportMarkdown(){
         const b = serverBrief || (caseDetail && caseDetail.brief) || {};
         const c = caseDetail || {};
-        let md = `# 审判报告 · ${c.title||""}\n\n> 案号：${c.id||""} ｜ 引擎：${settingsCache.llm_provider||""} · ${settingsCache.llm_model||""} ｜ 意图：${b.intent||""} ｜ 强度：${b.reasoning_intensity||""}\n\n`;
+        let md = `# 审判报告 · ${c.title||""}\n\n> **模拟参考文书 · 供合议庭审阅**：本报告由 AI 审查角色辅助生成，不具有法律效力，最终认定以合议庭评议为准。\n\n`
         md += `## 一、案件概要\n\n${c.summary||""}\n\n`;
         if((c.persons||[]).length) md += `## 二、涉案人员\n\n${c.persons.map(p=>`- **${p.name}**（${p.role||""}）：${p.desc||""}`).join("\n")}\n\n`;
         if((c.evidence||[]).length) md += `## 三、证据材料\n\n${c.evidence.map(e=>`- [${e.id}] ${e.type}：${e.desc}（可靠性${Math.round((e.reliability||0)*100)}%，保管链${e.chain_intact?"完整":"瑕疵"}）`).join("\n")}\n\n`;
@@ -114,7 +182,19 @@
         if(recNotes.length) md += `## 五、合议记录（摘要）\n\n${recNotes.map(r=>`- **${r.name}**：${r.note.claim||""}${(r.note.evidence_ids||[]).length?` ［${r.note.evidence_ids.join("、")}］`:""}`).join("\n")}\n\n`;
         if(contraList.length) md += `## 六、矛盾与纠错清单\n\n${contraList.map(x=>`- ⚠ ${x.issue||""}`).join("\n")}\n\n`;
         const v = lastVerdict||{};
-        md += `## 七、审判长裁决\n\n**真相推定**：${v.truth_hypothesis||""}\n\n`;
+        md += `## 七、审判长裁决\n\n**经审理查明**：${v.findings_of_fact||v.truth_hypothesis||""}\n\n`;
+        if((v.evidence_findings||[]).length) md += `**证据认定**\n\n${v.evidence_findings.map(f=>`- [${f.id||""}] ${f.name||""}：${f.opinion||""}（${f.admitted?"采信":"排除"}${f.reason?"，"+f.reason:""}）`).join("\n")}\n\n`;
+        if(v.reasoning) md += `**裁判说理**：${v.reasoning}\n\n`;
+        if((v.law_citations||[]).length) md += `**引用法条**\n\n${v.law_citations.map(c=>`- ${c.title||""}${c.article||""}${c.purpose?"（"+c.purpose+"）":""}`).join("\n")}\n\n`;
+        const _ver=(window._selfcheck&&window._selfcheck.verification)||null;
+        if(_ver&&(_ver.citations||[]).length){
+          const _mark={verified:"✓",not_in_library:"✗",unknown_law:"?"};
+          md += `**引用核验**（内置法条库确定性比对，供人工复核）\n\n${_ver.citations.map(r=>`- ${_mark[r.status]||"·"} ${r.title||""}${r.article||""}：${r.note||""}`).join("\n")}\n`;
+          if(_ver.sentencing_check&&_ver.sentencing_check.note) md += `- 量刑区间校验：${_ver.sentencing_check.ok?"通过":"不通过"}——${_ver.sentencing_check.note}\n`;
+          md += "\n";
+        }
+        if(v.ruling) md += `**裁决主文**：${v.ruling}\n\n`;
+        if(v.sentencing) md += `**量刑与责任承担**：${v.sentencing}\n\n`;
         if((v.evidence_chain||[]).length) md += `**证据链**\n\n${v.evidence_chain.map((x,i)=>`${i+1}. ${x}`).join("\n")}\n\n`;
         if((v.doubts||[]).length) md += `**存疑点**\n\n${v.doubts.map(x=>`- ${x}`).join("\n")}\n\n`;
         if(v.recommendation) md += `**处置建议**：${v.recommendation}\n\n`;
@@ -141,7 +221,7 @@
       function downloadMarkdown(){
         const blob = new Blob([reportMarkdown()], {type:"text/markdown;charset=utf-8"});
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href=url; a.download = `审判报告_${(caseDetail&&caseDetail.id)||"case"}.md`; a.click();
+        const a = document.createElement("a"); a.href=url; a.download = safeFname(`审判报告_${caseTitle(caseDetail)||"case"}`) + ".md"; a.click();
         setTimeout(()=>URL.revokeObjectURL(url), 2000);
         toast("Markdown 报告已导出");
       }
@@ -150,17 +230,28 @@
         const b = serverBrief || (caseDetail && caseDetail.brief) || {};
         const c = caseDetail || {}; const v = lastVerdict || {};
         const li = (t, arr) => (arr && arr.length) ? `<h2>${t}</h2><ul>${arr.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>` : "";
+        const sec = (t, html) => html ? `<h2>${t}</h2><div class="sec">${html}</div>` : "";
         let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审理裁决书 - ${escape(c.title||"")}</title>`;
-        h += `<style>body{font-family:"Noto Serif SC","Songti SC","SimSun",serif;max-width:800px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:2} h1{text-align:center;font-size:22px;letter-spacing:4px;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:12px;margin-bottom:18px} h2{font-size:15px;margin:20px 0 6px} .meta{border-top:1px solid #999;border-bottom:1px solid #999;padding:8px 0;font-size:13px;margin:12px 0} .sec{margin:8px 0} .main{font-size:15px;font-weight:700} ul{margin:4px 0;padding-left:22px} li{margin:3px 0} .sign{margin-top:36px;text-align:right;color:#333;font-size:13px} .disc{margin-top:24px;color:#888;font-size:11px;border-top:1px dashed #bbb;padding-top:8px} @media print{body{margin:0 auto}}</style></head><body>`;
-        h += `<h1>审 理 裁 决 书</h1><div class="sub">VerdictAI 多智能体合议系统 · 辅助研究文书</div>`;
-        h += `<div class="meta">案号：${escape(c.id||"")}　｜　案件：${escape(c.title||"")}<br>调查意图：${escape(b.intent||"")}　｜　审理轮次：${round||"—"} 轮　｜　合议庭：七专家 + 纠错官 + 审判长</div>`;
+        h += `<style>body{font-family:"Noto Serif SC","Songti SC","SimSun",serif;max-width:800px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:2} h1{text-align:center;font-size:22px;letter-spacing:4px;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:12px;margin-bottom:18px} .mark{text-align:center;color:#8a6d3b;font-size:12px;margin:10px 0 4px;letter-spacing:1px} h2{font-size:15px;margin:20px 0 6px} .meta{border-top:1px solid #999;border-bottom:1px solid #999;padding:8px 0;font-size:13px;margin:12px 0} .sec{margin:8px 0} .main{font-size:15px;font-weight:700} ul{margin:4px 0;padding-left:22px} li{margin:3px 0} .sign{margin-top:36px;text-align:right;color:#333;font-size:13px} .disc{margin-top:24px;color:#888;font-size:11px;border-top:1px dashed #bbb;padding-top:8px} @media print{body{margin:0 auto}}</style></head><body>`;
+        h += `<h1>审 理 裁 决 书</h1><div class="mark">— 模拟参考文书 · 供合议庭审阅 —</div><div class="sub">VerdictAI 多智能体合议系统 · 辅助研究文书</div>`;
+        h += `<div class="meta">案号：${escape(c.id||"")}　｜　案件：${escape(c.title||"")}<br>调查意图：${escape(b.intent||"")}　｜　审理轮次：${round||"—"} 轮　｜　合议庭：八位庭审角色 + 纠错官 + 审判长</div>`;
         h += `<h2>一、案件事实</h2><div class="sec">${renderMarkdown(c.summary||"（无）")}</div>`;
         if(c.persons&&c.persons.length) h += `<h2>二、涉案当事人</h2><div class="sec">${c.persons.map(p=>`${escape(p.name||"")}（${escape(p.role||"")}）`).join("　")}</div>`;
-        h += li("三、经审理采信的证据链", v.evidence_chain||[]);
-        if(v.doubts&&v.doubts.length) h += `<h2>四、存疑事项（不予认定或需查证）</h2><div class="sec"><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
-        h += `<h2>五、裁决主文</h2><div class="sec main">${renderMarkdown(v.truth_hypothesis||"（无）")}</div>`;
-        if(v.recommendation) h += `<h2>六、处理建议</h2><div class="sec">${renderMarkdown(v.recommendation)}</div>`;
-        if(v.next_steps&&v.next_steps.length) h += `<h2>七、后续事项</h2><ul>${v.next_steps.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>`;
+        const ef=(v.evidence_findings||[]);
+        if(ef.length) h += `<h2>三、证据认定（质证结论）</h2><div class="sec"><table style="width:100%;border-collapse:collapse;font-size:13px"><tr><th style="border:1px solid #999;padding:4px">编号</th><th style="border:1px solid #999;padding:4px">证据</th><th style="border:1px solid #999;padding:4px">三性意见</th><th style="border:1px solid #999;padding:4px">认定</th></tr>${ef.map(f=>`<tr><td style="border:1px solid #999;padding:4px;text-align:center">${escape(f.id||"—")}</td><td style="border:1px solid #999;padding:4px">${renderMarkdown(f.name||"")}${f.reason?`<br><span style="color:#666">${renderMarkdown(f.reason)}</span>`:""}</td><td style="border:1px solid #999;padding:4px">${renderMarkdown(f.opinion||"")}</td><td style="border:1px solid #999;padding:4px;text-align:center;color:${f.admitted?"#166534":"#991b1b"}">${f.admitted?"采信":"排除"}</td></tr>`).join("")}</table></div>`;
+        h += li("四、经审理采信的证据链", v.evidence_chain||[]);
+        if(v.doubts&&v.doubts.length) h += `<h2>五、存疑事项（不予认定或需查证）</h2><div class="sec"><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
+        h += sec("六、裁判说理", v.reasoning?renderMarkdown(v.reasoning):"");
+        if(v.law_citations&&v.law_citations.length) h += `<h2>七、引用法条</h2><ul>${v.law_citations.map(c=>`<li>${renderMarkdown((c.title||"")+(c.article||""))}${c.purpose?`（${renderMarkdown(c.purpose)}）`:""}</li>`).join("")}</ul>`;
+        const _ver=(window._selfcheck&&window._selfcheck.verification)||null;
+        if(_ver&&(_ver.citations||[]).length){
+          const _mark={verified:"✓",not_in_library:"✗",unknown_law:"?"};
+          h += `<h2>引用核验（供人工复核）</h2><ul style="font-size:12px;color:#555">${_ver.citations.map(r=>`<li>${_mark[r.status]||"·"} ${escape(String(r.title||""))} ${escape(String(r.article||""))}：${escape(r.note||"")}</li>`).join("")}${(_ver.sentencing_check&&_ver.sentencing_check.note)?`<li>量刑区间校验：${_ver.sentencing_check.ok?"通过":"不通过"}——${escape(_ver.sentencing_check.note)}</li>`:""}</ul>`;
+        }
+        h += `<h2>八、裁决主文</h2><div class="sec main">${renderMarkdown(v.ruling||v.truth_hypothesis||"（无）")}</div>`;
+        h += sec("九、量刑与责任承担", v.sentencing?renderMarkdown(v.sentencing):"");
+        if(v.recommendation) h += `<h2>十、处理建议</h2><div class="sec">${renderMarkdown(v.recommendation)}</div>`;
+        if(v.next_steps&&v.next_steps.length) h += `<h2>十一、后续事项</h2><ul>${v.next_steps.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>`;
         h += `<div class="sign">合议庭：VerdictAI 多智能体系统<br>${new Date().toLocaleDateString("zh-CN")}</div>`;
         if(v.disclaimer) h += `<div class="disc">${escape(v.disclaimer)}</div>`;
         h += `</body></html>`;
@@ -170,7 +261,7 @@
         if(!lastVerdict){ toast("裁决尚未生成"); return; }
         const blob = new Blob([verdictDocHtml()], {type:"text/html;charset=utf-8"});
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href=url; a.download = `审理裁决书_${(caseDetail&&caseDetail.id)||"case"}.html`; a.click();
+        const a = document.createElement("a"); a.href=url; a.download = safeFname(`审理裁决书（模拟参考）_${caseTitle(caseDetail)||"case"}`) + ".html"; a.click();
         setTimeout(()=>URL.revokeObjectURL(url), 2000);
         toast("裁决书已导出（浏览器打开可打印为 PDF）");
       }
@@ -213,7 +304,7 @@
         const v = lastVerdict || {};
         let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审判报告 - ${escape(c.title||"")}</title>`;
         h += `<style>body{font-family:-apple-system,'Microsoft YaHei',sans-serif;max-width:880px;margin:24px auto;padding:0 18px;color:#0f172a;line-height:1.75} h1{border-bottom:3px solid #7f1d1d;padding-bottom:8px} h2{margin-top:28px;color:#7f1d1d;border-left:4px solid #7f1d1d;padding-left:10px} .meta{color:#64748b;font-size:13px} .rec{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:10px 0} .rec .n{font-weight:700} .sec{background:#f8fafc;border-radius:8px;padding:10px 14px;margin:6px 0} .seal{display:inline-block;border:2px solid #7f1d1d;color:#7f1d1d;border-radius:50%;width:30px;height:30px;line-height:26px;text-align:center;font-weight:700;font-size:13px} pre{white-space:pre-wrap;background:#fff7ed;padding:8px;border-radius:8px} .disc{color:#64748b;font-size:12px;margin-top:10px} ul{margin:4px 0;padding-left:20px} li{margin:2px 0} .qa-a{border-left:3px solid #b45309;padding-left:10px;margin:6px 0} @media print{ body{margin:0 auto} h2{page-break-after:avoid} .rec{page-break-inside:avoid} }</style></head><body>`;
-        h += `<h1>审判报告</h1><div class="meta">案号：${escape(c.id||"")} ｜ 标题：${escape(c.title||"")}<br>调查意图：${escape(brief.intent||"")} ｜ 思考强度：${escape(brief.reasoning_intensity||"")}</div>`;
+        h += `<h1>审判报告</h1><div style="text-align:center;color:#8a6d3b;font-size:12px;letter-spacing:1px;margin:6px 0 14px">— 模拟参考文书 · 供合议庭审阅 —</div><div class="meta">案号：${escape(c.id||"")} ｜ 标题：${escape(c.title||"")}<br>调查意图：${escape(brief.intent||"")} ｜ 思考强度：${escape(brief.reasoning_intensity||"")}</div>`;
         h += `<h2>一、案件概要</h2><div class="sec">${renderMarkdown(c.summary||"")}</div>`;
         if(c.persons&&c.persons.length){ h+="<h2>二、涉案人员</h2><div class='sec'>"+c.persons.map(p=>`<div><b>${escape(p.name)}</b>（${escape(p.role||"")}）：${escape(p.desc||"")}</div>`).join("")+"</div>"; }
         if(c.evidence&&c.evidence.length){ h+="<h2>三、证据材料</h2><div class='sec'>"+c.evidence.map(e=>`<div><b>[${escape(e.id||"")}]${escape(e.type||"")}</b>：${escape(e.desc||"")}（可靠性${e.reliability}，保管链${e.chain_intact?"完整":"瑕疵"}）</div>`).join("")+"</div>"; }
@@ -222,7 +313,17 @@
         h += `<h2>五、合议记录（实时摘要）</h2><div class="sec">${recNotes.length?recNotes.map(r=>`<div><b style="color:#1f3a5f">${escape(r.name)}</b>：${renderMarkdown(r.note.claim||"")}${r.note.evidence_ids&&r.note.evidence_ids.length?` ［证据：${r.note.evidence_ids.join("、")}］`:""}${r.note.doubts&&r.note.doubts.length?` <span style="color:#b45309">⚠ ${r.note.doubts.join("；")}</span>`:""}</div>`).join(""):"<div>无</div>"}</div>`;
         h += `<h2>六、矛盾与纠错清单</h2><div class="sec">${contraList.length?contraList.map(c=>{const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); return `<div>⚠ ${parties?parties+"：":""}${renderMarkdown(c.issue||"")}</div>`;}).join(""):"<div>无</div>"}</div>`;
         h += `<h2>七、审判长裁决</h2><div class="rec" style="border-color:#7f1d1d"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
-        h += `<div class="sec"><b>真相推定：</b>${renderMarkdown(v.truth_hypothesis||"")}</div>`;
+        h += `<div class="sec"><b>经审理查明：</b>${renderMarkdown(v.findings_of_fact||v.truth_hypothesis||"")}</div>`;
+        if(v.evidence_findings&&v.evidence_findings.length) h += `<div class="sec"><b>证据认定：</b><ul>${v.evidence_findings.map(f=>`<li>[${escape(f.id||"")}] ${escape(f.name||"")}：${renderMarkdown(f.opinion||"")} <b style="color:${f.admitted?"#166534":"#991b1b"}">${f.admitted?"采信":"排除"}</b>${f.reason?`（${renderMarkdown(f.reason)}）`:""}</li>`).join("")}</ul></div>`;
+        if(v.reasoning) h += `<div class="sec"><b>裁判说理：</b>${renderMarkdown(v.reasoning)}</div>`;
+        if(v.law_citations&&v.law_citations.length) h += `<div class="sec"><b>引用法条：</b><ul>${v.law_citations.map(c=>`<li>${escape(c.title||"")}${escape(c.article||"")}${c.purpose?`（${escape(c.purpose)}）`:""}</li>`).join("")}</ul></div>`;
+        const _ver=(window._selfcheck&&window._selfcheck.verification)||null;
+        if(_ver&&(_ver.citations||[]).length){
+          const _mark={verified:"✓",not_in_library:"✗",unknown_law:"?"};
+          h += `<div class="sec"><b>引用核验（供人工复核）：</b><ul style="font-size:12px;color:#555">${_ver.citations.map(r=>`<li>${_mark[r.status]||"·"} ${escape(String(r.title||""))} ${escape(String(r.article||""))}：${escape(r.note||"")}</li>`).join("")}${(_ver.sentencing_check&&_ver.sentencing_check.note)?`<li>量刑区间校验：${_ver.sentencing_check.ok?"通过":"不通过"}——${escape(_ver.sentencing_check.note)}</li>`:""}</ul></div>`;
+        }
+        if(v.ruling) h += `<div class="sec"><b>裁决主文：</b>${renderMarkdown(v.ruling)}</div>`;
+        if(v.sentencing) h += `<div class="sec"><b>量刑与责任承担：</b>${renderMarkdown(v.sentencing)}</div>`;
         if(v.evidence_chain&&v.evidence_chain.length) h += `<div class="sec"><b>证据链：</b><ul>${v.evidence_chain.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
         if(v.doubts&&v.doubts.length) h += `<div class="sec"><b>存疑点：</b><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
         if(v.recommendation) h += `<div class="sec"><b>处置建议：</b>${renderMarkdown(v.recommendation)}</div>`;
@@ -235,9 +336,13 @@
       function downloadReport(){
         const blob = new Blob([downloadReportHtml()], {type:"text/html;charset=utf-8"});
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href=url; a.download = `审判报告_${((caseDetail&&caseDetail.id)||"case")}.html`; a.click();
+        const a = document.createElement("a"); a.href=url; a.download = safeFname(`审判报告_${caseTitle(c)||"case"}`) + ".html"; a.click();
         setTimeout(()=>URL.revokeObjectURL(url), 2000);
       }
+      function safeFname(name){
+        return String(name||"export").replace(/[\\/:*?"<>|]/g, "").trim().slice(0, 80) || "export";
+      }
+      function caseTitle(c){ return ((c && c.title) || "").trim(); }
       function escape(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
       /* 设置 */
@@ -245,6 +350,8 @@
         $("s_provider").value=settingsCache.llm_provider||"openai_compatible"; syncSettingsFields();
         $("s_rounds").value=settingsCache.max_rounds??3; $("s_temp").value=settingsCache.temperature??0.3; $("s_judge").value=settingsCache.judge_mode||"ai"; $("s_hitl").value=settingsCache.hitl_timeout??300; $("s_intake").value=settingsCache.intake_model||"";
         $("s_sandbox").checked=!!settingsCache.code_sandbox_enabled; $("s_py").value=settingsCache.code_sandbox_python||"python3";
+        $("s_sbbackend").value=settingsCache.code_sandbox_backend||"auto"; $("s_sbimage").value=settingsCache.code_sandbox_docker_image||"python:3.12-slim";
+        $("s_stream").value=settingsCache.stream_experts||"auto"; $("s_parallel").value=settingsCache.parallel_experts||"auto";
         $("s_mem").value=settingsCache.memory_rounds??2; $("s_ctx").value=settingsCache.context_char_limit??12000;
         $("s_conc").value=settingsCache.max_concurrency??4; $("s_lto").value=settingsCache.llm_timeout??180;
         $("s_web").checked=!!settingsCache.web_search_enabled;
@@ -254,6 +361,16 @@
         $("settingsModal").classList.remove("hidden");
       }
       function closeSettings(){ $("settingsModal").classList.add("hidden"); }
+      /* ---------- 案件管理（案例库 + 复盘，一级入口） ---------- */
+      function openCaseManager(){ closeSettings(); switchCaseTab("lib"); refreshCaseLibrary(); refreshDebates(); $("caseModal").classList.remove("hidden"); }
+      function closeCaseManager(){ $("caseModal").classList.add("hidden"); }
+      function switchCaseTab(name){
+        document.querySelectorAll("[data-ctab]").forEach(t=>t.classList.toggle("on",t.dataset.ctab===name));
+        const lib=$("ctab-lib"), deb=$("ctab-debates");
+        if(lib) lib.classList.toggle("on", name==="lib");
+        if(deb){ deb.classList.toggle("on", name==="debates"); deb.style.display = name==="debates" ? "" : "none"; }
+        if(lib) lib.style.display = name==="lib" ? "" : "none";
+      }
       function switchTab(name){ document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===name)); document.querySelectorAll(".tabpane").forEach(p=>p.classList.toggle("on",p.id==="tab-"+name)); if(name==="board") renderBoard(); if(name==="agents") renderAgentConfig(); }
       function syncSettingsFields(){ const p=$("s_provider").value, local=p==="ollama", mock=p==="mock";
         if(local){ $("s_base").value=settingsCache.ollama_base_url||"http://localhost:11434/v1"; $("s_model").value=settingsCache.ollama_model||"qwen2.5:14b"; $("s_key").value=""; $("s_key").disabled=true; $("s_key").style.opacity=.4; $("lblKey").textContent="API Key（本地无需）"; $("lblBase").textContent="Ollama Base URL"; $("lblModel").textContent="Ollama 模型"; }
@@ -307,7 +424,7 @@
         if(isNaN(ctxL)||ctxL<0){ $("setMsg").textContent="上下文上限须为非负"; $("setMsg").style.color="var(--bad)"; return; }
         if(isNaN(conc)||conc<1||conc>7){ $("setMsg").textContent="并行数须为 1-7"; $("setMsg").style.color="var(--bad)"; return; }
         if(isNaN(lto)||lto<0||lto>1800){ $("setMsg").textContent="超时须为 0-1800 秒"; $("setMsg").style.color="var(--bad)"; return; }
-        const engine={ llm_provider:p, temperature:temp, max_rounds:rounds, judge_mode:$("s_judge").value, hitl_timeout:hitl, memory_rounds:memR, context_char_limit:ctxL, max_concurrency:conc, llm_timeout:lto, web_search_enabled:$("s_web").checked, intake_model:$("s_intake").value.trim(), code_sandbox_enabled:$("s_sandbox").checked, code_sandbox_python:$("s_py").value.trim()||"python3" };
+        const engine={ llm_provider:p, temperature:temp, max_rounds:rounds, judge_mode:$("s_judge").value, hitl_timeout:hitl, memory_rounds:memR, context_char_limit:ctxL, max_concurrency:conc, llm_timeout:lto, web_search_enabled:$("s_web").checked, intake_model:$("s_intake").value.trim(), code_sandbox_enabled:$("s_sandbox").checked, code_sandbox_python:$("s_py").value.trim()||"python3", code_sandbox_backend:$("s_sbbackend").value, code_sandbox_docker_image:$("s_sbimage").value.trim()||"python:3.12-slim", stream_experts:$("s_stream").value, parallel_experts:$("s_parallel").value };
         if(p==="ollama"){ engine.ollama_base_url=$("s_base").value.trim(); engine.ollama_model=$("s_model").value.trim(); }
         else if(p==="openai_compatible"||p==="openai"){ engine.llm_base_url=$("s_base").value.trim(); engine.llm_api_key=$("s_key").value.trim(); engine.llm_model=$("s_model").value.trim(); }
         const agentMap={}; Object.values(agentsCfg).forEach(a=>{ const ta=document.querySelector(`textarea[data-k="${a.key}"]`); const mi=document.querySelector(`input[data-model="${a.key}"]`); const prompt=ta?ta.value.trim():""; agentMap[a.key]={ enabled:a.enabled, order:a.order, system_prompt: prompt||null, tools:a.tools||null, model: (mi&&mi.value.trim())||null }; });
@@ -406,9 +523,11 @@
             const sim = e.semantic ? `<span class="badge" style="background:#eaf6ee;color:#1e7d3c">语义</span>` : "";
             el.innerHTML=`<div class="kb-title">${escapeHtml(e.title)}${sim}</div><div class="kb-meta">${escapeHtml(e.category||"")}${kws}</div><div class="kb-text md">${escapeHtml(e.text||"")}</div>`;
             if(e.source==="custom"){
-              const btn=document.createElement("button"); btn.className="ghost danger"; btn.textContent="删除"; btn.style.marginTop="8px"; btn.style.fontSize="11px";
-              btn.onclick=async()=>{ if(!await confirmDialog("删除该自定义条目？")) return; await fetch("/api/knowledge/"+e.id,{method:"DELETE"}); loadKnowledge(); };
-              el.appendChild(btn);
+              if(currentRole==="admin"){
+                const btn=document.createElement("button"); btn.className="ghost danger"; btn.textContent="删除"; btn.style.marginTop="8px"; btn.style.fontSize="11px";
+                btn.onclick=async()=>{ if(!await confirmDialog("删除该自定义条目？")) return; await fetch("/api/knowledge/"+e.id,{method:"DELETE"}); loadKnowledge(); };
+                el.appendChild(btn);
+              }
             } else {
               const tag=document.createElement("span"); tag.className="badge"; tag.textContent="内置"; tag.style.marginTop="8px"; tag.style.fontSize="10px";
               el.appendChild(tag);
@@ -512,8 +631,20 @@
         hideLanding();
         // 载入案件卷宗，保证复盘视图与报告正确
         if(rec.case_id){ try{ const c=await (await fetch("/api/cases/"+rec.case_id)).json(); if(c && c.id){ selectedCase=c.id; caseDetail=c; renderCase(); } }catch(e){ toast("加载复盘案件失败"); } }
+        session=sid; // 后续流程清单勾选持久化用
         reset();
-        rec.events.forEach(ev=>handle(ev));
+        // 上万条事件逐条重渲染会长期冻结 UI：回放期间挂起渲染，最后一次性重建
+        const _rd = window.renderDebate;
+        if(typeof _rd === "function"){ window.renderDebate = function(){}; }
+        try{
+          // 把落盘的「后续流程」勾选挂到裁决事件上，replay 时 renderVerdict 自动恢复
+          const nsSaved = Array.isArray(rec.ns_done) ? rec.ns_done : null;
+          rec.events.forEach(ev=>{
+            if(ev && ev.kind==="verdict" && nsSaved && ev.verdict){ ev.verdict.ns_done = nsSaved; }
+            handle(ev);
+          });
+        } finally { if(typeof _rd === "function"){ window.renderDebate = _rd; } }
+        renderDebate();
         setPhase("done");
         $("dlReport").classList.remove("hidden");
         toast("已载入复盘：" + (rec.case_title||sid));
@@ -524,7 +655,8 @@
         cases.forEach(c=>{
           const el=document.createElement("div"); el.className="lib-item";
           const hasBrief = c.brief && c.brief.intake_done;
-          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="openTimelineModal('${escape(c.id)}')">⏱ 时间线</button><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
+          const delBtn = currentRole==="admin" ? `<button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button>` : "";
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="openTimelineModal('${escape(c.id)}')">⏱ 时间线</button><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button>${delBtn}</div>`;
           box.appendChild(el);
         });
       }

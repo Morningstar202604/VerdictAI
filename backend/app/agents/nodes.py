@@ -36,7 +36,7 @@ from app.models.state import DebateState
 
 log = logging.getLogger("debate.nodes")
 
-# 参与辩论的专家（审判长作为收敛节点单独处理）
+# 参与庭审的专家与控辩审角色（审判长作为收敛节点单独处理）
 DEBATE_ROLES = [
     "scene",
     "forensic",
@@ -45,6 +45,7 @@ DEBATE_ROLES = [
     "law",
     "prosecutor",
     "defense",
+    "assessor",
 ]
 
 Sink = Callable[[Dict], Awaitable[None]]
@@ -697,19 +698,25 @@ async def _summarize_note(
 
 # ------------------------- 节点 1：多专家发言 -------------------------
 def _phase_hint(round_no: int, max_rounds: int) -> str:
-    """庭审阶段提示：让多轮辩论有剧本——初勘自由举证、中段交叉质证、
-    末轮结辩收束。对本地引擎与真实 LLM 同样生效。"""
-    if max_rounds >= 3 and round_no == 2:
-        return (
-            "（交叉质证轮）请至少点名一位其他专家在上一轮的具体主张，"
-            "明确说明你认可或反驳之处，并给出卷宗证据编号依据；"
-            "禁止只重申自己上一轮的观点。"
-        )
+    """庭审阶段剧本：第 1 轮法庭调查（出示证据、逐项质证三性）、第 2 轮法庭辩论
+    （交叉质证、控辩对抗）、末轮最后陈述与评议收束。对本地引擎与真实 LLM 同样生效。"""
     if max_rounds >= 2 and round_no >= max_rounds:
         return (
-            "（结辩轮）请给出最终结论性意见：核心主张一句话、"
-            "依据的证据编号清单、以及仍需补充侦查/审查的事项；"
+            "（最后陈述·评议轮）请给出最终结论性意见：核心主张一句话、"
+            "经质证后你仍予采信的证据编号清单、以及仍需查证/补强的事项；"
             "不要再抛出新论点。"
+        )
+    if round_no == 1:
+        return (
+            "（法庭调查·举证质证轮）请以出庭专家身份围绕卷宗证据逐项发言：每项证据的"
+            "真实性、合法性、关联性，保管链与取证程序有无瑕疵，该证据能证明什么、不能证明什么。"
+            "引用证据编号（如 E-01）作为发言依据，先摆证据、后下判断。"
+        )
+    if max_rounds >= 3 and round_no == 2:
+        return (
+            "（法庭辩论·交叉质证轮）请至少点名一位其他专家在上一轮的具体主张，"
+            "明确说明你认可或反驳之处，并给出卷宗证据编号依据；"
+            "禁止只重申自己上一轮的观点。"
         )
     return ""
 
@@ -998,13 +1005,21 @@ async def judge_node(state: DebateState, config) -> Dict:
 
     if is_mock(cfg):
         verdict = clean_verdict({
-            "truth_hypothesis": "基于现有卷宗，真相推定：案件存在多种可能，需在关键证据（凶器DNA、被告时间线）上进一步确认。",
-            "evidence_chain": [
-                "现场勘查确定出入口",
-                "法医确定死因与时间",
-                "物证DNA指向需复核",
-                "口供存在矛盾",
+            "findings_of_fact": "经审理查明：现有卷宗在关键证据（凶器DNA、被告时间线）上存在缺口，"
+            "指控事实尚未达到证据确实、充分的标准。",
+            "evidence_findings": [
+                {"id": "E-01", "name": "现场勘查笔录", "opinion": "真实性、合法性、关联性均无异议", "admitted": True, "reason": "勘查程序合法，与尸检结论相互印证"},
+                {"id": "E-02", "name": "法医尸检报告", "opinion": "三性认可", "admitted": True, "reason": "鉴定机构与人员具备资质，结论与其他证据吻合"},
+                {"id": "E-03", "name": "凶器DNA检验", "opinion": "同一性存疑", "admitted": False, "reason": "保管链存在断点，送检样本与现场提取物的同一性不能确认"},
             ],
+            "reasoning": "现场勘查与尸检可确认死因及出入口，但指控被告实施犯罪行为所依赖的DNA证据因保管链瑕疵不予采信，"
+            "排除后其余证据不能相互印证形成闭环，未达《中华人民共和国刑事诉讼法》第55条规定的证明标准。",
+            "law_citations": [
+                {"title": "《中华人民共和国刑事诉讼法》", "article": "第55条", "purpose": "证明标准"},
+                {"title": "《中华人民共和国刑事诉讼法》", "article": "第56条", "purpose": "证据补正与排除"},
+            ],
+            "ruling": "指控被告故意杀人的事实不清、证据不足，按现有证据不能认定。",
+            "sentencing": "",
             "doubts": ["被告供述与监控时间冲突", "物证保管链存在瑕疵"],
             "next_steps": [
                 "对关键生物检材（凶器DNA）补充复核鉴定",
@@ -1036,7 +1051,7 @@ async def judge_node(state: DebateState, config) -> Dict:
                 llm,
                 [HumanMessage(content=prompt)],
                 parse=_parse_verdict,
-                repair_hint="请输出裁决 JSON 对象，键为 truth_hypothesis/evidence_chain/doubts/recommendation/next_steps/disclaimer。",
+                repair_hint="请输出裁决 JSON 对象，键为 findings_of_fact/evidence_findings/reasoning/law_citations/ruling/sentencing/doubts/next_steps/disclaimer。",
                 with_schema=Verdict,
                 timeout=cfg.get("llm_timeout"),
                 sink=sink,
@@ -1048,13 +1063,52 @@ async def judge_node(state: DebateState, config) -> Dict:
                 raise ValueError("审判长未返回有效 JSON")
         except Exception:
             verdict = clean_verdict({
-                "truth_hypothesis": "（解析失败，请重试或调整模型）",
-                "evidence_chain": [],
+                "findings_of_fact": "（解析失败，请重试或调整模型）",
                 "doubts": [],
-                "recommendation": "",
                 "next_steps": [],
                 "disclaimer": "",
             })
+
+        # B3 核验回填：引用比对内置法条库，存在「疑似虚构」引用时，
+        # 一次性把核验报告交回审判长修正（不循环，防对话失控）
+        try:
+            from app.legal.verification import run_verification
+
+            _ver1 = run_verification(verdict)
+            _flagged = [r for r in _ver1["citations"] if r["status"] == "not_in_library"]
+            if _flagged:
+                fix_hint = (
+                    "【引用核验反馈】你的裁决中以下法条引用未能在内置法条库中核对到原文："
+                    + json.dumps(_flagged, ensure_ascii=False)
+                    + "\n请修正裁决：能确证原文的法条改为精确法名+条号；无法确证的"
+                    "从 law_citations 中删除并改述理由（宁可留空，不得编造）。"
+                    "输出修正后的完整裁决 JSON（其余字段保持不变）。"
+                )
+                await sink({"kind": "agent_start", "id": "lawfix", "role": "judge",
+                            "name": "审判长 · 法条引用核验"})
+                try:
+                    reparsed = await structured_call(
+                        llm,
+                        [HumanMessage(content=prompt),
+                         HumanMessage(content=json.dumps(verdict, ensure_ascii=False)),
+                         HumanMessage(content=fix_hint)],
+                        parse=_parse_verdict,
+                        repair_hint="请输出修正后的完整裁决 JSON 对象。",
+                        with_schema=Verdict,
+                        timeout=cfg.get("llm_timeout"),
+                        sink=sink,
+                        role_key="judge",
+                    )
+                    if isinstance(reparsed, dict):
+                        cand = clean_verdict(reparsed)
+                        if not any(r["status"] == "not_in_library"
+                                   for r in run_verification(cand)["citations"]):
+                            verdict = cand
+                except Exception:
+                    log.exception("引用核验回填失败，保留原裁决并标记待复核")
+                await sink({"kind": "agent_end", "id": "lawfix"})
+        except Exception:
+            log.exception("引用核验初始化失败")
 
     await sink({"kind": "verdict", "verdict": verdict})
     await sink({"kind": "judge_end", "consensus": True})
@@ -1062,6 +1116,19 @@ async def judge_node(state: DebateState, config) -> Dict:
     # 完整性自检（M2.2）+ 证据链强度（M3.2 前置）：裁决后确定性体检，
     # 结果随事件下发、落盘复盘；有缺项时在裁决上标记，交人类复核而非静默通过
     selfcheck = _selfcheck_case(state.get("case", {}) or {}, verdict, contradictions)
+    # B 阶段：法条引用核验 + 量刑区间校验（确定性比对内置法条库）
+    try:
+        from app.legal.verification import run_verification
+
+        verification = run_verification(verdict)
+    except Exception:
+        log.exception("引用核验失败（不影响裁决落盘）")
+        verification = None
+    if verification:
+        selfcheck["verification"] = verification
+        selfcheck["issues"] = selfcheck["issues"] + verification["issues"]
+        if verification["issues"]:
+            selfcheck["ok"] = False
     verdict["evidence_strength"] = {
         "score": selfcheck["strength"],
         "issues": selfcheck["issues"],
@@ -1111,14 +1178,19 @@ async def human_final_node(state: DebateState, config) -> Dict:
         try:
             verdict = json.loads(text)
         except Exception:
-            verdict = {"truth_hypothesis": text}
+            verdict = clean_verdict({"ruling": text})
     else:
-        verdict = {
-            "truth_hypothesis": text,
-            "evidence_chain": draft.get("evidence_chain", []),
+        verdict = clean_verdict({
+            "ruling": text,
+            "findings_of_fact": draft.get("findings_of_fact", ""),
+            "evidence_findings": draft.get("evidence_findings", []),
+            "reasoning": draft.get("reasoning", ""),
+            "law_citations": draft.get("law_citations", []),
+            "sentencing": draft.get("sentencing", ""),
             "doubts": draft.get("doubts", []),
+            "next_steps": draft.get("next_steps", []),
             "recommendation": "（由人类审判长直接裁决）",
             "disclaimer": draft.get("disclaimer", ""),
-        }
+        })
     await sink({"kind": "verdict", "verdict": verdict, "final": True, "by_human": True})
     return {"human_input": human_input, "verdict": verdict, "consensus": True}

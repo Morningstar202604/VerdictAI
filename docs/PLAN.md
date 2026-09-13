@@ -1,8 +1,9 @@
-# VerdictAI · 发展规划与实施计划（v1.0）
+# VerdictAI · 发展规划与实施计划（v1.1）
 
-> 定位：司法辅助多智能体审判推理引擎。七位专家举证质证 → 矛盾收敛 → 人类落槌。
+> 定位：司法辅助多智能体庭审理引擎。八位庭审角色（鉴定人/辅助人 + 控辩 + 人民陪审员）按「法庭调查→法庭辩论→评议」阶段剧本多轮质证 → 审判长按判决书结构起草裁决 → 法条引用确定性核验 → 人类落槌。
 > 本文档 = 现状盘点 + 行业对标 + 目标架构 + 分阶段任务 + 前后端 1:1 矩阵。
 > 原则：**引轮子不造轮子**；**每层横向可扩展**；**横切能力贯穿所有层**。
+> 边界声明：AI 不行使审判权，所有输出均为「模拟参考文书」，最终裁判权归属人类法官。
 
 ---
 
@@ -23,12 +24,15 @@
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | 多智能体辩论（LangGraph） | ✅ | [builder.py](../backend/app/graph/builder.py)：experts→critic→judge→human_final，max_rounds 收敛 |
+| 八角色庭审阵容 · 阶段剧本 | ✅ | [roles.py](../backend/app/agents/roles.py)：勘查/法医/物证鉴定人 + 供述/证据法辅助人 + 模拟控辩 + 人民陪审员（assessor）；[nodes.py](../backend/app/agents/nodes.py) `_phase_hint` 法庭调查→交叉质证→最后陈述 |
 | 七角色专家并行/流式 | ✅ | PARALLEL_EXPERTS / STREAM_EXPERTS 开关 |
 | 人类落槌（HITL） | ✅ | judge_mode=human 暂停等待，ws_detach_grace 断线保活 |
 | 矛盾互查节点（critic） | ✅ | list_contradictions 跨角色矛盾清单 |
 | **裁决前完整性自检** | ✅ | [nodes.py](../backend/app/agents/nodes.py) `_selfcheck_case`：裁决前确定性体检（未解释证据/未解决矛盾/缺法条引用 → 交人类复核） |
 | **反思/自我批评节点** | ✅ | [nodes.py](../backend/app/agents/nodes.py) `reflect_node`：judge 前对各角色主张做可证伪性审查（Reflexion），产出反对理由 |
 | **侦查计划（Planner）** | ✅ | [processor.py](../backend/app/intake/processor.py) `_build_investigation_plan`：复杂卷宗先产出"待证问题清单"再分发给专家 |
+| **判决化裁决结构** | ✅ | [schemas.py](../backend/app/models/schemas.py) Verdict：查明事实/逐证据认定（EvidenceFinding）/裁判说理/引用法条（LawCitation）/裁决主文/量刑建议；旧字段双写归一 |
+| **提示词版本注册中心** | ✅ | [prompts.py](../backend/app/agents/prompts.py)：_PROMOTXT 按角色多版本登记，agent_config 可钉版本；旧探案式 8 角色正文冻结 v1，庭审化正文自动登记 v2 |
 
 ### 1.3 记忆层（Memory）
 | 能力 | 状态 | 说明 |
@@ -51,6 +55,8 @@
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | 内置法条 + 自定义条目 | ✅ | [knowledge.py](../backend/app/legal/knowledge.py) GET/POST/DELETE 全具备 |
+| **法条结构化（B 阶段）** | ✅ | [knowledge.py](../backend/app/legal/knowledge.py)：法条条目补 `law`/`article_no`/`charge`/`penalty_range`（法定刑区间）；`find_statute`/`canon_law`/`parse_article_no`（含中文数字 `cn_to_int`）确定性查询 |
+| **引用核验 + 量刑校验（B 阶段）** | ✅ | [verification.py](../backend/app/legal/verification.py)：裁决 `law_citations` 与内置法条库比对（已核验/条文未收录/法名待核），`sentencing` 落法定刑区间校验；judge_node 检出疑似虚构引用时**一次性回填修正**（防循环），结果挂 selfcheck 事件下发 |
 | 混合检索（关键词+语义） | ✅ | hybrid_search + 前端语义开关 |
 | **Rerank 排序** | ✅ | [retriever.py](../backend/app/legal/retriever.py) ：bge-reranker 精排（可选依赖，缺失降级为混合检索现状） |
 | **引用溯源（grounding）** | ✅ | [nodes.py](../backend/app/agents/nodes.py) `_extract_citations`：专家发言标注引用条目/来源 URL，前端渲染"来源"徽标（对标 Perplexity/NotebookLM） |
@@ -61,7 +67,7 @@
 | 审判长裁决 + 存疑点 + 处置建议 | ✅ | [schemas.py](../backend/app/models/schemas.py) Verdict 模型 |
 | 追问 QA 面板 | ✅ | /api/qa + 前端 chips |
 | 证据图表（matplotlib） | ✅ | [charts.py](../backend/app/charts.py) 沙箱出图 |
-| **庭审核查报告导出** | ✅ | [reports.py](../backend/app/routers/reports.py)：Markdown/DOCX（裁决 + 矛盾 + 时间线 + 证据链 + 引用），缺 python-docx 降级纯 Markdown |
+| **庭审核查报告导出** | ✅ | [reports.py](../backend/app/routers/reports.py)：Markdown/DOCX（裁决 + 矛盾 + 时间线 + 证据链 + 引用 + **法条引用核验节**），缺 python-docx 降级纯 Markdown |
 | **证据时间线可视化** | ✅ | [cases.py](../backend/app/routers/cases.py) `/api/cases/{id}/timeline`：跨证据抽取时间戳 → 横向时间线视图（事件可点击回证据） |
 | **证据链强度/置信度标注** | ✅ | [nodes.py](../backend/app/agents/nodes.py) 自检产出 `strength` 评分；前端裁决渲染强度条与不确定性声明 |
 
@@ -176,8 +182,20 @@
 | 4.5 | **MCP 工具接入** | 可配置外部 MCP server（data/mcp_servers.json 或 MCP_SERVERS_JSON），工具以 `mcp_<server>_<tool>` 注册进角色工具表（角色白名单）；官方 mcp SDK 为可选依赖（requirements-ai.txt），缺失/未配置静默降级 | `/api/admin/mcp` 状态端点 + 角色授权 |
 | 4.6 | **多用户 RBAC** | users 表（data/users.json）+ admin/viewer 角色：令牌携带身份、写端点 require_admin 门禁、前端用户徽标与只读门禁；完全兼容单口令模式（无用户表时固定 admin） | 11 个 RBAC 测试（登录/门禁/最后一管理员保护/伪造令牌） |
 
-### M5（后续候选）
-多人协同审阅、i18n/无障碍、语音录入（Whisper 本地）、联邦多来源知识库、SSE 接入层、Prompt 版本管理 / 实验对比（A/B eval）。
+### M5（✅ 已完成，2026-09-13 · 庭审化 + 法条接地轮）
+> 方向：维持法院审判定位（AI 辅助、人类落槌），把「探案式多智能体」升级为「庭审化多智能体 +
+> 判决化裁决 + 法条 RAG 接地 + 确定性引用核验」。全部零新框架、可整体开关。
+| # | 任务 | 说明 | 验证 |
+|---|---|---|---|
+| 5.1 | **阶段化流水线** | `_phase_hint` 法庭调查（举证质证·证据编号）→法庭辩论（交叉质证·点名）→最后陈述（结论性意见·禁新论点）三轮剧本；min_rounds 收敛约束不变 | test_trial_realism 7 passed |
+| 5.2 | **角色重组（庭审化）** | 8 探案专家 → 5 鉴定人/辅助人（出庭接受质证）+ 新增 `assessor` 人民陪审员（社会常理事实审）；`EXPERT_ORDER` 替代旧 `INVESTIGATION_ORDER`；旧探案式提示词冻结 v1、庭审化正文自动登记 v2（提示词注册中心版本化，对标 LangSmith Prompt Hub） | roles.py 9 角色 + EXPERT/TRIAL 顺序测试 |
+| 5.3 | **判决化 Verdict** | Verdict schema 新增 findings_of_fact / evidence_findings（逐证据三性意见）/ reasoning / law_citations（LawCitation）/ ruling / sentencing；旧字段双写归一（clean_verdict）；前端判决式折叠卡（结论常显、过程折叠） | test_p2_platform + 浏览器回放实测 |
+| 5.4 | **法条 RAG 接地 + 引用核验** | 内置法条结构化（法名/条号/罪名/法定刑区间）+ `find_statute` 确定性查询；`verification.py` 比对 law_citations 与法条库（未收录→疑似虚构、法名未知→待人工核验）+ 量刑落法定刑区间校验；judge_node 检出后一次性回填修正，结果挂 selfcheck 事件与报告导出 | test_law_verification 12 passed |
+
+### M7（后续候选）
+- **C 证据规则引擎**：保管链断点 / 电子数据完整性 / 非法取证确定性检查器。
+- **D 示例三段式重构 + evals 基准**：case_001 重构为「侦查卷宗 + 起诉书 + 答辩意见」三段式；`data/evals/` 基准（法条引用核验通过率、结论稳定性、逐证据质证覆盖率）。
+- 多人协同审阅、i18n/无障碍、语音录入（Whisper 本地）、联邦多来源知识库、SSE 接入层、Prompt A/B 实验对比。
 
 ---
 
