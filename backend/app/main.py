@@ -7,7 +7,7 @@ import time as _time
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import auth
@@ -49,12 +49,6 @@ except Exception:
 
 app = FastAPI(title="VerdictAI", version="0.9.0")
 _START_TIME = _time.time()
-
-if not settings.access_password:
-    log.warning(
-        "ACCESS_PASSWORD 未设置：当前为完全开放访问，代码沙箱已锁定。"
-        "局域网/公网部署请在 backend/.env 设置访问口令后重启。"
-    )
 
 
 @app.exception_handler(Exception)
@@ -140,40 +134,16 @@ app.mount("/sandbox", StaticFiles(directory=sandbox_out_dir), name="sandbox")
 
 INDEX_HTML = os.path.join(os.path.dirname(__file__), "static", "index.html")
 FLOW_HTML = os.path.join(os.path.dirname(__file__), "static", "flow.html")
-ASSETS_DIR = os.path.join(os.path.dirname(__file__), "static", "assets")
-_asset_ver_cache: tuple[float, str] = (0.0, "")
-
-
-def _asset_ver() -> str:
-    """静态资源版本号：取 assets 目录最新修改时间。升级后 URL 自动变化，
-    浏览器短缓存（15 分钟）立即失效，用户不会停留在旧版界面。"""
-    global _asset_ver_cache
-    latest = 0.0
-    try:
-        for fn in ("app-core.js", "app-ui.js", "app.css"):
-            latest = max(latest, os.path.getmtime(os.path.join(ASSETS_DIR, fn)))
-    except OSError:
-        pass
-    if latest <= _asset_ver_cache[0]:
-        return _asset_ver_cache[1]
-    ver = "v" + str(int(latest))
-    _asset_ver_cache = (latest, ver)
-    return ver
 
 
 @app.get("/")
 def index():
-    # no-cache：保证用户总是拿到最新页面；资源 URL 带版本参数，升级即击穿缓存
-    try:
-        with open(INDEX_HTML, encoding="utf-8") as fh:
-            html = fh.read().replace("__VER__", _asset_ver())
-        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
-    except OSError:
-        return FileResponse(
-            INDEX_HTML,
-            media_type="text/html; charset=utf-8",
-            headers={"Cache-Control": "no-cache"},
-        )
+    # no-cache：保证用户总是拿到最新界面（静态资源仍走缓存）
+    return FileResponse(
+        INDEX_HTML,
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -212,14 +182,11 @@ def health():
 @app.websocket("/ws/{session_id}")
 async def ws_endpoint(websocket: WebSocket, session_id: str):
     # 访问口令启用时，WebSocket 同样校验登录 cookie（accept 前拒绝，避免产生半开连接）
-    ident = None
-    if settings.access_password:
-        ident = auth.session_identity(websocket.cookies.get(auth._AUTH_COOKIE))
-        if ident is None:
-            await websocket.close(code=4401)
-            return
-    # viewer 只读：可观看/续看，但不能开庭、停止、落槌、介入
-    can_control = not settings.access_password or ident.get("role") == auth.ROLE_ADMIN
+    if settings.access_password and not auth.verify_session(
+        websocket.cookies.get(auth._AUTH_COOKIE)
+    ):
+        await websocket.close(code=4401)
+        return
     # session_id 会作为辩论记录文件名落盘，与 REST 端点同等校验，杜绝路径穿越
     if not validate_id(session_id):
         await websocket.close(code=4400)
@@ -240,13 +207,6 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
             except Exception:
                 break
             msg_type = msg.get("type")
-            if msg_type in ("start", "stop", "human") and not can_control:
-                await manager.send(
-                    session_id,
-                    {"kind": "error", "message": "只读账号无权控制庭审，请联系管理员。"},
-                    buffer=False,
-                )
-                continue
             if msg_type == "start":
                 # 新庭审：清空事件缓冲与遗留介入/落槌队列，取消同会话仍在运行的任务
                 manager.clear_buffer(session_id)

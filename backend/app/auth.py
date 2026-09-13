@@ -103,26 +103,12 @@ def _find_user(users: list, username: str) -> dict | None:
 
 
 def verify_user_login(username: str, password: str) -> dict | None:
-    """校验用户名+密码：成功返回用户记录（含 role），失败返回 None。
-
-    恢复路径：用户表存在但没有任何启用的管理员时，ACCESS_PASSWORD 可作为
-    管理员登录（用户名不限），避免运营者把自己锁在系统外。"""
+    """校验用户名+密码：成功返回用户记录（含 role），失败返回 None。"""
     users = load_users()
     if not users:
         return None
     u = _find_user(users, username)
-    if u is None:
-        has_admin = any(
-            x.get("role") == ROLE_ADMIN and x.get("enabled", True) for x in users
-        )
-        if not has_admin and settings.access_password and password:
-            ok = hmac.compare_digest(
-                password.encode(), settings.access_password.encode()
-            )
-            if ok:
-                return {"username": "admin", "role": ROLE_ADMIN, "enabled": True}
-        return None
-    if not u.get("enabled", True):
+    if u is None or not u.get("enabled", True):
         return None
     salt = str(u.get("salt") or "")
     if not salt:
@@ -231,24 +217,15 @@ def _login_locked_until(ip: str) -> float:
 
 
 def _record_login_fail(ip: str) -> None:
-    now = _time.time()
-    entry = _login_fails.setdefault(ip, {"count": 0, "locked_until": 0.0, "last": now})
+    entry = _login_fails.setdefault(ip, {"count": 0, "locked_until": 0.0})
     entry["count"] += 1
-    entry["last"] = now
     if entry["count"] >= _LOGIN_MAX_FAILS:
-        entry["locked_until"] = now + _LOGIN_LOCK_SECONDS
+        entry["locked_until"] = _time.time() + _LOGIN_LOCK_SECONDS
         entry["count"] = 0
-    # 防止字典被海量伪造 IP 撑爆：先清过期（锁定解除且久未尝试）的条目，
-    # 仍超硬上限时按插入序强删一半（未锁定条目也不会无限累积）
+    # 防止字典被海量伪造 IP 撑爆
     if len(_login_fails) > 10000:
-        for k in [
-            k
-            for k, v in _login_fails.items()
-            if v["locked_until"] < now and now - v.get("last", 0) > _LOGIN_LOCK_SECONDS
-        ]:
-            _login_fails.pop(k, None)
-    if len(_login_fails) > 50000:
-        for k in list(_login_fails)[: len(_login_fails) - 25000]:
+        now = _time.time()
+        for k in [k for k, v in _login_fails.items() if v["locked_until"] < now]:
             _login_fails.pop(k, None)
 
 
@@ -295,7 +272,7 @@ _LOGIN_PAGE = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 </style></head><body>
  <div class="card">
   <img src="/static/assets/logo.svg" alt="VerdictAI">
-  <h1>VerdictAI · 智能审判辅助系统</h1>
+  <h1>VerdictAI · 智能探案合议庭</h1>
   <p>{subtitle}</p>
   <form method="post" action="/login">
     {user_field}

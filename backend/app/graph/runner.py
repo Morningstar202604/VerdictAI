@@ -287,18 +287,4 @@ async def run_debate(
                         atomic_write_json(case_path, stored, indent=None)
             except Exception:
                 log.warning("[debate %s] 案例沉淀回填失败", session_id, exc_info=True)
-        # 庭审结束仍有未消费的人工介入：明确告知而不是静默丢弃
-        try:
-            _q = manager.human_queues.get(session_id)
-            if _q is not None and not _q.empty():
-                await manager.send(
-                    session_id,
-                    {
-                        "kind": "intervention_dropped",
-                        "count": _q.qsize(),
-                        "message": "庭审已结束，仍有插话未送达合议庭。",
-                    },
-                )
-        except Exception:
-            pass
         await manager.send(session_id, {"kind": "done"})

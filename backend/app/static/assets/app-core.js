@@ -3,7 +3,7 @@
       let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = []; let qaHistory = []; let nsDone = new Set(); let lastUsage = null; let lastTrace = null;
       const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", web_search:"联网检索", cite_source:"要求举证", run_code:"Python 沙箱", install_package:"安装依赖" };
       const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","web_search","cite_source","run_code"];
-      const GROUP_LABELS = { expert:"鉴定人·辅助人", investigation:"鉴定人·辅助人", trial:"庭审阶段", other:"其他" };
+      const GROUP_LABELS = { investigation:"侦查阶段", trial:"庭审阶段", other:"其他" };
       let ws=null, session="", activeRole=null, currentId=null;
       let messages=[], round=0, maxRounds=3, running=false;
       let agentsCfg={}, roleMap={}, selectedCase="case_001", caseDetail=null;
@@ -37,8 +37,7 @@
       function applyModelBadge() {
         const s = settingsCache||{}; const mock = s.llm_provider==="mock";
         const txt = mock ? "离线模拟" : `${s.llm_provider||"?" } · ${s.llm_model||"?"}`;
-        $("modelBadge").textContent = "模型: "+txt;
-        const lm=$("landModel"); if(lm) lm.textContent = txt;
+        $("modelBadge").textContent = "模型: "+txt; $("landModel").textContent = txt;
       }
 
       // P1-6 多用户 RBAC：展示当前用户与角色；viewer 只读门禁
@@ -58,11 +57,10 @@
         }catch(e){ /* 开放模式无 /api/auth/me 权限差异，保持默认 admin */ }
       }
       function applyViewerGating(){
-        // viewer：隐藏管理入口与开庭按钮（设置；案例库管理类按钮由各渲染处按角色隐藏）
+        // viewer：隐藏管理入口（设置；案例库管理类按钮由各渲染处按角色隐藏）
         document.querySelectorAll(".btn-admin").forEach(b=>b.style.display="none");
         const gs=$("btnSettings"); if(gs) gs.style.display="none";
         const gsc=$("btnSettingsChip"); if(gsc) gsc.style.display="none";
-        const ls=$("landStart"); if(ls){ ls.style.display="none"; }
         if(window._applyViewerHooks) window._applyViewerHooks();
       }
 
@@ -525,59 +523,6 @@
           $("ivJudge").value = (settingsCache && settingsCache.judge_mode) || "ai";
           renderDispatchPreview(b);
         }
-        // 庭前准备过渡页：开庭前集中核对意图、待证问题、出庭阵容与审理方式
-        renderPreTrial(b);
-        $("intakeCard").classList.add("hidden");
-        $("preTrialCard").classList.remove("hidden");
-        $("preTrialCard").scrollIntoView({behavior:"smooth", block:"start"});
-      }
-      function _ptEsc(s){ return escapeHtml(String(s==null?"":s)); }
-      function renderPreTrial(b){
-        const d=caseDetail||{};
-        $("ptCase").innerHTML =
-          '<div class="pt-label">案 件</div>' +
-          '<div class="pt-title">'+_ptEsc(d.title||"未命名案件")+'</div>' +
-          '<div class="pt-meta">案号 '+_ptEsc(d.id?("〔2026〕"+String(d.id).toUpperCase()):"—")+
-          (d.evidence&&d.evidence.length? ' · 证据 '+d.evidence.length+' 件':'')+
-          (d.persons&&d.persons.length? ' · 涉案人员 '+d.persons.length:'')+
-          (d.timeline&&d.timeline.length? ' · 时间节点 '+d.timeline.length:'')+'</div>' +
-          ((b&&b.summary)? '<div class="pt-meta" style="margin-top:6px">'+_ptEsc(String(b.summary).slice(0,150))+(String(b.summary).length>150?"…":"")+'</div>':'');
-        const intent=$("ivIntent").value || (b&&b.intent) || "未指定";
-        const tags=(b&&b.intent_tags)||[];
-        const plan=(b&&b.investigation_plan)||[];
-        $("ptFocus").innerHTML =
-          '<div class="pt-label">审查焦点</div>' +
-          '<div style="font-size:13px;font-weight:700;color:var(--navy-deep)">'+_ptEsc(intent)+'</div>' +
-          '<div class="pt-meta">思考强度：'+_ptEsc(({low:"低 · 简明",medium:"中 · 条理",high:"高 · 深度推理"})[$("ivIntensity").value]||"中")+
-          '　·　总体要求：'+_ptEsc(String($("ivGuidance").value||"").slice(0,80))+(String($("ivGuidance").value||"").length>80?"…":"")+'</div>' +
-          (tags.length? '<div class="pt-tags">'+tags.map(t=>'<span class="pt-tag">'+_ptEsc(t)+'</span>').join("")+'</div>':'') +
-          (plan.length? '<details class="pt-fold"><summary>待证问题清单 · '+plan.length+' 项（点击展开）</summary><ul>'+plan.slice(0,6).map(p=>'<li>'+_ptEsc(p)+'</li>').join("")+'</ul></details>'
-                       : '<div class="pt-meta">待证问题：无（可从卷宗证据页「一键核验」补充）</div>');
-        $("ptPlan").innerHTML = "";
-        const roster=sortedAgents().filter(a=>enabledAgents.has(a.key)&&isDebatable(a.key));
-        const judgeName=(settingsCache&&settingsCache.judge_mode)==="human"?"人类法官（落槌等待 "+((settingsCache&&settingsCache.hitl_timeout)||300)+"s）":"AI 审判长";
-        $("ptRoster").innerHTML =
-          '<div class="pt-label">出庭阵容（'+roster.length+' 位审查角色 + '+_ptEsc(judgeName)+'）</div>' +
-          roster.map((a,i)=>'<div class="pt-expert"><span class="pt-no">'+(i+1)+'</span><span class="pt-name">'+_ptEsc(a.name)+'</span><span class="pt-duty">'+_ptEsc(a.duty||a.stance||"")+'</span></div>').join("");
-        const modeLabel=({observe:"旁观（只看不打断）",intervene:"介入（可中途插话）",collaborate:"人机配合（插话 + 人类落槌）"})[$("ivMode").value]||"";
-        const rounds=(settingsCache&&settingsCache.max_rounds)||3;
-        const conc=(settingsCache&&settingsCache.max_concurrency)||4;
-        const estMin=Math.max(1, Math.round((rounds*roster.length/Math.max(1,conc))*0.75 + 1));
-        $("ptMode").innerHTML =
-          '<div class="pt-label">审理方式</div>' +
-          '<div class="pt-meta">'+_ptEsc(modeLabel)+'　·　'+rounds+' 轮交叉审查　·　审判长：'+_ptEsc(($("ivJudge").value==="human")?"人类法官落槌":"AI 自动落槌")+'　·　预计约 '+estMin+' 分钟（可随时停止）</div>';
-      }
-      function preTrialBack(){
-        $("preTrialCard").classList.add("hidden");
-        $("intakeCard").classList.remove("hidden");
-      }
-      function toggleComposer(){
-        const f=$("composerFold"); if(!f) return;
-        f.open=!f.open;
-        if(f.open){ const ta=$("landQuery"); if(ta) ta.focus(); }
-      }
-      function preTrialGo(){
-        $("preTrialCard").classList.add("hidden");
         $("landing").classList.add("hidden");
         $("workspace").classList.remove("hidden");
         start();
@@ -671,15 +616,12 @@
           case "trace": lastTrace=ev||null; renderTrace(); break;
           case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
           case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
-          case "intervention_dropped": toast("⚠ " + (ev.message || "庭审已结束，插话未送达") + (ev.count ? "（" + ev.count + " 条）" : "")); break;
           case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
         }
       }
       function cleanText(s){
         s = (s||"");
         s = s.replace(/<think>[\s\S]*?<\/think>/gi,"").replace(/<thinking[\s\S]*?<\/thinking>/gi,"");
-        // 模型偶尔输出零散 HTML 标记（如 <b></b>），会以字面量出现在笔录里：直接剥除
-        s = s.replace(/<\/?(b|strong|i|em|u|s|br|span|div|font)\b[^>]*>/gi,"");
         s = s.replace(/\n{3,}/g,"\n\n");
         // 按标点补软换行，保证渲染时一行一句；但跳过代码块与 markdown 表格行，避免破坏结构。
         const lines = s.split("\n");
@@ -703,9 +645,8 @@
         // （如 /sandbox/evidence_reliability_1.png 会变成 evidence<em>reliability</em>_1.png 导致图片 404）
         const stash = [];
         const keep = (html) => "\u0000" + (stash.push(html) - 1) + "\u0000";
-        const safeUrl = (u) => /^(https?:|\/|#|mailto:)/i.test(u || "") ? u : "#";
-        s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m,a,u)=>keep('<img src="'+safeUrl(u)+'" alt="'+a+'" />'));
-        s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m,t,u)=>keep('<a href="'+safeUrl(u)+'" target="_blank" rel="noopener">'+t+"</a>"));
+        s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m,a,u)=>keep('<img src="'+u+'" alt="'+a+'" />'));
+        s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m,t,u)=>keep('<a href="'+u+'" target="_blank" rel="noopener">'+t+"</a>"));
         s = s.replace(/`([^`]+)`/g, (m,c)=>keep("<code>"+c+"</code>"));
         s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
         s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
@@ -719,7 +660,7 @@
         src = cleanText(src);
         const lines = src.split(/\n/);
         let html = "", para = [], i = 0;
-        const flush = () => { if(para.length){ html += "<p>"+inlineMd(escapeHtml(para.join("\n"))).replace(/\n/g,"<br>")+"</p>"; para = []; } };
+        const flush = () => { if(para.length){ html += "<p>"+para.map(l=>inlineMd(escapeHtml(l))).join("<br>")+"</p>"; para = []; } };
         while(i < lines.length){
           const line = lines[i];
           if(/^```/.test(line.trim())){

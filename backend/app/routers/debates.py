@@ -6,12 +6,11 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.auth import require_admin
 from app.config import settings
-from app.data.store import atomic_write_json, validate_id
+from app.data.store import validate_id
 
 router = APIRouter(prefix="/api/debates", tags=["debates"])
 
@@ -32,8 +31,7 @@ def _debate_summary(path: str) -> dict | None:
         "started_at": rec.get("started_at"),
         "model": rec.get("model"),
         "rounds": rec.get("rounds"),
-        "truth": (rec.get("final_verdict") or {}).get("findings_of_fact")
-        or (rec.get("final_verdict") or {}).get("truth_hypothesis", ""),
+        "truth": (rec.get("final_verdict") or {}).get("truth_hypothesis", ""),
         "usage": rec.get("usage") or {},
     }
 
@@ -81,27 +79,3 @@ def get_debate(session_id: str):
         return JSONResponse({"error": "未找到该辩论记录"}, status_code=404)
     with open(p, encoding="utf-8") as fh:
         return JSONResponse(json.load(fh))
-
-
-@router.post("/{session_id}/next-steps")
-def update_next_steps(session_id: str, payload: dict, _: dict = Depends(require_admin)):
-    """持久化「后续流程清单」勾选状态：刷新/断线/重新开庭后清单不丢。
-
-    只接受 0..N 的整数索引数组；越界或非法值丢弃。只改清单相关字段，
-    不触碰裁决主体（真相推定/证据链等），避免误改定论。"""
-    if not validate_id(session_id):
-        return JSONResponse({"error": "无效的会话 ID"}, status_code=400)
-    p = os.path.join(settings.data_dir, "debates", f"{session_id}.json")
-    if not os.path.exists(p):
-        return JSONResponse({"error": "未找到该辩论记录"}, status_code=404)
-    try:
-        with open(p, encoding="utf-8") as fh:
-            rec = json.load(fh)
-    except Exception:
-        return JSONResponse({"error": "记录文件损坏"}, status_code=500)
-    raw = payload.get("done") if isinstance(payload, dict) else None
-    n_steps = len((rec.get("final_verdict") or {}).get("next_steps") or [])
-    done = sorted({int(x) for x in (raw or []) if isinstance(x, (int, str)) and str(x).lstrip("-").isdigit() and 0 <= int(x) < n_steps}) if raw is not None else []
-    rec["ns_done"] = done
-    atomic_write_json(p, rec, indent=None)
-    return {"ok": True, "done": done}

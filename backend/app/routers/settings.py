@@ -5,16 +5,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.auth import require_admin, require_viewer
-from app.config import settings
-from app.runtime import _is_masked, current as current_settings
+from app.auth import require_admin
+from app.runtime import current as current_settings
 from app.runtime import update as update_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 @router.get("")
-def get_settings(_: dict = Depends(require_viewer)):
+def get_settings():
     return current_settings()
 
 
@@ -24,7 +23,7 @@ def post_settings(payload: dict, _: dict = Depends(require_admin)):
 
 
 @router.post("/test")
-def test_settings(payload: dict, _: dict = Depends(require_admin)):
+def test_settings(payload: dict):
     """测试 LLM 连接是否可用，返回连通状态和耗时。"""
     import time as _time
 
@@ -32,14 +31,14 @@ def test_settings(payload: dict, _: dict = Depends(require_admin)):
     api_key = (payload or {}).get("llm_api_key", "").strip()
     base_url = (payload or {}).get("llm_base_url", "").strip() or None
     model = (payload or {}).get("llm_model", "").strip() or "gpt-4o-mini"
-    if not api_key or _is_masked(api_key):
-        # 输入框里是打码值（或留空）：实际测试用已保存的真实 key
-        api_key = settings.llm_api_key or "EMPTY"
     result: dict = {"ok": False, "model": model, "provider": provider}
     if provider == "mock":
         result["ok"] = True
         result["message"] = "Mock 模式：离线占位演示，未调用真实模型"
         return result
+    if not api_key:
+        # 本地引擎无需 API Key（OpenAI 兼容端点不校验密钥）
+        api_key = "EMPTY"
     try:
         from openai import OpenAI
 

@@ -219,96 +219,15 @@ class IntakeResult(BaseModel):
             return 0.5
 
 
-def _blank_if_none(v: Any) -> str:
-    return "" if v is None else str(v)
-
-
-def _list_or_empty(v: Any) -> Any:
-    if v is None or not isinstance(v, (list, tuple)):
-        return []
-    return list(v)
-
-
-def _dict_items_only(v: Any) -> Any:
-    v = _list_or_empty(v)
-    return [it for it in v if isinstance(it, dict)]
-
-
-class EvidenceFinding(BaseModel):
-    """质证后对单项证据的认定（三性 + 是否采信）。"""
-
-    id: str = ""
-    name: str = ""
-    opinion: str = ""
-    admitted: bool = True
-    reason: str = ""
-
-    @field_validator("id", "name", "opinion", "reason", mode="before")
-    @classmethod
-    def _norm_strs(cls, v):
-        return _blank_if_none(v)
-
-    @field_validator("admitted", mode="before")
-    @classmethod
-    def _norm_admitted(cls, v):
-        if isinstance(v, str):
-            return v.strip().lower() in ("true", "yes", "1", "采信", "认定", "采纳")
-        return bool(v)
-
-
-class LawCitation(BaseModel):
-    """裁判引用的法条/规范（供 B 阶段引用核验比对法条库）。"""
-
-    title: str = ""
-    article: str = ""
-    purpose: str = ""
-
-    @field_validator("title", "article", "purpose", mode="before")
-    @classmethod
-    def _norm_strs(cls, v):
-        return _blank_if_none(v)
-
-
 class Verdict(BaseModel):
-    """审判长裁决的规范结构（判决化）。
+    """审判长裁决的规范结构。"""
 
-    truth_hypothesis / evidence_chain 为旧「探案式」字段：
-    旧复盘记录经 clean_verdict 归一化到新字段（findings_of_fact 等），
-    同时原样保留旧键，保证历史导出与前端旧路径不破。
-    """
-
-    findings_of_fact: str = ""
-    evidence_findings: List[EvidenceFinding] = Field(default_factory=list)
-    reasoning: str = ""
-    law_citations: List[LawCitation] = Field(default_factory=list)
-    ruling: str = ""
-    sentencing: str = ""
     truth_hypothesis: str = ""
     evidence_chain: List[str] = Field(default_factory=list)
     doubts: List[str] = Field(default_factory=list)
     recommendation: str = ""
     next_steps: List[str] = Field(default_factory=list)
     disclaimer: str = "本结论由AI辅助生成，仅供研究演示，不构成任何法律意见或判决。"
-
-    @field_validator(
-        "findings_of_fact", "reasoning", "ruling", "sentencing",
-        "truth_hypothesis", "recommendation", mode="before",
-    )
-    @classmethod
-    def _norm_text(cls, v):
-        return _blank_if_none(v)
-
-    @field_validator("evidence_chain", "doubts", "next_steps", mode="before")
-    @classmethod
-    def _norm_strlist(cls, v):
-        if v is None or not isinstance(v, (list, tuple)):
-            return []
-        return [x for x in v if x is not None]
-
-    @field_validator("evidence_findings", "law_citations", mode="before")
-    @classmethod
-    def _norm_objlist(cls, v):
-        return _dict_items_only(v)
 
 
 class Contradiction(BaseModel):
@@ -392,55 +311,16 @@ def clean_intake(obj: Any, text_hint: str = "") -> Dict[str, Any]:
 
 
 def clean_verdict(obj: Any) -> Dict[str, Any]:
-    """清洗/规范化裁决；坏结构回退默认值，保证复盘与导出不崩。
-    旧「探案式」记录（truth_hypothesis/evidence_chain）归一化到新判决字段，旧键原样保留。"""
+    """清洗/规范化裁决；坏结构回退默认值，保证复盘与导出不崩。"""
     raw = obj if isinstance(obj, dict) else {}
     try:
         m = Verdict(**raw)
     except Exception as ex:  # noqa: BLE001
         log.warning("verdict schema 清洗失败，回退默认: %s", ex)
         m = Verdict()
-    findings = []
-    for it in m.evidence_findings:
-        it = it.model_dump() if isinstance(it, EvidenceFinding) else it
-        try:
-            f = EvidenceFinding(**(it if isinstance(it, dict) else {}))
-        except Exception:  # noqa: BLE001
-            continue
-        findings.append({
-            "id": str(f.id or "")[:16],
-            "name": str(f.name or "")[:80],
-            "opinion": str(f.opinion or "")[:300],
-            "admitted": bool(f.admitted),
-            "reason": str(f.reason or "")[:300],
-        })
-    findings = findings[:40]
-    cites = []
-    for it in m.law_citations:
-        it = it.model_dump() if isinstance(it, LawCitation) else it
-        try:
-            c = LawCitation(**(it if isinstance(it, dict) else {}))
-        except Exception:  # noqa: BLE001
-            continue
-        cites.append({
-            "title": str(c.title or "")[:60],
-            "article": str(c.article or "")[:40],
-            "purpose": str(c.purpose or "")[:200],
-        })
-    cites = cites[:20]
-    chain = _clean_str_list(m.evidence_chain, 30)
-    findings_of_fact = m.findings_of_fact or m.truth_hypothesis
-    truth_hypothesis = m.truth_hypothesis or m.findings_of_fact
-    ruling = m.ruling or (m.recommendation if not m.findings_of_fact else "")
     return {
-        "findings_of_fact": findings_of_fact,
-        "evidence_findings": findings,
-        "reasoning": m.reasoning,
-        "law_citations": cites,
-        "ruling": ruling,
-        "sentencing": m.sentencing,
-        "truth_hypothesis": truth_hypothesis,
-        "evidence_chain": chain,
+        "truth_hypothesis": m.truth_hypothesis,
+        "evidence_chain": _clean_str_list(m.evidence_chain, 30),
         "doubts": _clean_str_list(m.doubts, 20),
         "recommendation": m.recommendation,
         "next_steps": _clean_str_list(m.next_steps, 10),

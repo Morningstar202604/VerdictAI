@@ -328,9 +328,8 @@ def get_llm(
             temperature=temperature,
             streaming=False,
             # 思维链类模型（如 gemini 系列）会把大量推理写入 reasoning_content，
-            # 若不显式给足 max_tokens，JSON 输出会被截断导致解析失败；
-            # 0 = 不传该参数，交给平台默认
-            max_tokens=max_tokens or None,
+            # 若不显式给足 max_tokens，JSON 输出会被截断导致解析失败
+            max_tokens=max_tokens or 8000,
         )
         _llm_cache[cache_key] = llm
         return llm
@@ -561,8 +560,7 @@ async def structured_call(
             else:
                 fix_prompt = (
                     (repair_hint + "\n\n") if repair_hint else ""
-                ) + (
-                    "你上一轮输出的结构无法解析：{error}\n"
+                    + "你上一轮输出的结构无法解析：{error}\n"
                     "请重新输出，只包含合法的 JSON（不要代码块、不要额外文字）。"
                 )
                 fix_msgs = messages + [

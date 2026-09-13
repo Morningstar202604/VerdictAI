@@ -28,13 +28,6 @@ COPY ai_engine ./ai_engine
 ENV DATA_DIR=/app/data \
     SANDBOX_OUT_DIR=/app/data/sandbox_out
 
-# 非 root 运行：数据卷与沙箱产物目录归属 appuser
-RUN useradd --create-home --uid 1000 appuser \
-    && mkdir -p /app/data \
-    && chown -R appuser:appuser /app
-
-USER appuser
-
 EXPOSE 8787
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

@@ -29,47 +29,46 @@
 
 ---
 
-> **8 AI court roles walk into a courtroom.** Five examiners/assistants plus a mock prosecution & defense and a people's juror examine a real case file in staged phases (court investigation → court debate → deliberation), cross-examining each other, citing and verifying statutes, calling tools and flagging contradictions — the presiding judge then drafts a judgment-structured reference ruling; the final verdict always rests with the human judge. The entire trial streams live to your browser.
+> **7 AI experts walk into a courtroom.** They examine a real case file, cross-examine each other for multiple rounds, cite statutes, call tools, hunt down contradictions — and the presiding judge delivers a verdict. The entire trial streams live to your browser.
 
-**Bring your own document.** Upload a PDF investigation report, indictment or judgment — VerdictAI reads it, extracts people / evidence / timelines / applicable statutes, assigns tailored briefs to every court role, and runs a full adversarial deliberation that ends in a judgment-structured reference verdict (findings of fact / per-evidence admissions / reasoning / statutory citations / ruling / sentencing) plus an actionable checklist for judicial staff.
+**Bring your own document.** Upload a PDF investigation report, indictment or judgment — VerdictAI reads it, extracts people / evidence / timelines / applicable statutes, assigns tailored briefs to every expert, and runs a full adversarial deliberation that ends in a verdict plus an actionable checklist for judicial staff.
 
 ## ✨ What Makes VerdictAI Different?
 
 | | Traditional AI Q&A | **VerdictAI** |
 |---|---|---|
-| Approach | Single model, single answer | **8 court-role agents** cross-examine & challenge each other in staged phases |
+| Approach | Single model, single answer | **7 specialized agents** debate & challenge each other |
 | Output | One-shot text | **Multi-round deliberation** + contradiction detection |
 | Transparency | Black box | **Full event stream** — every token, tool call, agent status |
-| Citations | Hallucinated | **Real statutes & precedent digests** — retrieved from a built-in knowledge base, never fabricated; cited statutes are then **verified against the library** (unlisted article → "suspected fabrication", unknown law name → "needs manual check") and sentencing advice is checked against the statutory range of the charged offence |
+| Citations | Hallucinated | **Real statutes & precedent digests** — retrieved from a built-in knowledge base, never fabricated |
 | Documents | Unstructured uploads | **AI document understanding** — people / evidence / timeline / statutes auto-extracted from plain PDFs |
-| Verdict | "AI says so" | **Judgment-structured verdict** (findings of fact / per-evidence rulings / reasoning / citations / ruling / sentencing) with evidence chain, open questions and an executable next-steps checklist |
+| Verdict | "AI says so" | **Structured verdict** with evidence chain, open questions and an executable next-steps checklist |
 
 ## 📸 Screenshots
 
 | | |
 |---|---|
 | ![Case intake & branding](docs/screenshots/landing.png) | ![Live trial with human intervention](docs/screenshots/trial-debate.png) |
-| *Case intake — PDF upload, roster, AI extraction* | *Live trial — 8 court roles, human intervention, usage stats* |
+| *Case intake — PDF upload, roster, AI extraction* | *Live trial — 7 experts, human intervention, usage stats* |
 | ![Verdict & post-verdict workflow](docs/screenshots/verdict-workflow.png) | ![Dark mode](docs/screenshots/dark-mode.png) |
 | *Verdict, Q&A, executable next-steps checklist* | *Dark theme, full transcript* |
 
 ## 🎯 Features
 
 <details>
-<summary><strong>🧑‍⚖️ 8 AI Court Roles (staged courtroom script)</strong></summary>
+<summary><strong>🧠 7 Specialized AI Experts</strong></summary>
 
-Five examiners/assistants testify and face cross-examination; the mock prosecution & defense contest the case; a people's juror tests the findings against common-sense reasoning:
+Each agent has a unique role, stance and toolset — and they run **in parallel** every round:
 
 | Expert | Role | Stance |
 |--------|------|--------|
-| 🔍 Crime Scene Examiner | Spatial logic, entry/exit, trace distribution | Testifies |
-| 🔬 Forensic Examiner | Cause of death, TOD window, injuries | Science first |
-| 🧪 Evidence Examiner | DNA, fingerprints, custody chain, surveillance | Physical proof |
-| 🧠 Confession Analysis Assistant | Statement vs. synced recordings, signs of illegal evidence | Neutral |
-| ⚖️ Evidence Law Assistant | Admissibility, exclusion, proof standard | Procedure |
-| 👨‍⚖️ Prosecution Agent | Charging chain, gaps, rebuttals | Prosecution |
+| 🔍 Crime Scene Analyst | Spatial logic, entry/exit, trace distribution | Neutral |
+| 🔬 Forensic Specialist | Cause of death, TOD window, injuries | Science first |
+| 🧪 Evidence Analyst | DNA, fingerprints, custody chain, surveillance | Physical proof |
+| 🧠 Interrogation/Psych Expert | Statement credibility, motive, profiling | Neutral |
+| ⚖️ Evidence Law Expert | Admissibility, exclusion, proof standard | Procedure |
+| 👨‍⚖️ Prosecutor Agent | Charging chain, gaps, rebuttals | Prosecution |
 | 🛡️ Defense Agent | Reasonable doubt, alternative explanations | Defense |
-| 🧑‍💼 People's Juror | Common-sense check: do the findings hold up to everyday experience | Neutral |
 
 </details>
 
@@ -108,7 +107,6 @@ Agents don't just talk — they **use tools** (results render inside the transcr
 - **Precedent digests** — appellate reasoning patterns for indirect-evidence homicide, edited surveillance, force-majeure defenses
 - **Custom entries** — add your own precedent digests or internal rules via Settings → Knowledge Base; the three-tier search cites them only when they actually match
 - **Never fabricate** — if nothing matches, agents say so instead of inventing citations
-- **Judgment-structured verdict + citation verification** — the presiding judge drafts a judgment-structured reference ruling (findings of fact / per-evidence admissions / reasoning / statutory citations / ruling / sentencing). Cited statutes are then **verified deterministically against the built-in library** (unlisted article → "suspected fabrication", unknown law name → "needs manual check", with a single feedback round to the judge), and sentencing advice is checked against the **statutory range of the charged offence**
 
 </details>
 
@@ -215,7 +213,7 @@ python tools/start_all.py
 
 **Production (Docker)**: `docker compose up -d --build` at the repo root → built-in SPA served by the backend on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 8 AI court roles argue live.
+**Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
 
 ## 🔌 Model Providers
 

@@ -25,7 +25,6 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # 搜索结果 TTL 缓存（M1.5）：同一查询 30 分钟内不重复抓取；键含 Provider。
 _CACHE: Dict[str, Tuple[float, List[Dict]]] = {}
 _CACHE_TTL = 1800.0
-_CACHE_CAP = 500  # TTL 惰性淘汰之外再设条目硬上限，防止海量不同查询撑爆内存
 
 
 def _cache_key(q: str) -> str:
@@ -182,10 +181,4 @@ def web_search(query: str, limit: int = 5) -> List[Dict]:
     merged = merged[:limit]
 
     _CACHE[key] = (now, list(merged))
-    if len(_CACHE) > _CACHE_CAP:
-        expired = [k for k, (ts, _i) in _CACHE.items() if now - ts >= _CACHE_TTL]
-        for k in expired:
-            _CACHE.pop(k, None)
-    while len(_CACHE) > _CACHE_CAP:
-        _CACHE.pop(next(iter(_CACHE)))
     return merged

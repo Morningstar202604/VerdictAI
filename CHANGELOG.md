@@ -1,13 +1,5 @@
 # Changelog
 
-## [1.0.0] - 2026-09-13
-### Added
-- M5 庭审化 + 法条接地轮（COURT 定位：AI 不行使审判权，输出均为「模拟参考文书」）：
-  - **A 阶段 · 判决化 + 庭审化**：Verdict 判决化结构（findings_of_fact / evidence_findings 逐证据三性 / reasoning / law_citations / ruling / sentencing，旧字段双写归一）；庭审阶段剧本 `_phase_hint`（法庭调查·举证质证 → 法庭辩论·交叉质证 → 最后陈述·评议）；角色重组 8 位庭审角色（5 鉴定人/辅助人 + 模拟控辩 + 新增 `assessor` 人民陪审员），提示词注册中心版本化（旧探案式冻结 v1、庭审化 v2、judge v3）；前端判决式折叠卡（结论常显、过程折叠）+ 判决书结构导出。
-  - **B 阶段 · 法条 RAG 接地 + 引用核验**：内置法条库结构化（`law`/`article_no`/`charge`/`penalty_range` 法定刑区间，含中文数字 `cn_to_int` 解析）；`verification.py` 确定性引用核验（条文未收录 →「疑似虚构」、法名未知 →「待人工核验」）+ 量刑建议法定刑区间校验；judge_node 检出后一次性回填修正（防循环）；核验结果挂 selfcheck 事件，裁决/Markdown/DOCX/打印报告四处导出同步「引用核验」节；前端引用条核验徽标。
-### Changed
-- 定位口径全文档同步：PLAN.md v1.1、README（中/英）角色数量 7→8、判决书结构、引用核验；.gitignore 追加 `backend/data/users.json`、`backend/logs/`。
-
 ## [0.9.0] - 2026-09-10
 ### Added
 - M1.5 功能进阶：意图路由（无关输入门禁/案由置信度/实体槽位）、庭审核查报告导出（Markdown + DOCX，缺依赖降级纯 Markdown）、证据时间线抽取与视图、相似案例推荐（embedding 近邻，语义关退关键词）、搜索 TTL 缓存与 URL 去重、评估回归集。
