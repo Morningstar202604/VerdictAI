@@ -80,3 +80,4 @@ backend/data/logs/
 
 # Prompt audit trail (opt-in AUDIT_PROMPTS)
 backend/data/audit/
+backend/ui_test_artifacts/
