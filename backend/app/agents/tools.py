@@ -1,4 +1,5 @@
 from __future__ import annotations
+import ast as _ast
 import contextvars
 import json
 import os
@@ -43,6 +44,74 @@ def check_denied(code: str) -> str | None:
         return None
     hit = pat.search(code or "")
     return hit.group(0) if hit else None
+
+
+# ── subprocess 模式语义层检查（正则黑名单的互补纵深防御）────────────────────
+# 正则层（check_denied）能拦「代码里直接出现 socket / __import__ 等字样」，
+# 但拦不住字符串拼接绕过：__import__('soc'+'ket')、importlib.import_module(...)
+# 等。subprocess 模式没有容器网络/进程隔离，必须用 AST 在 import 语义层面
+# 兜底。docker 模式容器已断网且资源受限，不调用本函数以免误伤。
+
+# 禁止导入的模块（联网 / 拉起子进程 / 执行逃逸类）：命中即拒
+_SANDBOX_BANNED_IMPORTS = {
+    "socket", "socketserver", "select", "selectors",
+    "urllib", "http", "requests", "httpx", "aiohttp", "sseclient",
+    "smtplib", "ftplib", "telnetlib", "poplib", "imaplib", "nntplib",
+    "paramiko", "pexpect", "webbrowser", "selenium", "playwright",
+    "subprocess", "multiprocessing", "pty", "ctypes", "importlib",
+}
+# 禁止直接调用的运行时代码执行入口（含拼接绕过）
+_SANDBOX_BANNED_CALLS = {"__import__", "compile", "eval", "exec"}
+# 禁止的危险属性调用（模块.方法）
+_SANDBOX_BANNED_ATTRS = {
+    ("os", "system"), ("os", "popen"), ("os", "remove"),
+    ("os", "unlink"), ("os", "rmdir"), ("os", "removedirs"),
+    ("shutil", "rmtree"), ("shutil", "move"),
+}
+
+
+def _sandbox_ast_check(code: str) -> str | None:
+    """subprocess 模式静态语义检查：返回命中原因或 None（放行）。
+
+    只检查用户代码的 import 语义与危险调用，不触碰第三方库内部
+    （如 matplotlib.savefig 写文件），故不限制正常数据分析与图表生成。"""
+    try:
+        tree = _ast.parse(code)
+    except SyntaxError as e:  # noqa: BLE001
+        return f"代码语法错误：{e}"
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[0] in _SANDBOX_BANNED_IMPORTS:
+                    return f"禁止导入模块 {alias.name}"
+        elif isinstance(node, _ast.ImportFrom):
+            if node.module and node.module.split(".")[0] in _SANDBOX_BANNED_IMPORTS:
+                return f"禁止导入模块 {node.module}"
+        elif isinstance(node, _ast.Call):
+            fn = node.func
+            if isinstance(fn, _ast.Name) and fn.id in _SANDBOX_BANNED_CALLS:
+                return f"禁止调用 {fn.id}()"
+            # getattr(__builtins__, '__import__') 等拼接绕过：getattr 在此是
+            # 内置名（Name 而非 Attribute），且首个实参指向 __builtins__ 才拦，
+            # 正常反射 getattr(obj, 'attr') 不受影响。
+            if getattr(fn, "id", getattr(fn, "attr", "")) == "getattr":
+                first = node.args[0] if node.args else None
+                if isinstance(first, _ast.Name) and first.id == "__builtins__":
+                    return "禁止通过 getattr(__builtins__, ...) 逃逸"
+                if (
+                    isinstance(first, _ast.Attribute)
+                    and isinstance(first.value, _ast.Name)
+                    and first.value.id == "__builtins__"
+                ):
+                    return "禁止通过 getattr(__builtins__, ...) 逃逸"
+            if isinstance(fn, _ast.Attribute) and isinstance(fn.value, _ast.Name):
+                owner, attr = fn.value.id, fn.attr
+                if (owner, attr) in _SANDBOX_BANNED_ATTRS:
+                    return f"禁止调用 {owner}.{attr}()"
+                if attr == "getattr" and owner == "__builtins__":
+                    return "禁止访问 __builtins__"
+    return None
+
 
 # 沙箱/pip 子进程不得继承敏感配置：专家生成的代码是任意代码，环境里的
 # LLM 密钥、访问口令一旦可见即可被读取外传。新增敏感配置项时必须使用
@@ -281,6 +350,14 @@ def run_code(code: str) -> str:
         cmd = _docker_command(code, out_dir)
         env = _sandbox_env()  # 容器内变量由 -e 显式注入，docker CLI 不需要宿主配置
     else:
+        # subprocess 模式无容器隔离：先过 AST 语义层，拦正则名单漏掉的
+        # 拼接绕过与危险调用（__import__('soc'+'ket')、importlib、os.remove…）
+        ast_err = _sandbox_ast_check(code)
+        if ast_err:
+            return (
+                f"沙箱静态检查未通过（{ast_err}）：仅允许数据分析与图表生成的本地操作；"
+                "如需联网/装包请配置 Docker 容器沙箱后端。"
+            )
         _ensure_base()
         cmd = [settings.code_sandbox_python, "-I", "-c", code]
         env = _sandbox_env({"SANDBOX_OUT": out_dir, "MPLBACKEND": "Agg"})
@@ -462,10 +539,14 @@ def tool_stats_record(name: str, ok: bool, ms: float) -> None:
 
 
 def tool_stats_record_error(name: str, err: str) -> None:
-    """记录一次失败的工具名与最近错误（重试期间累计的失败也归入统计）。"""
+    """记录一次失败的工具调用（累计调用数 + 失败数 + 最近错误）。
+
+    调用数同步累加，使 usage 面板的成功率 = ok / calls 稳定可信；
+    否则仅累加 fail 会让成功调用被漏算而虚高成功率。"""
     s = TOOL_STATS.setdefault(
         name, {"calls": 0, "ok": 0, "fail": 0, "ms": 0.0, "last_err": ""}
     )
+    s["calls"] += 1
     s["fail"] += 1
     s["last_err"] = str(err)[:200]
 

@@ -11,6 +11,14 @@ from app.runtime import update as update_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
+# 浏览器 UA：规避部分中转站 WAF 对 openai SDK 默认 UA 的拦截
+_BROWSER_UA = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
+}
+
 
 @router.get("")
 def get_settings():
@@ -42,13 +50,21 @@ def test_settings(payload: dict):
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        # 部分 OpenAI 兼容中转的 WAF 会按 User-Agent 拦截 openai SDK 默认 UA
+        # （返回 403 "Your request was blocked"），注入浏览器 UA 绕过。
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers=_BROWSER_UA,
+            max_retries=1,  # 默认重试 2 次 × 60s 会让自检拖到 3 分钟
+        )
         t0 = _time.time()
         resp = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "回复：ok"}],
             max_tokens=4,
-            timeout=15.0,
+            # 中转站高峰期响应可达 30s+，15s 会误报超时
+            timeout=60.0,
         )
         elapsed = round(_time.time() - t0, 2)
         used_model = resp.model or model

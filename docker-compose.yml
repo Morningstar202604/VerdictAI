@@ -16,6 +16,14 @@ services:
       # 容器内固定数据目录（app/config.py 相对路径基准 /app）
       DATA_DIR: /app/data
       SANDBOX_OUT_DIR: /app/data/sandbox_out
+      # ── 沙箱安全（默认 auto：容器内无 docker.sock 会降级为 subprocess，
+      #    专家代码以容器用户执行）。推荐改为 docker 后端隔离，需挂载 socket：
+      #   volumes:
+      #     - /var/run/docker.sock:/var/run/docker.sock
+      #   environment:
+      #     - CODE_SANDBOX_BACKEND=docker
+      #     - CODE_SANDBOX_DOCKER_IMAGE=python:3.12-slim
+      # 或在不依赖图表/计算时直接关闭：CODE_SANDBOX_ENABLED=false
     volumes:
       # 案例库 / 辩论记录 / 图表资产持久化
       - ./backend/data:/app/data

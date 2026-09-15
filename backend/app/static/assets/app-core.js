@@ -1,6 +1,87 @@
       const $ = (id) => document.getElementById(id);
       function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
       let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = []; let qaHistory = []; let nsDone = new Set(); let lastUsage = null; let lastTrace = null;
+
+      /* ================= 法条引用核查（幻觉防火墙 / 引用信号灯） =================
+         与后端 app/legal/cite_check.py 同一套规范化逻辑的 JS 移植：
+         《中华人民共和国刑法》第二百六十六条 / 刑法第266条 / 刑诉法第56条
+         全部归一为 "刑法|第266条" 形式的 key，与 knownStatutes 比对：
+         命中 → ✓ 已核实（卷宗法条/内置法条库）；未命中 → ⚠ 待人工核对。 */
+      let knownStatutes = {};
+      const CN_DIG = {"零":0,"〇":0,"一":1,"二":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+      const CN_UNIT = {"十":10,"百":100,"千":1000};
+      const LAW_NOISE = /^(?:同时|此外|而且|并且|并|另|另据|又|及|或|且|但|而|则|即|也|还|再|依照|依据|根据|参照|按照|关于|对于|适用|符合|违反|触犯|引用|参见|援引|如|若|凡|据|按|涉|涉及|我国|本)+/;
+      const LAW_ALIAS = {"刑诉法":"刑事诉讼法","民诉法":"民事诉讼法"};
+      const CITE_RE = /(?:《([^《》]{2,25}?)》|([\u4e00-\u9fff]{1,12}?法))\s*第\s*([零〇一二两三四五六七八九十百千\d]{1,10})\s*条(之[一二三四])?/g;
+      function chnToInt(s){
+        s = String(s||"").trim().replace(/^第+/,"").replace(/条+$/,"").trim();
+        if(/^\d+$/.test(s)) return parseInt(s,10);
+        let total=0, num=0, seen=false;
+        for(const ch of s){
+          if(ch in CN_DIG){ num=CN_DIG[ch]; seen=true; }
+          else if(ch in CN_UNIT){ if(!seen) num=1; total+=num*CN_UNIT[ch]; num=0; seen=false; }
+          else return null;
+        }
+        if(!(seen||total)) return null;
+        return total+num;
+      }
+      function normLaw(law){
+        law = String(law||"").replace(/[《》〈〉「」\s\u3000]/g,"").replace(/中华人民共和国/g,"");
+        let prev=null;
+        while(prev!==law){ prev=law; law=law.replace(LAW_NOISE,""); }
+        return LAW_ALIAS[law]||law;
+      }
+      function statuteKey(law, art, alt){
+        const n=chnToInt(art);
+        if(!law||n==null) return "";
+        return normLaw(law)+"|第"+n+"条"+(alt||"");
+      }
+      function extractCites(text){
+        const out=[], seen={};
+        CITE_RE.lastIndex=0;
+        let m;
+        while((m=CITE_RE.exec(String(text||"")))){
+          const key=statuteKey(m[1]||m[2], m[3], m[4]||"");
+          if(!key||seen[key]) continue;
+          seen[key]=1;
+          out.push({raw:m[0].trim(), key, law:normLaw(m[1]||m[2])});
+        }
+        return out;
+      }
+      async function loadKnownStatutes(caseId){
+        try{
+          const d=await (await fetch("/api/legal/known-statutes"+(caseId?("?case_id="+encodeURIComponent(caseId)):""))).json();
+          const map={};
+          (d.statutes||[]).forEach(s=>{ map[s.key]={name:s.name, source:s.source}; });
+          knownStatutes=map;
+        }catch(e){ /* 静默：核查面板非关键路径，失败仅不显示信号灯 */ }
+      }
+      function citeBadge(c){
+        const hit=knownStatutes[c.key];
+        const short=c.key.replace("|"," · ");
+        if(hit){
+          const from=hit.source==="case"?"卷宗法条":"内置法条库";
+          return '<span class="cite-lg cite-ok" title="已核实：'+escapeHtml(hit.name||"")+'（'+from+'）">✓ '+escapeHtml(short)+'</span>';
+        }
+        return '<span class="cite-lg cite-warn" title="未在卷宗法条与内置法条库中命中，可能为模型杜撰或库外条文，请人工核对">⚠ '+escapeHtml(short)+' · 待核对</span>';
+      }
+      function citeAuditHtml(text){
+        const cites=extractCites(text);
+        if(!cites.length||!Object.keys(knownStatutes).length) return "";
+        const v=cites.filter(c=>knownStatutes[c.key]).length, u=cites.length-v;
+        return '<div class="cite-audit-line">'+cites.map(citeBadge).join("")+
+          (cites.length>1?'<span class="muted" style="font-size:10.5px">'+v+'/'+cites.length+' 已核实</span>':"")+
+          '</div>';
+      }
+
+      /* ================= 深度思考过程可视化（<think> 折叠面板） ================= */
+      function splitThink(t){
+        t=String(t||"");
+        let m=t.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
+        if(!m) m=t.match(/<thinking>([\s\S]*?)(?:<\/thinking>|$)/i);
+        if(!m) return {think:"", body:t};
+        return {think:m[1].trim(), body:(t.slice(0,m.index)+t.slice(m.index+m[0].length)).trim()};
+      }
       const TOOL_LABELS = { read_evidence:"查阅物证", timeline_check:"核校时间线", list_contradictions:"调取矛盾", search_case_law:"检索法条", web_search:"联网检索", cite_source:"要求举证", run_code:"Python 沙箱", install_package:"安装依赖" };
       const ALL_TOOLS = ["read_evidence","timeline_check","list_contradictions","search_case_law","web_search","cite_source","run_code"];
       const GROUP_LABELS = { investigation:"侦查阶段", trial:"庭审阶段", other:"其他" };
@@ -88,6 +169,7 @@
       async function loadCase() {
         try {
           caseDetail = await (await fetch("/api/cases/"+selectedCase)).json();
+          loadKnownStatutes(selectedCase); // 后台刷新法条索引（不阻塞渲染）
           renderCase();
         } catch(e) {
           toast("加载案件失败: "+e.message);
@@ -246,12 +328,12 @@
         if(c.pdf_text) {
           const preview=c.pdf_text.slice(0,500).replace(/\n+/g,"\n");
           const txtEl=document.createElement("div"); txtEl.className="pp-result"; txtEl.style.marginTop="10px";
-          txtEl.innerHTML=`<div style="margin-bottom:6px"><b>📄 提取的文本（前500字）：</b></div><pre style="white-space:pre-wrap;font-size:11.5px;color:#4a5560;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px;max-height:160px;overflow:auto;margin:0">${escape(preview)}${c.pdf_text.length>500?"…":""}</pre>`;
+          txtEl.innerHTML=`<div style="margin-bottom:6px"><b>📄 提取的文本（前500字）：</b></div><pre style="white-space:pre-wrap;font-size:11.5px;color:var(--text-2);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px;max-height:160px;overflow:auto;margin:0">${escape(preview)}${c.pdf_text.length>500?"…":""}</pre>`;
           stage.appendChild(txtEl);
         }
 
         // 意图识别结果
-        let tags=(b.intent_tags||[]).map(t=>`<span style="display:inline-block;background:#eef3f9;border:1px solid #dde6f0;border-radius:4px;padding:1px 6px;font-size:11px;color:var(--navy);margin:2px">${escape(t)}</span>`).join("");
+        let tags=(b.intent_tags||[]).map(t=>`<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--navy);margin:2px">${escape(t)}</span>`).join("");
         const causeTxt = (b.cause || "案件审查");
         const conf = Math.round((b.cause_confidence!=null?b.cause_confidence:0.5)*100);
         const presetHint = b.suggested_preset ? `<div style="margin-top:6px"><b>🎯 建议策略：</b><span class="tchip" style="cursor:default">${escape(b.suggested_preset)}</span><span style="font-size:11px;color:var(--muted)">（可在审理前于专家配置中应用）</span></div>` : "";
@@ -278,7 +360,7 @@
         const pm=b.per_role_material||{}; const keys=Object.keys(pm);
         if(keys.length){
           const disp=document.createElement("div"); disp.className="pp-result"; disp.style.marginTop="8px";
-          disp.innerHTML=`<div style="margin-bottom:6px"><b>📦 已分发到 ${keys.length} 位专家（每人获得差异化材料）：</b></div>`+keys.map(k=>{const a=roleMap[k]||{name:k};const snip=(pm[k]||"").replace(/\s+/g," ").slice(0,100);return`<div style="margin:4px 0;padding:6px 8px;background:var(--surface);border:1px solid var(--line);border-radius:6px"><b style="color:${a.color||'var(--navy)'}">${escape(a.name)}</b><span style="font-size:11px;color:var(--muted)"> · ${(GROUP_LABELS[a.group]||"")}</span><div style="font-size:11.5px;color:#4a5560;margin-top:3px">${escape(snip)}…</div></div>`;}).join("");
+          disp.innerHTML=`<div style="margin-bottom:6px"><b>📦 已分发到 ${keys.length} 位专家（每人获得差异化材料）：</b></div>`+keys.map(k=>{const a=roleMap[k]||{name:k};const snip=(pm[k]||"").replace(/\s+/g," ").slice(0,100);return`<div style="margin:4px 0;padding:6px 8px;background:var(--surface);border:1px solid var(--line);border-radius:6px"><b style="color:${a.color||'var(--navy)'}">${escape(a.name)}</b><span style="font-size:11px;color:var(--muted)"> · ${(GROUP_LABELS[a.group]||"")}</span><div style="font-size:11.5px;color:var(--text-2);margin-top:3px">${escape(snip)}…</div></div>`;}).join("");
           stage.appendChild(disp);
         }
 
@@ -333,12 +415,13 @@
       let h=`<div class="card"><div class="case-head"><div class="case-no">案号 ${d.id?("〔2026〕"+e(d.id.toUpperCase())):"—"}</div><div class="case-title">${e(d.title)} ${aiTag}</div><div class="muted" id="caseSumBox">${e(sumShort)}${sumBtn}</div></div>`;
         if(d.persons&&d.persons.length){ h+='<div class="sec-title">涉案人员</div>'; d.persons.forEach(p=>{ h+=`<div class="person"><div><div><span class="pname">${e(p.name)}</span> <span class="prole">${e(p.role)}</span></div><div class="pdesc">${e(p.desc||"")}</div></div></div>`; }); }
         if(d.evidence&&d.evidence.length){ h+='<div class="sec-title">证据清单 <button class="ghost" style="float:right;font-size:10.5px;padding:2px 8px" onclick="auditEvidence()" aria-label="一键核验证据">🔍 一键核验</button></div><div id="evAudit"></div>'; d.evidence.forEach(ev=>{ const col=ev.chain_intact?"var(--ok)":"var(--bad)"; h+=`<div class="evi"><div class="evi-top"><span class="evi-id">${e(ev.id)}</span><span class="evi-type">${e(ev.type)}</span></div><div class="evi-desc">${e(ev.desc)}</div><div class="bar"><div style="width:${(ev.reliability||0)*100}%"></div></div><span class="chain ${ev.chain_intact?'ok':'no'}">${ev.chain_intact?'● 保管链完整':'● 保管链瑕疵'} · 可靠性 ${((ev.reliability||0)*100).toFixed(0)}%</span></div>`; }); }
-        if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${e(s.topic)}</div><div class="st-text">${e(s.text)}</div></div>`; }); }
+        if(d.contradictions&&d.contradictions.length){ h+='<div class="sec-title">争议焦点 <span class="muted" style="font-weight:400">（卷宗预梳理 · MetaLaw 式焦点先行）</span></div>'; d.contradictions.forEach(c=>{ h+=`<div class="focus-item"><span class="focus-id">${e(c.id||"焦点")}</span><div class="focus-body"><div class="focus-desc">${e(c.desc||c.issue||"")}</div>${c.impact?`<div class="focus-impact">🎯 影响：${e(c.impact)}</div>`:""}</div></div>`; }); }
+        if(d.statutes&&d.statutes.length){ h+='<div class="sec-title">法条依据</div>'; d.statutes.forEach(s=>{ h+=`<div class="statute"><div class="st-topic">${e(s.name||s.topic)}</div><div class="st-text">${e(s.text)}</div></div>`; }); }
         if(d.timeline&&d.timeline.length){ h+='<div class="sec-title">关键时间线</div><div class="tl">'; d.timeline.forEach(t=>{ h+=`<div class="tl-item"><div class="tl-time">${e(t.time)}</div><div class="tl-ev">${e(t.event)}</div><div class="tl-src">来源：${e(t.source||"—")}</div></div>`; }); h+='</div>'; }
         h+='<div class="sec-title">现场勘验图表</div>';
         const charts=d.charts||{};
         const chartItems=Object.entries(charts);
-        if(chartItems.length){ chartItems.forEach(([label,url])=>{ h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${escapeHtml(label)}</div><img class="chart" src="${escapeHtml(url)}" alt="${escapeHtml(label)}" onerror="this.style.display='none'">`; }); }
+        if(chartItems.length){ chartItems.forEach(([label,url])=>{ h+=`<div class="muted" style="font-size:11px;margin:0 0 4px">${escapeHtml(label)}</div><img class="chart" src="${escapeHtml(url)}" alt="${escapeHtml(label)}" loading="lazy" decoding="async" onerror="this.style.display='none'">`; }); }
         else { h+='<div class="muted">暂无足够数据生成图表（需要证据/时间线/通讯/资金等结构化字段）。</div>'; }
         h+='</div>'; $("casePanel").innerHTML=h; renderRoster(); renderIntake();
       }
@@ -561,7 +644,7 @@
             setTimeout(()=>{ if(!messages.length && !document.querySelector(".closure-card")){ showBanner("该场审理的实时数据已不可恢复，请重新开庭。"); running=false; $("landStart").disabled=false; } }, 1800);
           }
         };
-        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#fff;color:#9b2c2c;cursor:pointer;font-weight:600'>接续观看</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
+        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#f6efdd;color:#b03a2e;cursor:pointer;font-weight:600'>接续观看</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
         ws.onerror=()=>{ setConn("off"); console.error("WebSocket error"); };
         ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
@@ -592,7 +675,7 @@
           case "batch": { /* 断线重连水合：一次性重放历史事件，抑制 toast，最后统一渲染 */ window._replaying=true; try{ (ev.events||[]).forEach(x=>{ if(x.kind!=="batch") handle(x); }); } finally { window._replaying=false; } renderDebate(); break; }
            case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); const _sb=$("btnStop"); if(_sb) _sb.style.display=""; if(!messages.length){ $("debate").innerHTML='<div class="thread"><div class="skeleton"><div class="sk-ava"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div><div style="text-align:center;color:var(--faint);font-size:12px;margin-top:8px">专家们正在阅卷、准备首轮举证…</div></div>'; } break;
           case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary,investigation_plan:ev.investigation_plan||[]}; renderIvPlan(); break;
-          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#facc15", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
+          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#8a6d3b", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
           case "round_start": round=ev.round; maxRounds=ev.max_rounds||3; activeRole=null; $("prog").style.width=((round-1)/maxRounds*100)+"%"; renderRoster(); break;
           case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false,time:Date.now()}); renderDebate(); renderRoster(); break; }
           case "token": { const m=messages.find(x=>x.id===ev.id); if(m) m.text+=ev.text; scheduleRender(); } break;
@@ -645,7 +728,7 @@
         // （如 /sandbox/evidence_reliability_1.png 会变成 evidence<em>reliability</em>_1.png 导致图片 404）
         const stash = [];
         const keep = (html) => "\u0000" + (stash.push(html) - 1) + "\u0000";
-        s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m,a,u)=>keep('<img src="'+u+'" alt="'+a+'" />'));
+        s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m,a,u)=>keep('<img src="'+u+'" alt="'+a+'" loading="lazy" decoding="async" />'));
         s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m,t,u)=>keep('<a href="'+u+'" target="_blank" rel="noopener">'+t+"</a>"));
         s = s.replace(/`([^`]+)`/g, (m,c)=>keep("<code>"+c+"</code>"));
         s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -713,11 +796,35 @@
         }).join("");
       }
       let _renderQueued = false;
+      let _lastRenderSig = "";
+      function _msgSig(){ let s=messages.length+""; for(const m of messages) s+="|"+m.id+":"+(m.done?"1":"0")+":"+(m.tools?m.tools.length:0); return s; }
+      function _patchLastMessage(){ // 增量快路径：仅最后一条发言在流式变化时，只重绘它的正文
+        const m = messages[messages.length-1];
+        if(!m || m.done) return false;
+        const nodes = document.querySelectorAll("#debate .rec");
+        const last = nodes[nodes.length-1];
+        if(!last) return false;
+        const rt = last.querySelector(".rtext");
+        if(!rt) return false;
+        const sp = (m.text||"").includes("<th") ? splitThink(m.text) : {think:"", body:m.text};
+        rt.innerHTML = renderMarkdown(sp.body||"") + '<span class="cursor"></span>';
+        const tb = last.querySelector(".think-body");
+        if(tb && sp.think) tb.innerHTML = renderMarkdown(sp.think);
+        return true;
+      }
       function scheduleRender(){ // token 事件每秒可达上百次，逐次全量重绘会卡死主线程；按动画帧合并。
         // 单专家顺序发言时，token 间隔约 4ms；16ms 刷新间隔可做到接近逐字显示，
         // 叠加 80ms 兜底确保后台切回时看起来流畅不冻结。
         if(_renderQueued) return; _renderQueued = true;
-        const flush = () => { if(!_renderQueued) return; _renderQueued = false; renderDebate(); };
+        const flush = () => {
+          if(!_renderQueued) return; _renderQueued = false;
+          // 消息结构未变（无新专家发言/工具调用/状态翻转）→ 走 O(1) 增量补丁，
+          // 避免长辩论（40+ 条）时每帧重建上千个 DOM 节点。
+          const sig = _msgSig();
+          if(sig === _lastRenderSig && _patchLastMessage()) return;
+          renderDebate();
+          _lastRenderSig = sig;
+        };
         requestAnimationFrame(flush);
         setTimeout(flush, 80);
       }
@@ -727,16 +834,26 @@
         messages.forEach((m,mi)=>{ // 仅 role-round 形式的 id（如 scene-2）渲染轮次分隔；human-<ts> / err-<ts> 不计
           const rk=parseInt(m.id.split("-")[1]); const isRoundId=Number.isInteger(rk)&&rk>=1&&rk<=maxRounds+2;
           if(isRoundId&&rk!==last){ const sep=document.createElement("div"); sep.className="round-sep"; sep.textContent=`第 ${rk} 轮审理`; wrap.appendChild(sep); last=rk; }
-           const tools=m.tools.length?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escapeHtml(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
+           const tools=(m.tools&&m.tools.length)?`<div class="sandbox"><summary>⚙ 工具调用 · ${m.tools.length} 次</summary>${m.tools.map(t=>`<div class="sb-row"><span class="sb-k">调用</span>${TOOL_LABELS[t.tool]||t.tool}</div><div class="sb-row"><span class="sb-k">入参</span><pre class="md">${escapeHtml(JSON.stringify(t.args||{}, null, 2))}</pre></div><div class="sb-row"><span class="sb-k">返回</span><div class="md sandbox-result">${renderSandbox(t.result||"")}</div></div>`).join("")}</div>`:"";
           const cite=m.citations&&m.citations.length?`<div class="cites">来源${m.citations.map(c=>`<span class="cite-chip" title="${escapeHtml(c)}">${escapeHtml(String(c).slice(0,26))}</span>`).join("")}</div>`:"";
+          // 法条引用信号灯（发言结束后计算一次并缓存；重绘零开销）
+          let citeAudit="";
+          if(m.done && m.text){
+            if(m.__citeAudit===undefined) m.__citeAudit=citeAuditHtml(m.text);
+            citeAudit=m.__citeAudit;
+          }
+          // 深度思考过程（<think> 内容剥离出正文，折叠展示）
+          const sp=m.text&&m.text.includes("<th")?splitThink(m.text):{think:"",body:m.text};
+          const thinkBox=sp.think?`<details class="think-box"${m.done?"":" open"}><summary>🧠 深度思考过程${m.done?"（点击展开）":" · 进行中…"}</summary><div class="think-body md">${renderMarkdown(sp.think)}</div></details>`:"";
           const el=document.createElement("div"); el.className="rec";
-           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}<div class="rtext md">${renderMarkdown(m.text)}${!m.done?'<span class="cursor"></span>':''}</div>${tools}${cite}</div>`;
+           el.innerHTML=`<div class="ava${m.done?"":" live"}" style="background:${escapeHtml(m.color)}">${escapeHtml(m.name.slice(0,1))}</div><div class="body"><button class="copy-btn" data-copy="${mi}" title="复制发言原文">复制</button><div class="rname">${escapeHtml(m.name)}<span class="rtag">${roleMap[m.role]?.group?GROUP_LABELS[roleMap[m.role].group]:""}</span>${m.time?`<span class="rtime">${fmtTime(m.time)}</span>`:""}</div>${m.stance?`<div class="rstance">${escapeHtml(m.stance)}</div>`:""}${thinkBox}<div class="rtext md">${renderMarkdown(sp.body||"")}${!m.done?'<span class="cursor"></span>':''}</div>${tools}${citeAudit}${cite}</div>`;
           wrap.appendChild(el);
         });
         box.innerHTML="";
         // 结案卡片挂在渲染流水线内：任何一次重绘都自动补挂，不会被冲掉
         if(!running && lastVerdict && messages.length) appendClosureCard(wrap);
-        box.appendChild(wrap);
+        box.replaceChildren(wrap);
+        _lastRenderSig = _msgSig(); // 全量重绘后同步增量签名，避免下次 token 重复全量
         const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
         if (nearBottom) box.scrollTop = box.scrollHeight;
         const jb = $("jumpBottom"); if (jb) jb.classList.toggle("hidden", nearBottom || !messages.length);

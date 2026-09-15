@@ -31,7 +31,12 @@
         const sec=(t,arr)=>(arr&&arr.length)?`<div class="vsec">${t}</div><ul>${arr.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:"";
         const es=v.evidence_strength||{}; const pct=Math.round((es.score||0)*100);
         const bar=(es.score!=null)?`<div class="strength st-${pct>=75?"ok":pct>=45?"warn":"bad"}"><div class="st-row">证据链强度<b>${pct}%</b></div><div class="st-bar"><i style="width:${pct}%"></i></div>${(es.issues||[]).length?`<ul class="st-issues">${es.issues.map(x=>`<li class="md">${renderMarkdown(x)}</li>`).join("")}</ul>`:""}</div>`:"";
-        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${bar}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
+        // 裁决全文法条引用核查（引用信号灯汇总：裁决是最终输出，须逐条可回溯）
+        const vAll=[v.truth_hypothesis||"",...(v.evidence_chain||[]),...(v.doubts||[]),v.recommendation||""].join("\n");
+        const vCites=extractCites(vAll);
+        const vHit=vCites.filter(c=>knownStatutes[c.key]);
+        const auditCard=(vCites.length&&Object.keys(knownStatutes).length)?`<div class="cite-audit"><div class="ca-t">⚖ 法条引用核查 <span class="muted" style="font-weight:400">（幻觉防火墙 · 全文可回溯）</span></div><div class="ca-sum">${vHit.length?'<b style="color:var(--ok)">✓ '+vHit.length+' 条已核实</b>':""}${vCites.length-vHit.length?'<b style="color:var(--bad)">⚠ '+(vCites.length-vHit.length)+' 条待人工核对</b>':""}</div><div class="ca-list">${vCites.map(citeBadge).join("")}</div><div class="muted" style="font-size:10.5px;margin-top:4px">核实来源：本案卷宗法条 + 内置法条库；「待核对」可能是库外条文或模型杜撰，采信前务必查证原文。</div></div>`:"";
+        $("verdictBox").innerHTML=`<div class="verdict"><div class="vhead"><span class="seal">裁</span><span>审判长裁决书</span></div>${sec("真相推定",[v.truth_hypothesis])}${sec("证据链",v.evidence_chain)}${sec("存疑点",v.doubts)}${sec("处置建议",[v.recommendation])}${bar}${auditCard}${v.disclaimer?`<div class="disc">${v.disclaimer}</div>`:""}</div>`;
         // 裁决后处理工具条 + 质询面板
         $("verdictTools").classList.remove("hidden");
         $("qaBox").classList.remove("hidden");
@@ -102,6 +107,39 @@
         else fallbackCopy(t,done);
       }
       function fallbackCopy(t,done){ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); done(); }catch(e){ toast("复制失败，请手动选择文本"); } ta.remove(); }
+      /* 裁决一键沉淀知识库（HITL 知识闭环）：把本场裁决要旨存为自定义条目，
+         后续案件辩论中专家的「检索法条」工具即可命中复用。 */
+      async function seedKnowledge(){
+        const v = lastVerdict||{};
+        if(!v.truth_hypothesis){ toast("裁决尚未生成，无法沉淀"); return; }
+        const c = caseDetail||{};
+        const kws = [...new Set([
+          ...((c.persons||[]).map(p=>p&&p.name).filter(Boolean).slice(0,3)),
+          (serverBrief&&serverBrief.cause)||"", (serverBrief&&serverBrief.intent)||""
+        ].filter(Boolean))].slice(0,6);
+        const text = `【裁决要旨】${v.truth_hypothesis}\n\n`+
+          ((v.evidence_chain||[]).length?`【证据链】\n${v.evidence_chain.map((x,i)=>(i+1)+". "+x).join("\n")}\n\n`:"")+
+          ((v.doubts||[]).length?`【存疑点】\n${v.doubts.map(x=>"- "+x).join("\n")}\n\n`:"")+
+          (v.recommendation?`【处置建议】${v.recommendation}\n\n`:"")+
+          `（沉淀自 VerdictAI 对「${c.title||"案件"}」的合议裁决 · ${new Date().toLocaleDateString("zh-CN")}）`;
+        try{
+          const r=await fetch("/api/knowledge",{method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({title:"裁决要旨 · "+(c.title||"案件"), text, keywords:kws})});
+          if(r.status===403){ toast("写入知识库需要管理员权限"); return; }
+          if(!r.ok){ const d=await r.json().catch(()=>({})); toast("沉淀失败："+(d.error||("HTTP "+r.status))); return; }
+          toast("✓ 已沉淀到知识库，后续案件辩论可引用本裁决要旨");
+        }catch(e){ toast("请求失败: "+e.message); }
+      }
+      /* 引用核查汇总（报告附录用）：聚合裁决 + 全部发言，逐条判定核实状态 */
+      function citationAuditSection(){
+        const v = lastVerdict||{};
+        const vAll=[v.truth_hypothesis||"",...(v.evidence_chain||[]),...(v.doubts||[]),v.recommendation||""].join("\n");
+        const all=new Map();
+        [vAll, ...messages.map(m=>m.text||"")].forEach(t=>extractCites(t).forEach(c=>{ if(!all.has(c.key)) all.set(c.key,c); }));
+        if(!all.size||!Object.keys(knownStatutes).length) return null;
+        const items=[...all.values()];
+        return { ok: items.filter(c=>knownStatutes[c.key]), warn: items.filter(c=>!knownStatutes[c.key]), total: items.length };
+      }
       function reportMarkdown(){
         const b = serverBrief || (caseDetail && caseDetail.brief) || {};
         const c = caseDetail || {};
@@ -120,6 +158,12 @@
         if(v.recommendation) md += `**处置建议**：${v.recommendation}\n\n`;
         if((v.next_steps||[]).length) md += `**后续流程**\n\n${v.next_steps.map((x,i)=>`- [${nsDone.has(i)?"x":" "}] ${x}`).join("\n")}\n\n`;
         if(qaHistory.length) md += `## 八、裁决质询记录\n\n${qaHistory.map(q=>`**问：** ${q.q}\n\n**审判长：** ${q.a}\n`).join("\n")}\n`;
+        const audit = citationAuditSection();
+        if(audit){
+          md += `## 九、法条引用核查（幻觉防火墙）\n\n共 **${audit.total}** 条引用：✓ ${audit.ok.length} 已核实 · ⚠ ${audit.warn.length} 待人工核对\n\n`;
+          if(audit.ok.length) md += `**已核实**（卷宗法条 / 内置法条库命中）\n\n${audit.ok.map(c=>`- ✓ ${c.key.replace("|"," · ")}（${((knownStatutes[c.key]||{}).name||"").slice(0,60)}）`).join("\n")}\n\n`;
+          if(audit.warn.length) md += `**待人工核对**（库外条文或模型杜撰，采信前务必查证原文）\n\n${audit.warn.map(c=>`- ⚠ ${c.raw||c.key}`).join("\n")}\n\n`;
+        }
         if(v.disclaimer) md += `---\n\n${v.disclaimer}\n`;
         return md;
       }
@@ -228,6 +272,13 @@
         if(v.recommendation) h += `<div class="sec"><b>处置建议：</b>${renderMarkdown(v.recommendation)}</div>`;
         if(v.next_steps&&v.next_steps.length) h += `<div class="sec"><b>后续流程（可执行清单）：</b><ul>${v.next_steps.map((x,i)=>`<li>${nsDone.has(i)?"☑":"☐"} ${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
         if(qaHistory&&qaHistory.length) h += `<h2>八、裁决质询记录</h2>${qaHistory.map(q=>`<div class="sec"><b>问：</b>${escape(q.q)}<div class="qa-a">${renderMarkdown(q.a)}</div></div>`).join("")}`;
+        const audit = citationAuditSection();
+        if(audit){
+          h += `<h2>九、法条引用核查（幻觉防火墙）</h2><div class="sec">共 <b>${audit.total}</b> 条引用：✓ ${audit.ok.length} 已核实 · ⚠ ${audit.warn.length} 待人工核对`;
+          if(audit.ok.length) h += `<div style="margin-top:6px"><b>已核实</b><ul>${audit.ok.map(c=>`<li>✓ ${escape(c.key.replace("|"," · "))} — ${escape(((knownStatutes[c.key]||{}).name||"").slice(0,60))}</li>`).join("")}</ul></div>`;
+          if(audit.warn.length) h += `<div style="margin-top:6px"><b>待人工核对</b>（库外条文或模型杜撰，采信前务必查证原文）<ul>${audit.warn.map(c=>`<li>⚠ ${escape(c.raw||c.key)}</li>`).join("")}</ul></div>`;
+          h += `</div>`;
+        }
         if(v.disclaimer) h += `<div class="disc">${escape(v.disclaimer)}</div>`;
         h += `</div><div class="disc">本报告由多智能体系统自动生成，仅供研究与演示，不构成法律意见。</div></body></html>`;
         return h;
@@ -524,7 +575,7 @@
         cases.forEach(c=>{
           const el=document.createElement("div"); el.className="lib-item";
           const hasBrief = c.brief && c.brief.intake_done;
-          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons?.length||0}人 · ${c.evidence?.length||0}证 · ${c.timeline?.length||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="openTimelineModal('${escape(c.id)}')">⏱ 时间线</button><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
+          el.innerHTML=`<div class="lib-main"><div class="lib-title">${escape(c.title||"无标题")}</div><div class="lib-meta">ID: ${escape(c.id||"")} · ${c.persons_count||0}人 · ${c.evidence_count||0}证 · ${c.timeline_count||0}时刻 ${hasBrief?"· ✓已预处理":""}</div></div><div class="lib-actions"><button class="ghost" onclick="openTimelineModal('${escape(c.id)}')">⏱ 时间线</button><button class="ghost" onclick="viewCase('${escape(c.id)}')">查看</button><button class="primary" onclick="selectCaseFromLib('${escape(c.id)}')">选中</button><button class="ghost danger" onclick="deleteCase('${escape(c.id)}')">删除</button></div>`;
           box.appendChild(el);
         });
       }
@@ -649,7 +700,7 @@
       // 轻量级 confirm modal
       function confirmDialog(msg){
         return new Promise(resolve=>{
-          const overlay=document.createElement("div"); overlay.className="modal"; overlay.innerHTML=`
+          const overlay=document.createElement("div"); overlay.className="modal confirm-modal"; overlay.innerHTML=`
             <div class="modal-card" style="width:min(400px,90vw)">
               <div class="modal-head"><span>确认操作</span><button class="ghost" onclick="this.closest('.modal').remove();resolve(false)" style="font-size:16px" aria-label="关闭确认弹窗">✕</button></div>
               <div class="modal-body"><p style="margin:0;line-height:1.7">${escapeHtml(msg)}</p></div>

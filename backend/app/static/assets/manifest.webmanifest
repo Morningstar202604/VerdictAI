@@ -1,0 +1,17 @@
+{
+  "name": "VerdictAI · 智能探案合议庭",
+  "short_name": "VerdictAI",
+  "description": "多智能体辩论推理 · 真相收敛与裁决辅助。七位 AI 专家像合议庭一样举证、质证、互查矛盾，人类法官始终握有最终裁决权。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3eee1",
+  "theme_color": "#16324f",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/static/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/assets/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

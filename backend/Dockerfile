@@ -33,5 +33,13 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -fsS http://localhost:8787/api/health || exit 1
 
+# ── 安全说明（默认仍以 root 运行，避免挂载卷属主不匹配导致写入失败）──────────
+# 容器内若 CODE_SANDBOX_BACKEND=auto 且无 docker.sock，专家代码会以本容器用户
+# 执行；为降低专家任意代码对宿主的影响，推荐：
+#   1) 把沙箱切到 docker 后端：挂载 /var/run/docker.sock 并设
+#      CODE_SANDBOX_BACKEND=docker（一次性容器断网 + 512MB 隔离）；或
+#   2) CODE_SANDBOX_ENABLED=false 完全关闭沙箱；
+#   3) 如需非 root 运行：创建 uid 与挂载卷属主一致的普通用户并在此处加 USER，
+#      并确保 ./backend/data 对该用户可写。
 # 生产用单 worker；辩论会话为进程内存态，多 worker 需共享存储
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8787"]

@@ -1,0 +1,176 @@
+[
+ {
+  "name": "A1 落地页加载+截图",
+  "status": "PASS",
+  "secs": 1.3,
+  "detail": "案件下拉选项数=98"
+ },
+ {
+  "name": "A2 帮助弹窗",
+  "status": "PASS",
+  "secs": 0.5,
+  "detail": "帮助弹窗开/关正常"
+ },
+ {
+  "name": "A3 设置弹窗7个Tab截图",
+  "status": "PASS",
+  "secs": 8.7,
+  "detail": "案例库=98行 KB=15条 合议庭=7 专家配置=9"
+ },
+ {
+  "name": "A4 明暗主题切换",
+  "status": "PASS",
+  "secs": 0.9,
+  "detail": "深色类挂到 body.dark, 往返切换 OK"
+ },
+ {
+  "name": "A5 流程图页 flow.html",
+  "status": "PASS",
+  "secs": 0.9,
+  "detail": "status=200 正文1081字"
+ },
+ {
+  "name": "B1 健康检查 API",
+  "status": "PASS",
+  "secs": 0.0,
+  "detail": "provider=mock mock=True v=0.9.0"
+ },
+ {
+  "name": "B2 案例下拉加载",
+  "status": "PASS",
+  "secs": 0.0,
+  "detail": "下拉含种子案件, 选项数=98 首项='江城「3·15」别墅命案 [_001]'"
+ },
+ {
+  "name": "B3 选中案件→案卷+intake卡",
+  "status": "PASS",
+  "secs": 6.2,
+  "detail": "选中案件=case_c208dcf6 案卷面板8144字 intake卡显示=True"
+ },
+ {
+  "name": "B4 粘贴案情→意图预览",
+  "status": "PASS",
+  "secs": 1.5,
+  "detail": "意图预览: '案由案件审查置信度60%'"
+ },
+ {
+  "name": "B5 知识库 检索/新增/删除",
+  "status": "PASS",
+  "secs": 7.6,
+  "detail": "内置条目=15 命中'证明标准'=2 自定义增/删 OK"
+ },
+ {
+  "name": "B6 案例库 生成/筛选/批量导入/UI删除",
+  "status": "PASS",
+  "secs": 18.2,
+  "detail": "案例 99→100(生成示例) 筛选种子=43 批量导入→102 UI删除=False 标签=49"
+ },
+ {
+  "name": "B7 证据时间线+相似案例弹窗",
+  "status": "PASS",
+  "secs": 4.5,
+  "detail": "弹窗内容: 证据时间线 · case_001（12 个时间节点）✕2026-03-14 19:40林晚离开画廊，微信告知周明远『今晚早点…林晚手机微信2026-03-14 "
+ },
+ {
+  "name": "B8 Agent工程 用量统计+策略模板",
+  "status": "PASS",
+  "secs": 2.4,
+  "detail": "usage='28场审理452模型调用18.1万输出字符0审计条目最近：江城「3·15」别墅命案·14次\\u3000江城「3·15」别墅命案·14次\\u3000江城「3·15」别墅命案·14次（审计未开启（AUDI' 模板=['刑事·严格证据攻防', '民事·责任划分']"
+ },
+ {
+  "name": "B9 设置保存持久化",
+  "status": "PASS",
+  "secs": 4.2,
+  "detail": "轮次 2→2→2 均落库(.env)"
+ },
+ {
+  "name": "B10 设置·测试连接(mock)",
+  "status": "PASS",
+  "secs": 0.0,
+  "detail": "结果: ✅ gpt-4o-mini · 0s · Mock 模式：离线占位演示，未调用真实模型"
+ },
+ {
+  "name": "B11 运行环境·沙箱试跑",
+  "status": "PASS",
+  "secs": 0.4,
+  "detail": "沙箱输出: 'SANDBOX_OK 5'"
+ },
+ {
+  "name": "B12 上传JSON卷宗建案",
+  "status": "PASS",
+  "secs": 9.2,
+  "detail": "案件数 102->103"
+ },
+ {
+  "name": "B13 上传PDF卷宗建案",
+  "status": "PASS",
+  "secs": 6.1,
+  "detail": "案件数 103->104 info='📄sample_case2.pdf1 KB✓ 已选择'"
+ },
+ {
+  "name": "B14 专家配置与策略模板 API",
+  "status": "PASS",
+  "secs": 0.0,
+  "detail": "专家配置=9个 策略模板=2个 names=['刑事·严格证据攻防', '民事·责任划分']"
+ },
+ {
+  "name": "C1 开庭:选案件→工作区+ws连接",
+  "status": "PASS",
+  "secs": 6.6,
+  "detail": "案件=case_62d14704 ws已连接"
+ },
+ {
+  "name": "C2 辩论推进:笔录+工具调用",
+  "status": "PASS",
+  "secs": 5.4,
+  "detail": "发言3条 工具调用块0个 phase=审理进行中"
+ },
+ {
+  "name": "C3 中途插话(intervene)",
+  "status": "PASS",
+  "secs": 0.8,
+  "detail": "插话已发送(下一轮生效), 输入框已清空"
+ },
+ {
+  "name": "C4 裁决书渲染(回放已完成辩论)",
+  "status": "PASS",
+  "secs": 3.6,
+  "detail": "回放55286hrtjun 总发言14 裁决书=1 工具条=True 质询面板=True 后续清单=4项"
+ },
+ {
+  "name": "C5 裁决质询(QA追问)",
+  "status": "PASS",
+  "secs": 2.3,
+  "detail": "质询答复: '【审判长·模拟陈述】基于卷宗材料（你是审判长。辩论已终结、裁决已作出。现在当事方就裁决提出质询，请以审判长身份答复： - 只依据卷宗与裁决内容，引用证据编…），针对该问题：现有证据'"
+ },
+ {
+  "name": "C6 审判报告 API",
+  "status": "PASS",
+  "secs": 0.0,
+  "detail": "复盘28场 report API=200 首行='# 庭审核查报告\\n\\n- **案件**：江城「3·15」别墅命案 (副本37)\\n- **开庭时间**：2026-09-14'"
+ },
+ {
+  "name": "C7 复盘留档+回放",
+  "status": "PASS",
+  "secs": 5.7,
+  "detail": "复盘列表=28场 回放发言14条 裁决书恢复=True"
+ },
+ {
+  "name": "C8 聚焦模式",
+  "status": "PASS",
+  "secs": 2.9,
+  "detail": "聚焦模式: no-left=True 按钮='⤢ 退出聚焦'"
+ },
+ {
+  "name": "C9 移动端视图",
+  "status": "PASS",
+  "secs": 3.1,
+  "detail": "移动端落地页+底部导航+侧板 OK"
+ },
+ {
+  "name": "_ Console JS errors",
+  "status": "PASS",
+  "secs": 0,
+  "detail": ""
+ }
+]

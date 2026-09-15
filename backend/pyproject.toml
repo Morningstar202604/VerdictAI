@@ -1,0 +1,8 @@
+# VerdictAI 后端工程配置
+# 解决 tests 包导入：默认 pytest 不把项目根加入 sys.path，
+# 导致 `from tests._p0_helpers import ...` 在 CI/本地不一致地失败。
+# pythonpath 让 backend 始终可作为 import 根，测试稳定可复现。
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

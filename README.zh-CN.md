@@ -225,6 +225,20 @@ MAX_ROUNDS=3
 
 重启服务即可。支持任意 OpenAI 兼容 API：DeepSeek、GLM、Qwen、Step、Ollama 等。没有 Key？内置**本地引擎**（`backend/ai_engine/`）可完全离线跑通全流程。
 
+## 🧪 测试与质量
+
+```bash
+# 后端单元/集成测试（pytest，无需起服务）
+cd backend && python -m pytest tests/ -q
+
+# UI 全界面回归（29 项用例 + 自动截图，需先起服务）
+LLM_PROVIDER=mock uvicorn app.main:app --port 8787
+python tools/ui_regression.py           # 产物: backend/ui_test_artifacts/
+# VAI_BASE_URL=http://127.0.0.1:9000 python tools/ui_regression.py  # 指定地址
+```
+
+前端采用「朱批」设计系统（宣纸 × 藏青 × 鎏金 × 朱砂）：Noto Serif/Sans SC 字体**本地自托管**（GB2312 子集化，无外部 CDN 依赖，离线可用）；支持 **PWA 安装**与静态资源离线缓存（`static/assets/sw.js`，改动被缓存的静态文件后把 CACHE 版本号 +1 即可自动刷新）。
+
 ## 🏗️ 架构
 
 ```

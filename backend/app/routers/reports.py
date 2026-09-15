@@ -126,6 +126,49 @@ def render_markdown(rec: dict) -> str:
         for s in stps[:10]:
             L.append(f"- {_md(s)}")
         L.append("")
+    # 法条引用核查附录（幻觉防火墙）：裁决+全部发言逐条比对卷宗/内置法条
+    try:
+        from app.legal.cite_check import check_texts
+        v_all = "\n".join(
+            [str(verdict.get("truth_hypothesis") or "")]
+            + [str(x) for x in (verdict.get("evidence_chain") or [])]
+            + [str(x) for x in (verdict.get("doubts") or [])]
+            + [str(verdict.get("recommendation") or "")]
+        )
+        texts = [v_all] + [
+            str(ev.get("text") or "")
+            for ev in events if ev.get("kind") in ("agent_end", "speech") and ev.get("text")
+        ]
+        case = None
+        try:
+            from app.data.store import load_case
+            case = load_case(str(rec.get("case_id") or ""))
+        except Exception:  # noqa: BLE001
+            case = None
+        audit = check_texts(texts, (case or {}).get("statutes"))
+        if audit["stats"]["unique_citations"]:
+            st = audit["stats"]
+            L.append("## 五、法条引用核查（幻觉防火墙）")
+            L.append("")
+            L.append(f"共 **{st['unique_citations']}** 条引用："
+                     f"✓ {st['verified']} 已核实 · ⚠ {st['unverified']} 待人工核对")
+            L.append("")
+            ok = [c for c in audit["citations"] if c["status"] == "verified"]
+            warn = [c for c in audit["citations"] if c["status"] == "unverified"]
+            if ok:
+                L.append("**已核实**（卷宗法条 / 内置法条库命中）")
+                L.append("")
+                for c in ok:
+                    L.append(f"- ✓ {c['key'].replace('|', ' · ')}（{str(c.get('ref_name') or '')[:60]}）")
+                L.append("")
+            if warn:
+                L.append("**待人工核对**（库外条文或模型杜撰，采信前务必查证原文）")
+                L.append("")
+                for c in warn:
+                    L.append(f"- ⚠ {_md(c.get('raw') or c['key'])}")
+                L.append("")
+    except Exception:  # noqa: BLE001 — 核查附录失败不阻断报告导出
+        pass
     disc = verdict.get("disclaimer")
     if disc:
         L.append(f"> {_md(disc)}")
@@ -158,6 +201,33 @@ def render_docx(rec: dict) -> bytes | None:
     for d in (verdict.get("doubts") or [])[:20]:
         doc.add_paragraph("· " + str(d))
     doc.add_paragraph(f"处置建议：{verdict.get('recommendation') or ''}")
+    # 法条引用核查附录（失败静默，不阻断 DOCX 导出）
+    try:
+        from app.legal.cite_check import check_texts
+        events = rec.get("events") or []
+        v_all = "\n".join([str(verdict.get("truth_hypothesis") or "")]
+                          + [str(x) for x in (verdict.get("evidence_chain") or [])]
+                          + [str(x) for x in (verdict.get("doubts") or [])]
+                          + [str(verdict.get("recommendation") or "")])
+        texts = [v_all] + [str(ev.get("text") or "") for ev in events
+                           if ev.get("kind") in ("agent_end", "speech") and ev.get("text")]
+        case = None
+        try:
+            from app.data.store import load_case
+            case = load_case(str(rec.get("case_id") or ""))
+        except Exception:  # noqa: BLE001
+            case = None
+        audit = check_texts(texts, (case or {}).get("statutes"))
+        if audit["stats"]["unique_citations"]:
+            st = audit["stats"]
+            doc.add_heading(f"法条引用核查（共 {st['unique_citations']} 条："
+                            f"✓ {st['verified']} 已核实 · ⚠ {st['unverified']} 待人工核对）", level=1)
+            for c in audit["citations"]:
+                mark = "✓" if c["status"] == "verified" else "⚠"
+                suffix = f" — {str(c.get('ref_name') or '')[:60]}" if c.get("ref_name") else "（待人工核对）"
+                doc.add_paragraph(f"{mark} {c['key'].replace('|', ' · ')}{suffix}")
+    except Exception:  # noqa: BLE001
+        pass
     if verdict.get("disclaimer"):
         doc.add_paragraph(str(verdict.get("disclaimer")))
     import io

@@ -108,13 +108,36 @@ def _build_dossier_text(case: dict, image_captions: Optional[List[str]] = None) 
             )
         )
     if case.get("finance"):
-        parts.append(
-            "# 资金/财务数据\n"
-            + "\n".join(
-                f"- {f.get('item', '')}：金额{f.get('amount', '')}（{f.get('date', '')}）· {f.get('note', '')}"
-                for f in case["finance"]
+        # 兼容两种结构：标准 list[dict]，或带汇总与流水子列表的 dict
+        # （如 {"total_amount": ..., "flows": [...]}; 上传/生成的案件结构不统一，
+        #  直接按 list 遍历会让整个卷宗预处理崩溃）
+        fin = case["finance"]
+        if isinstance(fin, dict):
+            rows = list(fin.get("flows") or [])
+        else:
+            rows = list(fin)
+
+        def _fin_line(f: object) -> str:
+            if not isinstance(f, dict):
+                return f"- {f}"
+            return (
+                f"- {f.get('item') or f.get('from', '')}"
+                f"{' → ' + f['to'] if f.get('to') else ''}"
+                f"：金额{f.get('amount', '')}（{f.get('date', '')}）· {f.get('note', '')}"
             )
-        )
+
+        lines = [_fin_line(f) for f in rows]
+        # dict 结构的汇总字段（总额/已核实/存疑）一并写入，供专家引用
+        if isinstance(fin, dict):
+            summary_bits = [
+                f"{k}={v}"
+                for k, v in fin.items()
+                if k not in ("flows",) and isinstance(v, (int, float, str))
+            ]
+            if summary_bits:
+                lines.insert(0, "- 汇总：" + "，".join(summary_bits))
+        if lines:
+            parts.append("# 资金/财务数据\n" + "\n".join(lines))
     if case.get("dna_persons"):
         parts.append(
             "# DNA 比对结果\n"
@@ -127,8 +150,13 @@ def _build_dossier_text(case: dict, image_captions: Optional[List[str]] = None) 
         parts.append(
             "# 通讯记录\n"
             + "\n".join(
+                # 兼容两种字段命名：from/to/time/type 与 pair/summary
                 f"- {ct.get('from', '')} → {ct.get('to', '')}：{ct.get('time', '')}·{ct.get('type', '')}"
-                f"（{ct.get('note', '')}）"
+                f"（{ct.get('note') or ct.get('summary', '')}）"
+                if isinstance(ct, dict) and ("from" in ct or "to" in ct)
+                else f"- {ct.get('pair', '')}：{ct.get('summary', '')}"
+                if isinstance(ct, dict)
+                else f"- {ct}"
                 for ct in case["contacts"]
             )
         )

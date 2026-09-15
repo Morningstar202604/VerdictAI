@@ -1,47 +1,98 @@
 <!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><title>多智能体探案审判系统 · 流程图</title>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>智能探案合议庭 · 全流程</title>
 <style>
+  :root{
+    --paper:#f3eee1; --panel:#faf7ee; --surface:#fffdf6; --surface-2:#f1ebdc;
+    --ink:#1c2733; --ink-2:#3d4b5c; --muted:#6b7686; --faint:#98a1ad;
+    --gold:#a8772a; --gold-soft:#c9a86a; --navy:#16324f; --seal:#b03a2e;
+    --ok:#3a7d44; --line:#ddd3bd; --line-strong:#c9bb9c;
+    --serif:'Noto Serif SC','Songti SC','STSong',Georgia,serif;
+    --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+    --mono:ui-monospace,'SF Mono',Consolas,monospace;
+  }
   *{box-sizing:border-box}
-  body{font-family:-apple-system,"Microsoft YaHei",sans-serif;margin:0;background:#0f172a;color:#e2e8f0;padding:28px}
-  h1{font-size:21px;margin:0 0 4px;color:#fff}
-  .sub{color:#94a3b8;font-size:13px;margin-bottom:24px}
+  body{
+    font-family:var(--sans);margin:0;background:var(--paper);color:var(--ink);
+    padding:30px 26px 60px;line-height:1.7;font-size:14px;
+    background-image:
+      radial-gradient(1000px 460px at 88% -6%, rgba(168,119,42,.07), transparent 60%),
+      radial-gradient(860px 440px at -8% 6%, rgba(22,50,79,.06), transparent 55%);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{
+    font-family:var(--serif);font-weight:900;font-size:24px;letter-spacing:.14em;
+    margin:0 0 4px;color:var(--ink);
+  }
+  h1 .seal-mini{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:6px;background:var(--seal);color:#f8ede4;
+    font-size:15px;transform:rotate(-6deg);margin-right:10px;vertical-align:-6px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.28),0 2px 8px rgba(176,58,46,.4);
+  }
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:26px;letter-spacing:.04em}
   .flow{display:flex;flex-wrap:wrap;gap:14px;align-items:stretch}
-  .col{flex:1;min-width:230px;background:#1e293b;border:1px solid #334155;border-radius:12px;padding:15px}
-  .col h2{font-size:14px;margin:0 0 12px;color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:8px}
-  .step{background:#0f172a;border:1px solid #334155;border-left:3px solid #38bdf8;border-radius:8px;padding:9px 11px;margin-bottom:9px;font-size:12.5px;line-height:1.5}
-  .step b{color:#7dd3fc}
-  .step.ai{border-left-color:#f59e0b}
-  .step.live{border-left-color:#34d399}
-  .step.loop{border-left-color:#fb7185}
-  .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-right:5px;vertical-align:middle}
-  .t-ai{background:#78350f;color:#fcd34d}
-  .t-live{background:#064e3b;color:#6ee7b7}
-  .t-ws{background:#1e3a5f;color:#7dd3fc}
-  .arrow{text-align:center;color:#475569;font-size:20px;margin:6px 0}
-  .note{margin-top:22px;font-size:12px;color:#94a3b8;line-height:1.7;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 16px}
-  .note code{background:#0f172a;padding:1px 5px;border-radius:4px;color:#7dd3fc}
-  .grid2{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
-  .grid2 .col{flex:1;min-width:300px}
+  .col{
+    flex:1;min-width:250px;background:var(--panel);border:1px solid var(--line);
+    border-top:3px solid var(--gold);border-radius:12px;padding:15px 16px;box-shadow:0 2px 10px rgba(28,39,51,.07);
+  }
+  .col h2{
+    font-family:var(--serif);font-size:14.5px;font-weight:700;margin:0 0 12px;color:var(--navy);
+    letter-spacing:.1em;border-bottom:1px dashed var(--line-strong);padding-bottom:8px;
+  }
+  .step{
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--navy);
+    border-radius:8px;padding:9px 11px;margin-bottom:9px;font-size:12.5px;line-height:1.6;color:var(--ink-2);
+  }
+  .step b{color:var(--ink)}
+  .step.ai{border-left-color:var(--gold)}
+  .step.live{border-left-color:var(--ok)}
+  .step.loop{border-left-color:var(--seal)}
+  .tag{
+    display:inline-block;font-size:10px;padding:1px 7px;border-radius:4px;margin-right:6px;
+    vertical-align:middle;letter-spacing:.08em;font-weight:600;
+  }
+  .t-ai{background:rgba(168,119,42,.14);color:var(--gold);border:1px solid var(--gold-soft)}
+  .t-live{background:rgba(58,125,68,.12);color:var(--ok);border:1px solid rgba(58,125,68,.4)}
+  .t-ws{background:rgba(22,50,79,.1);color:var(--navy);border:1px solid rgba(22,50,79,.3)}
+  code{font-family:var(--mono);font-size:.9em;background:var(--surface-2);padding:1px 5px;border-radius:4px;color:var(--navy)}
+  .arrow{text-align:center;color:var(--gold-soft);font-size:20px;margin:10px 0}
+  .grid2{display:flex;gap:14px;flex-wrap:wrap;margin-top:0}
+  .grid2 .col{flex:1;min-width:320px}
+  .note{
+    margin-top:24px;font-size:12px;color:var(--muted);line-height:1.8;
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--seal);
+    border-radius:10px;padding:14px 16px;
+  }
+  .note b{color:var(--ink-2)}
+  @media (prefers-reduced-motion:no-preference){
+    .col{animation:fadeUp .4s ease both}
+    .col:nth-child(2){animation-delay:.06s}.col:nth-child(3){animation-delay:.12s}
+  }
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 </style></head>
 <body>
-<h1>多智能体法律探案审判系统 — 全流程</h1>
-<div class="sub">真实 PDF 入库 → AI 意图识别 + 分角色分发 → 多专家辩论 → 纠错 → 审判长裁决 → 报告。无任何演示数据，全部走真实大模型。</div>
+<div class="wrap">
+<h1><span class="seal-mini">裁</span>智能探案合议庭 — 全流程</h1>
+<div class="sub">真实卷宗入库 → AI 意图识别 + 分角色分发 → 多专家辩论 → 纠错 → 审判长落槌 → 报告归档。无任何演示数据，全部走真实大模型。</div>
 
 <div class="flow">
   <div class="col">
     <h2>① 落地页 / 案例库</h2>
     <div class="step"><span class="tag t-ws">前端</span>加载 <code>/api/cases</code> 案例库列表</div>
     <div class="step"><span class="tag t-ws">前端</span>下拉/卡片选择案件，勾选出庭专家</div>
-    <div class="step"><span class="tag t-ai">AI</span>拖拽 / 选择 <b>PDF</b> → 进入预处理</div>
+    <div class="step ai"><span class="tag t-ai">AI</span>拖拽 / 选择 <b>PDF / Word / TXT</b> → 进入预处理</div>
     <div class="step">设置页「案例库」：列表 / 删除 / 生成示例 / 选中</div>
   </div>
 
   <div class="col">
     <h2>② 卷宗预处理（真实 AI）</h2>
-    <div class="step"><span class="tag t-ai">AI</span><b>PyMuPDF</b> 提取 PDF 文本</div>
-    <div class="step"><span class="tag t-ai">AI</span>意图识别（intake 模型：step-3.7-flash）</div>
-    <div class="step"><span class="tag t-ai">AI</span>思考强度评估 + 总体提示词生成</div>
-    <div class="step"><span class="tag t-ai">AI</span>按角色聚焦分派 8 份差异化材料</div>
+    <div class="step ai"><span class="tag t-ai">AI</span><b>PyMuPDF</b> 提取 PDF 文本</div>
+    <div class="step ai"><span class="tag t-ai">AI</span>意图识别（intake 模型）</div>
+    <div class="step ai"><span class="tag t-ai">AI</span>思考强度评估 + 总体提示词生成</div>
+    <div class="step ai"><span class="tag t-ai">AI</span>按角色聚焦分派差异化材料</div>
     <div class="step">前端动画展示 5 步 + 打字机结果 → 确认开庭</div>
   </div>
 
@@ -49,7 +100,7 @@
     <h2>③ 开庭审理（WebSocket）</h2>
     <div class="step"><span class="tag t-ws">WS</span>连接 <code>/ws/{session}</code></div>
     <div class="step"><span class="tag t-ws">WS</span>发送 <code>start{case_id, intent, judge_mode…}</code></div>
-    <div class="step"><span class="tag t-ws">后端</span><b>run_debate</b> → 构建 LangGraph</div>
+    <div class="step"><span class="tag t-ws">后端</span><b>run_debate</b> → 构建辩论图</div>
   </div>
 </div>
 
@@ -58,7 +109,7 @@
 <div class="grid2">
   <div class="col">
     <h2>④ 辩论图（每轮循环）</h2>
-    <div class="step"><b>experts_node</b>：8 专家依次举证质证</div>
+    <div class="step"><b>experts_node</b>：出庭专家依次举证质证</div>
     <div class="step live"><span class="tag t-live">实时</span>每专家发言完 → AI 书记员生成<b>合议记录</b>（主张/证据/疑点）→ 推 <code>agent_note</code></div>
     <div class="step loop"><b>critic_node</b>：纠错官交叉比对，输出矛盾清单</div>
     <div class="step loop"><b>judge_node</b>：审判长收敛判断</div>
@@ -68,8 +119,8 @@
   <div class="col">
     <h2>⑤ 右侧面板（动态记录）</h2>
     <div class="step live"><span class="tag t-live">实时</span><b>合议记录</b>：每个专家一张卡（一句话主张 + 证据标签 + 疑点）</div>
-    <div class="step"><b>矛盾·纠错清单</b>：critic 提取的结构化矛盾</div>
-    <div class="step"><b>审判长裁决书</b>：真相推定 / 证据链 / 存疑点 / 建议</div>
+    <div class="step loop"><b>矛盾 · 纠错清单</b>：critic 提取的结构化矛盾</div>
+    <div class="step ai"><b>审判长裁决书</b>：真相推定 / 证据链 / 存疑点 / 建议</div>
     <div class="step">人类可中途「插话」介入下一轮</div>
   </div>
 </div>
@@ -92,7 +143,9 @@
 </div>
 
 <div class="note">
-<b>为什么之前"像是 demo"：</b>旧代码里落地页默认硬加载 <code>case_001</code> 这个内置示例，且上传后若未点「确认并准备开庭」就不会切换。现已：① 删除 <code>case_001</code>；② 所有案件来自案例库；③ 上传即入库并自动选中；④ 设置页可直接管理（删除/生成/选中）。<br>
-<b>实时记录为什么之前是空的：</b>旧版右侧只在每轮结束的 <code>critic_end</code> 才有内容。现已新增 <code>agent_note</code> 事件——每个专家发言结束，后台用 intake 模型异步提炼一张「合议记录」卡推到右侧，辩论过程中持续更新。
+<b>设计说明：</b>界面采用「朱批」视觉体系——象牙宣纸底、藏青正文、鎏金点缀、朱砂落印。裁决书生成时印章以「落章」动画盖下，象征 AI 辅助意见定稿；夜审模式（🌙）对应夜间阅卷场景。<br>
+<b>实时记录：</b>右侧面板在每个专家发言结束时即收到 <code>agent_note</code> 提炼卡，辩论过程中持续更新，而非等一轮结束才有内容。<br>
+<b>最终裁决权：</b>AI 只做辅助分析，人类法官始终握有最终裁决权（<code>judge_mode=human</code> 时辩论末自动暂停等待落槌）。
+</div>
 </div>
 </body></html>

@@ -810,6 +810,10 @@ async def experts_node(state: DebateState, config) -> Dict:
             raise
         except Exception as ex:
             log.warning("expert %s round %s failed: %s", rk, new_round, ex)
+            fallback = (
+                f"（{ROLES.get(rk, {}).get('name', rk)}本轮分析失败："
+                f"{str(ex)[:150]}，建议人工复核其证据推导。）"
+            )
             await sink(
                 {
                     "kind": "agent_error",
@@ -819,10 +823,18 @@ async def experts_node(state: DebateState, config) -> Dict:
                     "id": f"{rk}-{new_round}",
                 }
             )
-            return rk, (
-                f"（{ROLES.get(rk, {}).get('name', rk)}本轮分析失败："
-                f"{str(ex)[:150]}，建议人工复核其证据推导。）"
+            # 兜底意见同样下发 agent_end 终态：否则前端该专家卡片永远
+            # 停留在"发言中"，第 2 轮起整场辩论的专家面板会失去完整性
+            await sink(
+                {
+                    "kind": "agent_end",
+                    "id": f"{rk}-{new_round}",
+                    "role": rk,
+                    "name": ROLES.get(rk, {}).get("name", rk),
+                    "text": fallback,
+                }
             )
+            return rk, fallback
 
     results = []
     if _parallel_enabled(cfg):

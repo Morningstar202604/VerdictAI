@@ -158,7 +158,9 @@ def update(payload: dict) -> dict:
                 pass
 
     if "intake_model" in payload and payload["intake_model"] is not None:
-        settings.intake_model = str(payload["intake_model"]).strip() or "step-3.7-flash"
+        # 空值 = 走主模型；不硬编码具体模型名（默认名在多数中转站不存在，
+        # 会导致 intake 静默失败退化为规则预处理）
+        settings.intake_model = str(payload["intake_model"]).strip()
 
     if (
         "code_sandbox_enabled" in payload
@@ -237,6 +239,10 @@ def _persist() -> None:
         "INTAKE_MODEL": settings.intake_model,
         "CODE_SANDBOX_ENABLED": "true" if settings.code_sandbox_enabled else "false",
         "CODE_SANDBOX_PYTHON": settings.code_sandbox_python,
+        "CODE_SANDBOX_BACKEND": settings.code_sandbox_backend,
+        "CODE_SANDBOX_DOCKER_IMAGE": settings.code_sandbox_docker_image,
+        "STREAM_EXPERTS": settings.stream_experts,
+        "PARALLEL_EXPERTS": settings.parallel_experts,
     }
 
     out: list[str] = []

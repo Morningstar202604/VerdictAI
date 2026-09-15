@@ -47,7 +47,7 @@ class Settings:
     # 人类审判长落槌等待超时（秒）：0=不限时
     hitl_timeout: int = int(os.getenv("HITL_TIMEOUT", "300"))
     # 卷宗预处理专用模型（引擎按此名走"分案法官"确定性抽取）
-    intake_model: str = os.getenv("INTAKE_MODEL", "verdict-local-intake")
+    intake_model: str = os.getenv("INTAKE_MODEL", "")
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
     # 智能体运行环境（沙箱）
     code_sandbox_enabled: bool = (
@@ -66,7 +66,10 @@ class Settings:
     # 解析执行前先做静态检查，命中以下命令前缀即拒绝（逗号分隔，忽略空白项）。
     code_sandbox_deny_cmds: str = os.getenv(
         "CODE_SANDBOX_DENY_CMDS",
-        "socket,urllib,requests,httpx,http.client,curl,wget,subprocess,os.system,os.popen,pty,shutil.rmtree",
+        # 联网/子进程/破坏性命令 + 运行时代码执行与逃逸入口（__import__/compile/
+        # exec/eval/importlib/ctypes 等）。subprocess 模式缺容器网络隔离，
+        # 正则层拦明显字样，tools._sandbox_ast_check 再补 AST 语义层拦拼接绕过。
+        "socket,urllib,requests,httpx,http.client,curl,wget,subprocess,os.system,os.popen,os.remove,os.unlink,os.rmdir,pty,shutil.rmtree,importlib,__import__,compile,exec,eval,ctypes",
     )
     # 服务
     host: str = os.getenv("HOST", "0.0.0.0")

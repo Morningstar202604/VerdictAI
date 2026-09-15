@@ -18,6 +18,14 @@ from app.config import settings
 # 避免每场辩论 7 专家 × N 轮创建数十个 HTTP 客户端。
 _llm_cache: dict = {}
 
+# 浏览器 UA：规避部分 OpenAI 兼容中转的 WAF 按 openai SDK 默认 UA 拦截（403）
+_BROWSER_UA = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
+}
+
 # LLM 响应缓存（P0-2）：同一 prompt（模型+消息序列哈希）命中直接回放，
 # 大幅降低重复推理的 API 成本与首字延迟；LRU 上限由 settings.llm_cache_size 控制。
 _response_cache: "OrderedDict[str, str]" = OrderedDict()
@@ -327,6 +335,7 @@ def get_llm(
             base_url=base_url,
             temperature=temperature,
             streaming=False,
+            default_headers=_BROWSER_UA,
             # 思维链类模型（如 gemini 系列）会把大量推理写入 reasoning_content，
             # 若不显式给足 max_tokens，JSON 输出会被截断导致解析失败
             max_tokens=max_tokens or 8000,
@@ -380,7 +389,10 @@ async def stream_or_invoke(llm, messages, on_chunk=None, timeout=None, key: str 
             merged = chunk if merged is None else merged + chunk
             text = chunk.text() if hasattr(chunk, "text") else str(chunk.content or "")
             if text and on_chunk:
-                on_chunk(text)
+                r = on_chunk(text)
+                # 回调可为同步或异步函数（nodes.py 传的是 async _on）
+                if asyncio.iscoroutine(r):
+                    await r
 
     try:
         if timeout and timeout > 0:
@@ -558,8 +570,11 @@ async def structured_call(
             if fix_messages_builder is not None:
                 fix_msgs = fix_messages_builder(last_text, err)
             else:
+                # 括号保证三元表达式整段先求值，再与核心指令拼接——
+                # 否则 Python「+ 高于条件表达式」的优先级会让 repair_hint
+                # 分支丢掉「重新输出合法 JSON」指令，自动修复退化。
                 fix_prompt = (
-                    (repair_hint + "\n\n") if repair_hint else ""
+                    ((repair_hint + "\n\n") if repair_hint else "")
                     + "你上一轮输出的结构无法解析：{error}\n"
                     "请重新输出，只包含合法的 JSON（不要代码块、不要额外文字）。"
                 )

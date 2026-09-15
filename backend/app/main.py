@@ -9,12 +9,13 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from app import auth
 from app.config import settings
 from app.data.store import load_case, validate_id
 from app.graph.runner import run_debate
-from app.routers import admin, agents, cases, debates, intent, knowledge, presets, qa, reports, sandbox
+from app.routers import admin, agents, cases, debates, intent, knowledge, legal, presets, qa, reports, sandbox
 from app.routers import settings as settings_router
 from app.routers import users as users_router
 from app.ws.manager import manager
@@ -61,7 +62,9 @@ async def global_exception_handler(request, exc):
     )
 
 
-# ---------------- 中间件（注册顺序决定执行顺序：限流 → CORS → 访问口令） ----------------
+# ---------------- 中间件（注册顺序决定执行顺序：限流 → GZip → CORS → 访问口令） ----------------
+# GZip：JS/CSS 167KB→49KB、案件列表 JSON 274KB→~30KB；woff2 等已压缩资源自动跳过
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.middleware("http")(auth.rate_limit_middleware)
 app.middleware("http")(auth.access_gate)
 
@@ -93,7 +96,7 @@ app.post("/login")(auth.login_submit)
 
 
 # ---------------- REST 路由 ----------------
-for r in (cases, debates, reports, settings_router, agents, sandbox, presets, knowledge, qa, intent, admin):
+for r in (cases, debates, reports, settings_router, agents, sandbox, presets, knowledge, qa, intent, legal, admin):
     app.include_router(r.router)
 app.include_router(users_router.router)
 app.include_router(users_router.admin_router)
