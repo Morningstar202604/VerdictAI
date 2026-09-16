@@ -269,7 +269,7 @@ _LOGIN_PAGE = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
  button{width:100%;padding:11px;border:0;border-radius:9px;background:#2f5d94;color:#fff;
    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
  button:hover{background:#3a6cab;}
- .err{color:#e08073;font-size:12px;min-height:16px;margin:8px 0 0;}
+ .err{color:#a98ad0;font-size:12px;min-height:16px;margin:8px 0 0;}
  .muted{font-size:11px;color:#6b7a8c;margin-top:10px;}
 </style></head><body>
  <div class="card">

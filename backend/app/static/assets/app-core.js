@@ -657,7 +657,7 @@
             setTimeout(()=>{ if(!messages.length && !document.querySelector(".closure-card")){ showBanner("该场审理的实时数据已不可恢复，请重新开庭。"); running=false; $("landStart").disabled=false; } }, 1800);
           }
         };
-        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#f6efdd;color:#b03a2e;cursor:pointer;font-weight:600'>接续观看</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
+        ws.onclose=()=>{ setConn("off"); const _sb5=$("btnStop"); if(_sb5) _sb5.style.display="none"; if(!manualClose && running){ showBanner("连接已断开。<button onclick=\"retryConnect()\" style='margin-left:8px;padding:3px 10px;border-radius:4px;border:none;background:#e8eef4;color:#9b5fb0;cursor:pointer;font-weight:600'>接续观看</button>"); running=false; $("landStart").disabled=false; } else if(!manualClose){ showBanner("连接失败，请刷新页面重试。"); } };
         ws.onerror=()=>{ setConn("off"); console.error("WebSocket error"); };
         ws.onmessage=(e)=>{ try { handle(JSON.parse(e.data)); } catch(err) { console.error("WS parse error:", err); } };
       }
@@ -688,9 +688,11 @@
           case "batch": { /* 断线重连水合：一次性重放历史事件，抑制 toast，最后统一渲染 */ window._replaying=true; try{ (ev.events||[]).forEach(x=>{ if(x.kind!=="batch") handle(x); }); } finally { window._replaying=false; } renderDebate(); break; }
            case "session_start": setPhase("running"); $("intervene").classList.remove("hidden"); $("ivChips").classList.remove("hidden"); const _sb=$("btnStop"); if(_sb) _sb.style.display=""; if(!messages.length){ $("debate").innerHTML='<div class="thread"><div class="skeleton"><div class="sk-ava"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line"></div></div></div><div style="text-align:center;color:var(--faint);font-size:12px;margin-top:8px">专家们正在阅卷、准备首轮举证…</div></div>'; } break;
           case "intake": serverBrief={intent:ev.intent,intent_tags:ev.intent_tags,reasoning_intensity:ev.reasoning_intensity,global_guidance:ev.global_guidance,summary:ev.summary,investigation_plan:ev.investigation_plan||[]}; renderIvPlan(); break;
-          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#8a6d3b", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
+          case "human_inject": { const id="human-"+Date.now(); messages.push({id, role:"human", name:"人类法官介入", color:"#5b7fa6", stance:"", text:ev.text, tools:[], done:true, time:Date.now()}); renderDebate(); break; }
+          // 插话未生效（辩论未开始/已终结）：必须显式告知，否则用户以为发出去了
+          case "human_rejected": { toast("⚠ " + (ev.message||"插话未生效")); const id="hr-"+Date.now(); messages.push({id, role:"system", name:"插话未生效", color:"#6a5fa8", stance:"", text:(ev.message||"当前没有进行中的辩论，插话未生效。")+"\n\n提示：插话需在「受理 / 辩论」阶段发出，将在下一轮生效。", tools:[], done:true, time:Date.now()}); renderDebate(); break; }
           case "round_start": round=ev.round; maxRounds=ev.max_rounds||3; activeRole=null; $("prog").style.width=((round-1)/maxRounds*100)+"%"; renderRoster(); break;
-          case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#1f3a5f"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false,time:Date.now()}); renderDebate(); renderRoster(); break; }
+          case "agent_start": { const mid=ev.id||(ev.role+"-"+round); currentId=mid; activeRole=ev.role; setSpeak(ev.name+" 正在举证", true); const color=(roleMap[ev.role]||{}).color||"#2a4a5a"; const a=roleMap[ev.role]||{}; messages.push({id:mid,role:ev.role,name:ev.name,color,stance:a.stance,text:"",tools:[],done:false,time:Date.now()}); renderDebate(); renderRoster(); break; }
           case "token": { const m=messages.find(x=>x.id===ev.id); if(m) m.text+=ev.text; scheduleRender(); } break;
           case "tool": { const m=messages.find(x=>x.id===ev.id); if(m) m.tools.push({tool:ev.tool,args:ev.args,result:ev.result}); renderDebate(); } break;
           case "agent_end": { const m=messages.find(x=>x.id===ev.id); if(m) m.done=true; renderDebate(); renderRoster(); break; }
@@ -707,12 +709,12 @@
           case "human_reminder": setPhase("review"); break;
           case "judge_end": setSpeak(ev.consensus ? "审判长已落槌，裁决达成" : "未达成完全共识，转入人类法官复核", false); break;
           case "human_done": setPhase("running"); $("hitl").innerHTML=""; break;
-          case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#b45309", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
+          case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#6a5fa8", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
           case "usage": lastUsage=ev.usage||null; break;
           case "trace": lastTrace=ev||null; renderTrace(); break;
           case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ const _in=Math.round((lastUsage.in_chars||0)/1000), _out=Math.round((lastUsage.out_chars||0)/1000); setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+_in+"k 字、产出 "+_out+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
           case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
-          case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
+          case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#a860b8", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
         }
       }
       function cleanText(s){

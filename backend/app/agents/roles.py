@@ -6,12 +6,16 @@ from app.agents.tools import tools_for_role
 
 # 第二层 + 第一层：探案专家角色定义
 # 每个角色 = 独立立场 + 专属职责 + 视觉标识（供前端 React Flow 使用）
+#
+# 色板：统一冷色调（色相 160°–290° 青→蓝→靛→紫），
+# 刻意避开暖区（红/橙/黄），与整体界面「克制石板青」一致。
+# 约束：饱和度 45–75%、亮度 58–68%，保证深色背景下白字头像可读且彼此可区分。
 
 ROLES: Dict[str, Dict] = {
     "scene": {
         "key": "scene",
         "name": "现场勘查专家",
-        "color": "#38bdf8",
+        "color": "#22b8cf",
         "stance": "客观还原现场空间逻辑",
         "duty": "还原现场、空间动线、出入口、痕迹分布",
         "system": (
@@ -23,7 +27,7 @@ ROLES: Dict[str, Dict] = {
     "forensic": {
         "key": "forensic",
         "name": "法医专家",
-        "color": "#34d399",
+        "color": "#2fb8a0",
         "stance": "科学证据优先",
         "duty": "死因、伤情、死亡时间推断",
         "system": (
@@ -35,7 +39,7 @@ ROLES: Dict[str, Dict] = {
     "evidence": {
         "key": "evidence",
         "name": "物证/痕迹专家",
-        "color": "#fbbf24",
+        "color": "#4f8fd6",
         "stance": "物证书证为准",
         "duty": "指纹、DNA、凶器、监控、电子数据",
         "system": (
@@ -47,7 +51,7 @@ ROLES: Dict[str, Dict] = {
     "psych": {
         "key": "psych",
         "name": "讯问/心理专家",
-        "color": "#a78bfa",
+        "color": "#7c6ee0",
         "stance": "关注口供可信度与动机",
         "duty": "口供可信度、行为人动机、心理画像",
         "system": (
@@ -59,7 +63,7 @@ ROLES: Dict[str, Dict] = {
     "law": {
         "key": "law",
         "name": "证据法专家",
-        "color": "#f472b6",
+        "color": "#a86ad0",
         "stance": "程序正义与证据合法性",
         "duty": "证据资格、非法证据排除、证明标准",
         "system": (
@@ -71,7 +75,7 @@ ROLES: Dict[str, Dict] = {
     "prosecutor": {
         "key": "prosecutor",
         "name": "检察官 Agent",
-        "color": "#fb7185",
+        "color": "#b85fd0",
         "stance": "构建指控逻辑链（控方）",
         "duty": "整合证据形成指控、指出证明缺口",
         "system": (
@@ -83,7 +87,7 @@ ROLES: Dict[str, Dict] = {
     "defense": {
         "key": "defense",
         "name": "辩护 Agent",
-        "color": "#60a5fa",
+        "color": "#3b82f6",
         "stance": "提出合理怀疑（辩方）",
         "duty": "寻找逻辑漏洞、提出替代解释",
         "system": (
@@ -95,7 +99,7 @@ ROLES: Dict[str, Dict] = {
     "judge": {
         "key": "judge",
         "name": "审判长 Agent",
-        "color": "#facc15",
+        "color": "#5fb0c9",
         "stance": "中立收敛与裁决",
         "duty": "综合、纠错裁判、形成裁决",
         "system": (

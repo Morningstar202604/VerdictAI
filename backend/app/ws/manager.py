@@ -77,12 +77,32 @@ class ConnectionManager:
 
     async def push_human(
         self, session_id: str, text: str, subtype: str = "intervene"
-    ) -> None:
+    ) -> bool:
+        """投入一条人工介入消息。
+
+        返回 False 表示队列不存在（辩论未开始/已终结）——此时消息会被丢弃，
+        调用方必须据此回执用户，否则用户以为插话成功，实际石沉大海。
+        """
         q = (self.final_queues if subtype == "final" else self.human_queues).get(
             session_id
         )
-        if q is not None:
-            await q.put(text)
+        if q is None:
+            return False
+        await q.put(text)
+        return True
+
+    def drain_human(self, session_id: str) -> "list[str]":
+        """取出并清空所有待处理的人工介入消息（终结时用于提示未消费内容）。"""
+        q = self.human_queues.get(session_id)
+        if q is None:
+            return []
+        out = []
+        while not q.empty():
+            try:
+                out.append(q.get_nowait())
+            except asyncio.QueueEmpty:  # pragma: no cover - 竞态保护
+                break
+        return out
 
     def pop_human(self, session_id: str) -> "str | None":
         """非阻塞取出一条人工介入消息（用于辩论中途注入下一轮）。"""

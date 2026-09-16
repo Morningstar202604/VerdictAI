@@ -44,7 +44,7 @@ def _defaults() -> dict:
     out["critic"] = {
         "key": "critic",
         "name": "纠错官",
-        "color": "#f59e0b",
+        "color": "#6c93a3",
         "stance": "梳理矛盾、质疑漏洞",
         "duty": "比对各专家主张，输出矛盾/纠错清单",
         "group": "other",

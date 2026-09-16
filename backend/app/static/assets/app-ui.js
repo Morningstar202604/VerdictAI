@@ -15,7 +15,7 @@
         recNotes.push({role, name, note});
         const wrap=$("recording"); if(!wrap) return;
         if(wrap.querySelector(".muted")) wrap.innerHTML="";
-        const color=(roleMap[role]||{}).color||"#1f3a5f";
+        const color=(roleMap[role]||{}).color||"#2a4a5a";
         const evs=(note.evidence_ids||[]).map(e=>`<span class="ev-tag">${escape(e)}</span>`).join("");
         const ds=(note.doubts||[]).map(d=>`${escape(d)}`).join("；");
         const imp=(note.implicates||[]).map(k=>`${escape((roleMap[k]||{}).name||k)}`).join("、");
@@ -195,7 +195,7 @@
         const c = caseDetail || {}; const v = lastVerdict || {};
         const li = (t, arr) => (arr && arr.length) ? `<h2>${t}</h2><ul>${arr.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul>` : "";
         let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审理裁决书 - ${escape(c.title||"")}</title>`;
-        h += `<style>body{font-family:"Noto Serif SC","Songti SC","SimSun",serif;max-width:800px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:2} h1{text-align:center;font-size:22px;letter-spacing:4px;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:12px;margin-bottom:18px} h2{font-size:15px;margin:20px 0 6px} .meta{border-top:1px solid #999;border-bottom:1px solid #999;padding:8px 0;font-size:13px;margin:12px 0} .sec{margin:8px 0} .main{font-size:15px;font-weight:700} ul{margin:4px 0;padding-left:22px} li{margin:3px 0} .sign{margin-top:36px;text-align:right;color:#333;font-size:13px} .disc{margin-top:24px;color:#888;font-size:11px;border-top:1px dashed #bbb;padding-top:8px} @media print{body{margin:0 auto}}</style></head><body>`;
+        h += `<style>body{font-family:"Noto Serif SC","Songti SC","SimSun",serif;max-width:800px;margin:32px auto;padding:0 22px;color:#1b1e23;line-height:2} h1{text-align:center;font-size:22px;letter-spacing:4px;margin-bottom:4px} .sub{text-align:center;color:#666;font-size:12px;margin-bottom:18px} h2{font-size:15px;margin:20px 0 6px} .meta{border-top:1px solid #999;border-bottom:1px solid #999;padding:8px 0;font-size:13px;margin:12px 0} .sec{margin:8px 0} .main{font-size:15px;font-weight:700} ul{margin:4px 0;padding-left:22px} li{margin:3px 0} .sign{margin-top:36px;text-align:right;color:#333;font-size:13px} .disc{margin-top:24px;color:#888;font-size:11px;border-top:1px dashed #bbb;padding-top:8px} @media print{body{margin:0 auto}}</style></head><body>`;
         h += `<h1>审 理 裁 决 书</h1><div class="sub">VerdictAI 多智能体合议系统 · 辅助研究文书</div>`;
         h += `<div class="meta">案号：${escape(c.id||"")}　｜　案件：${escape(c.title||"")}<br>调查意图：${escape(b.intent||"")}　｜　审理轮次：${round||"—"} 轮　｜　合议庭：七专家 + 纠错官 + 审判长</div>`;
         h += `<h2>一、案件事实</h2><div class="sec">${renderMarkdown(c.summary||"（无）")}</div>`;
@@ -256,16 +256,16 @@
         const c = caseDetail || {};
         const v = lastVerdict || {};
         let h = `<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>审判报告 - ${escape(c.title||"")}</title>`;
-        h += `<style>body{font-family:-apple-system,'Microsoft YaHei',sans-serif;max-width:880px;margin:24px auto;padding:0 18px;color:#0f172a;line-height:1.75} h1{border-bottom:3px solid #7f1d1d;padding-bottom:8px} h2{margin-top:28px;color:#7f1d1d;border-left:4px solid #7f1d1d;padding-left:10px} .meta{color:#64748b;font-size:13px} .rec{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:10px 0} .rec .n{font-weight:700} .sec{background:#f8fafc;border-radius:8px;padding:10px 14px;margin:6px 0} .seal{display:inline-block;border:2px solid #7f1d1d;color:#7f1d1d;border-radius:50%;width:30px;height:30px;line-height:26px;text-align:center;font-weight:700;font-size:13px} pre{white-space:pre-wrap;background:#fff7ed;padding:8px;border-radius:8px} .disc{color:#64748b;font-size:12px;margin-top:10px} ul{margin:4px 0;padding-left:20px} li{margin:2px 0} .qa-a{border-left:3px solid #b45309;padding-left:10px;margin:6px 0} @media print{ body{margin:0 auto} h2{page-break-after:avoid} .rec{page-break-inside:avoid} }</style></head><body>`;
+        h += `<style>body{font-family:-apple-system,'Microsoft YaHei',sans-serif;max-width:880px;margin:24px auto;padding:0 18px;color:#132033;line-height:1.75} h1{border-bottom:3px solid #33697e;padding-bottom:8px} h2{margin-top:28px;color:#33697e;border-left:4px solid #33697e;padding-left:10px} .meta{color:#5f6b7a;font-size:13px} .rec{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:10px 0} .rec .n{font-weight:700} .sec{background:#f8fafc;border-radius:8px;padding:10px 14px;margin:6px 0} .seal{display:inline-block;border:2px solid #33697e;color:#33697e;border-radius:50%;width:30px;height:30px;line-height:26px;text-align:center;font-weight:700;font-size:13px} pre{white-space:pre-wrap;background:#f1f5f9;padding:8px;border-radius:8px} .disc{color:#5f6b7a;font-size:12px;margin-top:10px} ul{margin:4px 0;padding-left:20px} li{margin:2px 0} .qa-a{border-left:3px solid #6a5fa8;padding-left:10px;margin:6px 0} @media print{ body{margin:0 auto} h2{page-break-after:avoid} .rec{page-break-inside:avoid} }</style></head><body>`;
         h += `<h1>审判报告</h1><div class="meta">案号：${escape(c.id||"")} ｜ 标题：${escape(c.title||"")}<br>调查意图：${escape(brief.intent||"")} ｜ 思考强度：${escape(brief.reasoning_intensity||"")}</div>`;
         h += `<h2>一、案件概要</h2><div class="sec">${renderMarkdown(c.summary||"")}</div>`;
         if(c.persons&&c.persons.length){ h+="<h2>二、涉案人员</h2><div class='sec'>"+c.persons.map(p=>`<div><b>${escape(p.name)}</b>（${escape(p.role||"")}）：${escape(p.desc||"")}</div>`).join("")+"</div>"; }
         if(c.evidence&&c.evidence.length){ h+="<h2>三、证据材料</h2><div class='sec'>"+c.evidence.map(e=>`<div><b>[${escape(e.id||"")}]${escape(e.type||"")}</b>：${escape(e.desc||"")}（可靠性${e.reliability}，保管链${e.chain_intact?"完整":"瑕疵"}）</div>`).join("")+"</div>"; }
         h += `<h2>四、合议庭审理笔录</h2>`;
-        messages.forEach(m=>{ if(m.role==="human"){ h+=`<div class="rec" style="border-color:#facc15"><div class="n">${escape(m.name)}</div><div>${renderMarkdown(m.text)}</div></div>`; return; } const a=roleMap[m.role]||{}; h+=`<div class="rec"><div class="n" style="color:${m.color}">${escape(m.name)}</div><div>${renderMarkdown(m.text)||"<i>（无文本输出）</i>"}</div></div>`; });
-        h += `<h2>五、合议记录（实时摘要）</h2><div class="sec">${recNotes.length?recNotes.map(r=>`<div><b style="color:#1f3a5f">${escape(r.name)}</b>：${renderMarkdown(r.note.claim||"")}${r.note.evidence_ids&&r.note.evidence_ids.length?` ［证据：${r.note.evidence_ids.join("、")}］`:""}${r.note.doubts&&r.note.doubts.length?` <span style="color:#b45309">⚠ ${r.note.doubts.join("；")}</span>`:""}</div>`).join(""):"<div>无</div>"}</div>`;
+        messages.forEach(m=>{ if(m.role==="human"){ h+=`<div class="rec" style="border-color:#5b8def"><div class="n">${escape(m.name)}</div><div>${renderMarkdown(m.text)}</div></div>`; return; } const a=roleMap[m.role]||{}; h+=`<div class="rec"><div class="n" style="color:${m.color}">${escape(m.name)}</div><div>${renderMarkdown(m.text)||"<i>（无文本输出）</i>"}</div></div>`; });
+        h += `<h2>五、合议记录（实时摘要）</h2><div class="sec">${recNotes.length?recNotes.map(r=>`<div><b style="color:#2a4a5a">${escape(r.name)}</b>：${renderMarkdown(r.note.claim||"")}${r.note.evidence_ids&&r.note.evidence_ids.length?` ［证据：${r.note.evidence_ids.join("、")}］`:""}${r.note.doubts&&r.note.doubts.length?` <span style="color:#6a5fa8">⚠ ${r.note.doubts.join("；")}</span>`:""}</div>`).join(""):"<div>无</div>"}</div>`;
         h += `<h2>六、矛盾与纠错清单</h2><div class="sec">${contraList.length?contraList.map(c=>{const parties=(c.parties||[]).map(k=>(roleMap[k]||{}).name||k).join(" ↔ "); return `<div>⚠ ${parties?parties+"：":""}${renderMarkdown(c.issue||"")}</div>`;}).join(""):"<div>无</div>"}</div>`;
-        h += `<h2>七、审判长裁决</h2><div class="rec" style="border-color:#7f1d1d"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
+        h += `<h2>七、审判长裁决</h2><div class="rec" style="border-color:#33697e"><div class="n"><span class="seal">裁</span> 审判长裁决书</div>`;
         h += `<div class="sec"><b>真相推定：</b>${renderMarkdown(v.truth_hypothesis||"")}</div>`;
         if(v.evidence_chain&&v.evidence_chain.length) h += `<div class="sec"><b>证据链：</b><ul>${v.evidence_chain.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
         if(v.doubts&&v.doubts.length) h += `<div class="sec"><b>存疑点：</b><ul>${v.doubts.map(x=>`<li>${renderMarkdown(x)}</li>`).join("")}</ul></div>`;
@@ -454,7 +454,7 @@
           list.forEach(e=>{
             const el=document.createElement("div"); el.className="kb-item";
             const kws=(e.keywords||[]).map(k=>" <span style='color:var(--gold)'>#"+escapeHtml(k)+"</span>").join("");
-            const sim = e.semantic ? `<span class="badge" style="background:#eaf6ee;color:#1e7d3c">语义</span>` : "";
+            const sim = e.semantic ? `<span class="badge" style="background:#e8f2ec;color:#2f8a63">语义</span>` : "";
             el.innerHTML=`<div class="kb-title">${escapeHtml(e.title)}${sim}</div><div class="kb-meta">${escapeHtml(e.category||"")}${kws}</div><div class="kb-text md">${escapeHtml(e.text||"")}</div>`;
             if(e.source==="custom"){
               const btn=document.createElement("button"); btn.className="ghost danger"; btn.textContent="删除"; btn.style.marginTop="8px"; btn.style.fontSize="11px";
@@ -600,14 +600,14 @@
         const n=Math.min(items.length||0, 20), W=Math.max(420, n*150+60), H=170, y=70;
         if(!n) return '<div class="muted">该案件暂无时间线节点。</div>';
         let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;min-width:${W}px">`;
-        s+=`<line x1="24" y1="${y}" x2="${W-24}" y2="${y}" stroke="#c9b98a" stroke-width="2"/>`;
+        s+=`<line x1="24" y1="${y}" x2="${W-24}" y2="${y}" stroke="#8fb3c9" stroke-width="2"/>`;
         items.slice(0,n).forEach((it,i)=>{
           const x=44+i*150;
-          s+=`<circle cx="${x}" cy="${y}" r="6" fill="#9c7c43" stroke="#e9ddc0" stroke-width="2"/>`;
-          s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+16}" stroke="#c9b98a" stroke-width="1.5" stroke-dasharray="3,3"/>`;
-          s+=`<text x="${x}" y="${y-16}" text-anchor="middle" font-size="11" fill="#8a6d3b">${escape(it.time||"-")}</text>`;
-          const ev=String(it.event||""); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" font-size="11" fill="#4a5560">${escape(ev.length>20?ev.slice(0,19)+"…":ev)}</text>`;
-          if(it.source) s+=`<text x="${x}" y="${y+50}" text-anchor="middle" font-size="9.5" fill="#9aa5b1">${escape(String(it.source).slice(0,14))}</text>`;
+          s+=`<circle cx="${x}" cy="${y}" r="6" fill="#4f8fd6" stroke="#cfe0ea" stroke-width="2"/>`;
+          s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${y+16}" stroke="#8fb3c9" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+          s+=`<text x="${x}" y="${y-16}" text-anchor="middle" font-size="11" fill="#5b7fa6">${escape(it.time||"-")}</text>`;
+          const ev=String(it.event||""); s+=`<text x="${x}" y="${y+34}" text-anchor="middle" font-size="11" fill="#56687a">${escape(ev.length>20?ev.slice(0,19)+"…":ev)}</text>`;
+          if(it.source) s+=`<text x="${x}" y="${y+50}" text-anchor="middle" font-size="9.5" fill="#8b98a8">${escape(String(it.source).slice(0,14))}</text>`;
         });
         return s+"</svg>";
       }
@@ -674,9 +674,10 @@
       function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
 
       // ---------- 明暗主题 ----------
+      // 默认亮色（产品基线）；用户显式切过深色才覆盖。
       function applyTheme(dark){
         document.body.classList.toggle("dark", dark);
-        $("btnTheme").textContent = dark ? "☀️" : "🌙";
+        const b = $("btnTheme"); if(b) b.textContent = dark ? "☀️" : "🌙";
       }
       function toggleTheme(){
         const dark = !document.body.classList.contains("dark");
@@ -684,10 +685,14 @@
         try { localStorage.setItem("vai_theme", dark ? "dark" : "light"); } catch(e){}
         toast(dark ? "已切换到深色模式" : "已切换到浅色模式");
       }
+      // 尽早应用，避免首屏亮色闪烁（FOUC）：脚本在 body 末尾，
+      // 若 body 尚未就绪则退回 DOMContentLoaded。
       (function(){
         let pref = "light";
         try { pref = localStorage.getItem("vai_theme") || "light"; } catch(e){}
-        applyTheme(pref === "dark");
+        const run = () => applyTheme(pref === "dark");
+        if (document.body) run();
+        else document.addEventListener("DOMContentLoaded", run);
       })();
 
       // 全局错误处理

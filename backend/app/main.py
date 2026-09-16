@@ -277,9 +277,20 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                     await manager.send(session_id, {"kind": "stopped", "message": "辩论已被用户停止"})
                 manager.tasks.pop(session_id, None)
             elif msg_type == "human":
-                await manager.push_human(
+                ok = await manager.push_human(
                     session_id, msg.get("text", ""), msg.get("subtype", "intervene")
                 )
+                # 队列不存在 = 辩论未开始或已终结，消息不会生效。
+                # 必须回执，否则用户以为插话成功，实际被静默丢弃。
+                if not ok:
+                    await manager.send(
+                        session_id,
+                        {
+                            "kind": "human_rejected",
+                            "message": "当前没有进行中的辩论，插话未生效。"
+                                       "请在辩论进行中（受理/辩论阶段）再试。",
+                        },
+                    )
 
     task = asyncio.create_task(receiver())
     try:

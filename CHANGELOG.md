@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 ### Changed
+- **视觉基线：全站统一冷色调（亮色为默认）**。清除全部暖色残留：角色色板（原亮黄/橙/品红 → 青/蓝/靛/紫，色相 160–290° 均匀分布）、纠错官、语义色（error/warn → 冷紫系）、时间线 SVG、打印报告模板、`logo.svg`（金 → 冷银青）、`flow.html`（独立暖纸感主题 → 与主样式同源冷色）、`manifest.webmanifest`。审计口径：86 个唯一色值，暖色 0。
 - 外壳重构：落地页改为「提交卷宗 → 预处理与意图识别 → 合议庭阵容」三步折叠卡片（Step1 默认展开，Step2 有预处理结果时自动展开）；设置面板的旧标签条移除，改由**左侧多级折叠目录**驱动（`app-shell.js`：分组记忆 + 当前项高亮 + 锚点跳转）。
 - 侧栏：桌面可折叠为 56px 图标窄条（偏好持久化）；≤900px 转为覆盖式抽屉，默认收起、点叶子后自动收起、点抽屉外/按 ☰ 可开关。
+### Added
+- `tests/test_ui_shell.py`：外壳契约回归（17 项，纯静态解析，无需浏览器）——目录叶子 `.tab` 契约、`.tabpane` 可达性、内联处理器与 DOM id 引用完整性、HTML/CSS 类名一致性、**冷色调基线**、主题默认亮色。
+- `tests/test_human_interject.py`：人工介入投递语义（6 项）——投递失败可感知、队列隔离、终结时清点。
+- CI 新增 `ui-shell` job，把上述契约纳入门禁。
 ### Fixed
+- **插话"插入不进去"**：辩论未开始/已终结时 `push_human` 静默丢弃，用户无任何反馈。现返回投递结果，失败时下发 `human_rejected` 事件并在笔录中显式提示。
+- 主题首屏闪烁（FOUC）：主题在 `<body>` 解析前应用会闪白，现按 `document.body` 就绪状态择时应用。
 - 确认弹窗在 ✕ 与 Esc 双路径下 Promise 挂起（等待永不 resolve）。
 - `escapeHtml` 不转义引号：结果拼进 `title` / `data-q` 属性时被含引号文本截断。
 - `/api/cases` 返回 `{error}` 时 `.cases` 为 undefined，随后的 forEach 抛错中断 `init()`，案件下拉/chips/名册全不渲染。
@@ -13,6 +20,10 @@
 - PWA 离线失效：`sw.js` 注册在 `/static/assets/` 下，scope 被限死导致无法控制根路径 —— 改由 `/sw.js` 提供并带 `Service-Worker-Allowed: /`，同时该文件加入登录豁免前缀。
 - Service Worker 预缓存清单漏列新增的 `app-shell.js`（离线时外壳交互失效）。
 - LangChain 弃用告警：`chunk.text()` 改为属性 `chunk.text`。
+### Verified
+- pytest 170 passed（含新增 23 项）。
+- 色板审计脚本化：唯一色值 86，暖色 0。
+- 变异测试验证新测试有效性：删除叶子 `.tab` 类、把主题色改回暖橙，均被立即捕获。
 
 ## [0.9.0] - 2026-09-10
 ### Added

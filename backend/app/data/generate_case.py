@@ -335,7 +335,7 @@ def _chart_timeline(out: str) -> None:
     fig, ax = plt.subplots(figsize=(10, 3.2))
     for i, e in enumerate(events):
         ax.plot([i, i], [0, 1], color="#334155", lw=1, alpha=0.4)
-        ax.scatter(i, 0.5, s=120, color="#38bdf8", zorder=3)
+        ax.scatter(i, 0.5, s=120, color="#4f8fd6", zorder=3)
         ax.text(i, 0.62, e["time"].split(" ")[1], rotation=45, ha="right", fontsize=8)
         ax.text(
             i,
@@ -349,7 +349,7 @@ def _chart_timeline(out: str) -> None:
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlim(-0.5, len(events) - 0.5)
     ax.axis("off")
-    ax.set_title("关键时间线（含证据来源）", fontsize=11, color="#0f172a")
+    ax.set_title("关键时间线（含证据来源）", fontsize=11, color="#132033")
     fig.tight_layout()
     fig.savefig(out, dpi=130)
     plt.close(fig)
@@ -359,13 +359,13 @@ def _chart_evidence(out: str) -> None:
     items = CASE["evidence"]
     names = [f"{e['id']}\n{e['type']}" for e in items]
     vals = [e["reliability"] for e in items]
-    colors = ["#34d399" if e["chain_intact"] else "#f87171" for e in items]
+    colors = ["#2fb8a0" if e["chain_intact"] else "#a860b8" for e in items]
     fig, ax = plt.subplots(figsize=(10, 3.6))
     bars = ax.bar(names, vals, color=colors)
     ax.set_ylim(0, 1)
     ax.set_ylabel("可靠性", fontsize=9)
     ax.set_title(
-        "证据可靠性与保管链（绿=完整 / 红=瑕疵）", fontsize=11, color="#0f172a"
+        "证据可靠性与保管链（绿=完整 / 红=瑕疵）", fontsize=11, color="#132033"
     )
     for b, v in zip(bars, vals):
         ax.text(
@@ -380,11 +380,11 @@ def _chart_scene(out: str) -> None:
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.add_patch(Rectangle((0, 0), 10, 10, fill=False, lw=2, color="#334155"))
     ax.add_patch(Rectangle((1, 1), 4, 3, fill=True, color="#e2e8f0", lw=1))  # 书房
-    ax.add_patch(Rectangle((6, 6), 3, 3, fill=True, color="#fee2e2", lw=1))  # 主卧
+    ax.add_patch(Rectangle((6, 6), 3, 3, fill=True, color="#e6ddf0", lw=1))  # 主卧
     ax.text(3, 2.5, "书房", ha="center", fontsize=9)
-    ax.text(7.5, 7.5, "主卧(案发现场)", ha="center", fontsize=9, color="#b91c1c")
-    ax.plot([3, 7.5], [2.5, 7.5], "--", color="#38bdf8", lw=1.5)
-    ax.scatter([3, 7.5], [2.5, 7.5], color="#38bdf8", s=60)
+    ax.text(7.5, 7.5, "主卧(案发现场)", ha="center", fontsize=9, color="#8f4fa8")
+    ax.plot([3, 7.5], [2.5, 7.5], "--", color="#4f8fd6", lw=1.5)
+    ax.scatter([3, 7.5], [2.5, 7.5], color="#4f8fd6", s=60)
     # 一楼走廊监控位
     ax.add_patch(Rectangle((1, 7.5), 2, 0.8, fill=False, color="#64748b", lw=1))
     ax.text(2, 8.1, "一楼走廊·监控位", ha="center", fontsize=8, color="#64748b")
@@ -392,7 +392,7 @@ def _chart_scene(out: str) -> None:
     ax.set_ylim(-0.5, 10.5)
     ax.axis("off")
     ax.set_title(
-        "现场平面图（示意：书房→主卧动线＋走廊监控）", fontsize=11, color="#0f172a"
+        "现场平面图（示意：书房→主卧动线＋走廊监控）", fontsize=11, color="#132033"
     )
     fig.tight_layout()
     fig.savefig(out, dpi=130)
@@ -427,7 +427,7 @@ def _chart_motive(out: str) -> None:
     # 按粗略金额排序展示
     fig, ax = plt.subplots(figsize=(10, 3.6))
     y = range(len(items))
-    bars = ax.barh(list(y), amounts, color=["#f472b6", "#60a5fa", "#fb7185", "#34d399"])
+    bars = ax.barh(list(y), amounts, color=["#a86ad0", "#3b82f6", "#b85fd0", "#2fb8a0"])
     ax.set_yticks(list(y))
     ax.set_yticklabels(labels, fontsize=8.5)
     for b, it in zip(bars, items):
@@ -441,7 +441,7 @@ def _chart_motive(out: str) -> None:
     ax.set_xlabel("相对金额（万美元/万元，示意）", fontsize=8)
     ax.invert_yaxis()
     ax.set_title(
-        "资金与动机流向图（受益人/转账/对赌/保单）", fontsize=11, color="#0f172a"
+        "资金与动机流向图（受益人/转账/对赌/保单）", fontsize=11, color="#132033"
     )
     fig.tight_layout()
     fig.savefig(out, dpi=130)
@@ -454,7 +454,7 @@ def _chart_dna(out: str) -> None:
     rows = [p["name"] for p in persons]
     vals = [1.0 if p["matched"] else 0.0 for p in persons]
     fig, ax = plt.subplots(figsize=(9, 3.4))
-    colors = ["#b91c1c" if v else "#cbd5e1" for v in vals]
+    colors = ["#8f4fa8" if v else "#cbd5e1" for v in vals]
     ax.barh(range(len(rows)), [1] * len(rows), color=colors, alpha=0.85)
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels(rows, fontsize=9)
@@ -471,7 +471,7 @@ def _chart_dna(out: str) -> None:
     ax.set_xticks([])
     ax.set_xlim(0, 1)
     ax.invert_yaxis()
-    ax.set_title("DNA 比对结果（红=命中 · 灰=未命中）", fontsize=11, color="#0f172a")
+    ax.set_title("DNA 比对结果（红=命中 · 灰=未命中）", fontsize=11, color="#132033")
     fig.tight_layout()
     fig.savefig(out, dpi=130)
     plt.close(fig)
@@ -504,7 +504,7 @@ def _chart_communication(out: str) -> None:
         ax.text((x1 + x2) / 2, (y1 + y2) / 2, typ, fontsize=6.5, color="#64748b")
     for idx, (name, i) in enumerate(nodes.items()):
         x, y = coords[i]
-        color = "#f87171" if "未知" in name or "未知号码" in name else "#38bdf8"
+        color = "#a860b8" if "未知" in name or "未知号码" in name else "#4f8fd6"
         ax.scatter(x, y, s=520, color=color, zorder=3, edgecolor="#fff")
         ax.text(
             x,
@@ -512,13 +512,13 @@ def _chart_communication(out: str) -> None:
             name,
             ha="center",
             fontsize=8,
-            color="#0f172a",
+            color="#132033",
             fontweight="bold",
         )
     ax.set_xlim(-1.5, 1.5)
     ax.set_ylim(-1.5, 1.5)
     ax.axis("off")
-    ax.set_title("案发前后通讯关系（短信/电话/语音）", fontsize=11, color="#0f172a")
+    ax.set_title("案发前后通讯关系（短信/电话/语音）", fontsize=11, color="#132033")
     fig.tight_layout()
     fig.savefig(out, dpi=130)
     plt.close(fig)
@@ -536,27 +536,27 @@ def _chart_bloodstain(out: str) -> None:
         return lo + (v - math.floor(v)) * (hi - lo)
 
     # 中心点血迹
-    ax.scatter([0], [0], s=300, color="#991b1b", zorder=4)
+    ax.scatter([0], [0], s=300, color="#7c3f9e", zorder=4)
     # 溅射血迹
     for i in range(90):
         ang = _fract(i + 1, 0, 2 * 3.14159)
         r = _fract(i + 101, 0.3, 2.4)
         x = r * _fract(i + 201, 0.6, 1) * math.cos(ang)
         y = r * _fract(i + 201, 0.6, 1) * math.sin(ang)
-        ax.scatter(x, y, s=_fract(i + 301, 6, 22), color="#b91c1c", alpha=0.55)
+        ax.scatter(x, y, s=_fract(i + 301, 6, 22), color="#8f4fa8", alpha=0.55)
     # 刀痕方向
     ax.annotate(
         "",
         xy=(1.8, 0.6),
         xytext=(-1.6, -0.5),
-        arrowprops=dict(arrowstyle="->", color="#fbbf24", lw=2),
+        arrowprops=dict(arrowstyle="->", color="#5fb0c9", lw=2),
     )
-    ax.text(1.9, 0.75, "刺入方向", fontsize=9, color="#92400e")
+    ax.text(1.9, 0.75, "刺入方向", fontsize=9, color="#5b4a8a")
     ax.set_xlim(-3, 3)
     ax.set_ylim(-3, 3)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_title("主卧血迹分布与刺入方向（示意）", fontsize=11, color="#0f172a")
+    ax.set_title("主卧血迹分布与刺入方向（示意）", fontsize=11, color="#132033")
     fig.tight_layout()
     fig.savefig(out, dpi=130)
     plt.close(fig)

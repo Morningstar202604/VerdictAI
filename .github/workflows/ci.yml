@@ -96,7 +96,7 @@ jobs:
         run: |
           node -e "
           const fs=require('fs');
-          for (const n of ['app-core','app-ui']) {
+          for (const n of ['app-core','app-ui','app-shell']) {
             const p='backend/app/static/assets/'+n+'.js';
             new Function(fs.readFileSync(p,'utf8'));
           }
@@ -105,7 +105,32 @@ jobs:
           const h=fs.readFileSync('backend/app/static/index.html','utf8');
           if(!h.includes('/static/assets/app-core.js')) throw new Error('core.js link missing');
           if(!h.includes('/static/assets/app-ui.js')) throw new Error('ui.js link missing');
+          if(!h.includes('/static/assets/app-shell.js')) throw new Error('shell.js link missing');
           if(!h.includes('id=\"tab-agent\"')) throw new Error('agent tab missing');
           if(!h.includes('id=\"tab-kb\"')) throw new Error('kb tab missing');
+          if(!h.includes('id=\"sidebar\"')) throw new Error('sidebar missing');
           console.log('frontend OK')
           "
+
+  ui-shell:
+    name: UI shell contract (static + cold-tone)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      # 外壳契约（目录→面板联动 / 引用完整性 / 类名一致性）与冷色调基线。
+      # 纯静态解析，不装 playwright，秒级完成。
+      - name: Run UI shell tests
+        run: python -m pytest tests/test_ui_shell.py -q
