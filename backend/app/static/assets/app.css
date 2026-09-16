@@ -653,11 +653,15 @@ body.dark .toast{background:#2a2e34;color:#dfe6ee}
   .right{display:none}
 }
 @media (max-width:768px){
-  header{padding:0 10px}
+  header{padding:0 10px;gap:6px}
+  .emblem-img{width:28px;height:28px}
+  /* 窄屏顶栏收成图标：390px 下 4 个带字按钮会把标题挤爆/溢出（实测截图） */
+  .hide-sm{display:none}
+  .brand .title{font-size:13.5px}
   .brand .sub,.brand .ver-chip{display:none}
-  .brand .title{font-size:14px}
   .controls .badge{display:none}
   .controls button.ghost{padding:6px 9px;font-size:12px}
+  .tab{padding:6px 9px;font-size:11.5px}
   .feat-row{grid-template-columns:1fr;max-width:440px}
   .composer-bar{flex-wrap:wrap}
   .composer-bar select{flex-basis:100%;order:-1}
