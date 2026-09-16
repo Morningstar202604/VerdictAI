@@ -3,222 +3,264 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#16324f" />
+    <meta name="theme-color" content="#33697e" />
     <link rel="icon" type="image/svg+xml" href="/static/assets/logo.svg" />
     <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
     <link rel="manifest" href="/static/assets/manifest.webmanifest" />
-    <link rel="preconnect" href="https://registry.npmmirror.com" crossorigin />
     <link rel="stylesheet" href="/static/assets/fonts/fonts.css" />
     <title>VerdictAI · 智能探案合议庭</title>
     <link rel="stylesheet" href="/static/assets/app.css" />
   </head>
   <body>
-    <!-- ======================= 顶栏 ======================= -->
-    <header>
-      <div class="brand">
-        <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
-        <div>
-          <div class="title">智能探案合议庭 <span class="ver-chip">VerdictAI v0.9.0</span></div>
-          <div class="sub">多智能体辩论推理 · 真相收敛与裁决辅助</div>
-        </div>
-      </div>
-      <div class="controls">
-        <span id="userBadge" class="badge" style="display:none"></span>
-        <span id="modelBadge" class="badge">模型: …</span>
-        <span id="connBadge" class="badge"><span id="connDot" class="dot"></span><span id="connText">未连接</span></span>
-        <button class="ghost" onclick="openHelp()" title="使用指南" aria-label="打开使用指南">❓ 帮助</button>
-        <button class="ghost" id="btnTheme" onclick="toggleTheme()" title="切换明暗主题" aria-label="切换明暗主题">🌙</button>
-        <button class="ghost" onclick="goHome()" aria-label="新建庭审">🏛 新庭审</button>
-        <button class="ghost" id="btnSettings" onclick="openSettings()" aria-label="打开设置">⚙ 设置</button>
-      </div>
-    </header>
-
-    <div id="connBanner" class="conn-banner"></div>
-
-    <!-- ======================= 落地页 ======================= -->
-    <div id="landing" class="landing">
-      <div class="hero">
-        <!-- 天平线描装饰 -->
-        <svg class="hero-deco" viewBox="0 0 800 200" aria-hidden="true" style="color:var(--gold)">
-          <g fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55">
-            <!-- 横梁与支柱 -->
-            <path d="M400 26 V150" stroke-width="2"/>
-            <path d="M180 44 H620" stroke-width="2"/>
-            <circle cx="400" cy="26" r="5" fill="currentColor" stroke="none"/>
-            <!-- 左秤盘 -->
-            <path d="M180 44 L150 108 M180 44 L210 108"/>
-            <path d="M132 108 H228 A48 48 0 0 1 180 150 A48 48 0 0 1 132 108 Z" stroke-width="1.8"/>
-            <!-- 右秤盘 -->
-            <path d="M620 44 L590 108 M620 44 L650 108"/>
-            <path d="M572 108 H668 A48 48 0 0 1 620 150 A48 48 0 0 1 572 108 Z" stroke-width="1.8"/>
-            <!-- 底座 -->
-            <path d="M356 150 H444 M330 168 H470" stroke-width="2.2"/>
-            <path d="M382 150 L370 168 M418 150 L430 168"/>
-          </g>
-          <g fill="currentColor" opacity=".35">
-            <circle cx="92" cy="60" r="2.5"/><circle cx="708" cy="52" r="3"/>
-            <circle cx="120" cy="168" r="2"/><circle cx="676" cy="172" r="2.5"/>
-            <circle cx="296" cy="34" r="1.8"/><circle cx="512" cy="30" r="2"/>
-          </g>
-        </svg>
-        <img class="hero-logo" src="/static/assets/logo.svg" alt="" />
-        <div class="cover-kicker">V E R D I C T A I · 司 法 辅 助</div>
-        <h1>多方辩论 <em>·</em> 真相收敛</h1>
-        <p class="cover-desc">把卷宗交给我们：七位 AI 专家像真实的合议庭一样举证、质证、互查矛盾，最终由审判长落槌——全程实时可见，人类法官始终握有最终裁决权。</p>
-        <div class="feat-row">
-          <div class="feat"><div class="fi">⚖️</div><b>七专家合议</b><span>现场 · 法医 · 物证 · 心理 · 证据法 · 控辩双方，多轮交叉辩论</span></div>
-          <div class="feat"><div class="fi">🔍</div><b>工具链核证</b><span>调证据、核时间线、查法条，沙箱跑代码生成图表</span></div>
-          <div class="feat"><div class="fi">🧑‍⚖️</div><b>人类落槌</b><span>AI 只做辅助分析，最终裁决始终由人类法官作出</span></div>
-        </div>
-
-        <!-- 卷宗上传区 — 核心入口 -->
-        <div id="pdfDropMain" class="pdf-drop-main" onclick="document.getElementById('pdfInputMain').click()"
-             ondragover="event.preventDefault();this.classList.add('over')"
-             ondragleave="this.classList.remove('over')"
-             ondrop="event.preventDefault();this.classList.remove('over');handlePdfDropMain(event)">
-          <div class="ico-main">📜</div>
-          <div class="txt-main">拖入卷宗文件，或点击选择</div>
-          <div class="sub-main">支持判决书、起诉书、侦查报告等 —— PDF / Word / TXT</div>
-        </div>
-        <input id="pdfInputMain" type="file" accept=".pdf,.docx,.doc,.txt,.md,application/pdf" style="display:none" onchange="uploadPdfMain(event)" />
-        <div id="pdfFileInfoMain" class="pdf-file hidden"></div>
-
-        <div class="or-divider"><span>或</span></div>
-
-        <div class="composer">
-          <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…" oninput="onIntentPreview()"></textarea>
-          <div class="voice-row"><button class="ghost" id="btnVoice" onclick="startVoiceInput()" title="语音输入案情描述（浏览器录音，识别文本后填入）" aria-label="语音输入案情描述">🎤 语音输入</button><span id="voiceHint" class="muted" style="font-size:11px"></span></div>
-          <div class="composer-bar">
-            <button class="ghost" onclick="document.getElementById('fileInput').click()" aria-label="上传卷宗文件">📎 上传卷宗</button>
-            <input id="fileInput" type="file" accept=".json,.pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,application/json" onchange="uploadCase(event)" />
-            <select id="landCase" onchange="onPickCase(this)" aria-label="选择案件"></select>
-            <button id="landStart" class="primary" onclick="landStart()" aria-label="开庭审理">开庭审理 →</button>
+    <div class="shell">
+      <!-- ======================= 左侧多级目录 ======================= -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <img class="emblem-img" src="/static/assets/logo.svg" alt="VerdictAI" />
+          <div class="sidebar-brand-txt">
+            <div class="title">智能探案合议庭</div>
+            <div class="sub">VerdictAI v0.9.0</div>
           </div>
-          <div id="intentPreview" class="hidden"></div>
+          <button class="rail-btn sidebar-collapse" onclick="toggleSidebar()" title="折叠目录" aria-label="折叠目录">‹</button>
         </div>
 
-        <!-- 预处理可视化 -->
-        <div id="ppStage" class="pp-stage hidden"></div>
+        <nav class="navtree" aria-label="主导航">
+          <!-- 一级：视图切换 -->
+          <div class="navsec">审 理</div>
+          <button class="navleaf" onclick="goHome()" aria-label="新建庭审"><span class="nicon">🏛</span><span class="nlabel">开庭审理</span></button>
+          <button class="navleaf" onclick="openWorkspace()" aria-label="查看庭审笔录"><span class="nicon">⚖️</span><span class="nlabel">庭审笔录</span></button>
 
-        <div id="intakeCard" class="card intake hidden">
-          <div class="sec-title">卷宗预处理 · 意图识别与分派</div>
-          <label class="mini">调查意图（系统识别，可修改）</label>
-          <input id="ivIntent" class="iv-in" placeholder="（上传卷宗后自动识别）" oninput="onIntake()" />
-          <div class="row2">
-            <div><label class="mini">思考强度</label>
-              <select id="ivIntensity" onchange="onIntake()">
-                <option value="low">低 · 简明</option>
-                <option value="medium" selected>中 · 条理</option>
-                <option value="high">高 · 深度推理</option>
-              </select></div>
-            <div><label class="mini">审判长</label>
-              <select id="ivJudge">
-                <option value="ai">AI 自动落槌</option>
-                <option value="human">人类法官落槌</option>
-              </select></div>
-            <div><label class="mini">参与模式</label>
-              <select id="ivMode" onchange="applyMode()">
-                <option value="observe">旁观（只看不打断）</option>
-                <option value="intervene" selected>介入（可中途插话）</option>
-                <option value="collaborate">人机配合（插话 + 人类落槌）</option>
-              </select></div>
-          </div>
-          <label class="mini">总体分析提示词（系统生成，可修改）</label>
-          <textarea id="ivGuidance" rows="2" class="iv-in" placeholder="（上传卷宗后自动生成）" oninput="onIntake()"></textarea>
-          <details class="iv-det"><summary>查看分派到各角色的材料</summary><div id="ivDispatch" class="iv-dispatch"></div></details>
-          <div id="ivPlan"></div>
-        </div>
-
-        <div class="chips" id="caseChips"></div>
-
-        <div class="roster-preview">
-          <div class="grp-label">合议庭阵容（点击可调整出庭专家，顺序与策略在「设置」中编辑）</div>
-          <div id="landRoster" class="roster-grid"></div>
-          <span class="linkbtn" onclick="openSettings(); switchTab('board')">在设置中调整出场顺序与每位专家的策略 →</span>
-        </div>
-
-        <div class="cover-foot">当前审理引擎：<span id="landModel">…</span>　·　<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="openSettings()" aria-label="修改引擎设置">修改引擎设置</button></div>
-      </div>
-    </div>
-
-    <!-- ======================= 工作区 ======================= -->
-    <main id="workspace" class="hidden">
-      <div class="panel-overlay" onclick="closeMobilePanels()"></div>
-
-      <aside class="left">
-        <div id="casePanel"></div>
-        <div class="card">
-          <div class="sec-title">出庭专家名册</div>
-          <div id="roster" class="roster"></div>
-        </div>
-      </aside>
-
-      <section class="center">
-        <div class="center-head">
-          <button class="rail-btn" id="btnLeft" onclick="toggleRail('left')" aria-label="打开左侧案卷面板">案卷 ‹</button>
-          <span class="ch-title">庭审笔录</span>
-          <div id="stepper" class="stepper">
-            <span data-s="open">受理</span><i>›</i><span data-s="debate">辩论</span><i>›</i><span data-s="verdict">裁决</span><i>›</i><span data-s="done">归档</span>
-          </div>
-          <span id="phase" class="phase">待命</span>
-          <button class="rail-btn" id="btnFocus" onclick="focusMode()" title="隐藏两侧面板，专注笔录" aria-label="聚焦模式：隐藏两侧面板">⛶ 聚焦</button>
-          <button class="rail-btn" onclick="copyTranscript()" title="复制全部发言到剪贴板" aria-label="复制全文">📋 全文</button>
-          <button class="rail-btn" id="btnStop" onclick="stopDebate()" title="停止当前辩论" style="display:none;color:var(--bad)" aria-label="停止辩论">⏹ 停止</button>
-          <a href="/static/flow.html" target="_blank" class="linkbtn" style="font-size:11.5px" aria-label="查看流程图">流程图 ↗</a>
-          <button class="rail-btn" id="btnRight" onclick="toggleRail('right')" aria-label="打开右侧合议面板">› 合议</button>
-        </div>
-        <div class="progress"><div id="prog" style="width:0%"></div></div>
-        <div id="speak" class="speak"></div>
-        <div id="debate"><div class="empty">⚖️ 庭审尚未开始<br/>选择案件后点击「开庭审理」，专家们的每一句发言、每一次工具调用，都会实时落在这里。</div></div>
-        <div id="intervene" class="intervene hidden">
-          <input id="ivInput" placeholder="中途介入：向合议庭插话（将在下一轮生效）…" />
-          <button class="primary" onclick="sendIntervene()" aria-label="向合议庭插话">插话</button>
-        </div>
-        <button id="jumpBottom" class="jump-bottom hidden" onclick="$('debate').scrollTop=$('debate').scrollHeight; this.classList.add('hidden');" aria-label="滚动到最新发言">↓ 回到最新发言</button>
-        <div id="ivChips" class="iv-chips hidden">
-          <span class="chip-mini" onclick="fillIv('请补充核对关键证据的保管链与原始载体是否完整')">保管链</span>
-          <span class="chip-mini" onclick="fillIv('请评估替代解释与第三人介入的可能性')">替代解释</span>
-          <span class="chip-mini" onclick="fillIv('请明确当前证据是否达到排除合理怀疑的证明标准')">证明标准</span>
-        </div>
-      </section>
-
-      <aside class="right">
-        <div class="card">
-          <div class="sec-title">合议记录 <span class="muted" style="font-weight:400">（实时 · AI 书记员）</span></div>
-          <div id="recording"><div class="muted">辩论开始后，各专家主张将实时记录于此。</div></div>
-        </div>
-        <div class="card">
-          <div class="sec-title">矛盾 · 纠错清单</div>
-          <div id="contra"><div class="muted">尚未记录矛盾点。</div></div>
-        </div>
-        <div class="card">
-          <div class="sec-title">审判长裁决</div>
-          <div id="verdictBox"></div>
-          <div id="verdictTools" class="v-tools hidden">
-            <button class="ghost" onclick="copyVerdict()" aria-label="复制裁决结果到剪贴板">📋 复制裁决</button>
-            <button class="ghost" onclick="downloadMarkdown()" aria-label="导出裁决结果为 Markdown 文件">⬇ 导出 MD</button>
-            <button class="ghost" onclick="downloadVerdictDoc()" aria-label="导出正式裁决书文档">📜 裁决书</button>
-            <button class="ghost" onclick="printReport()" aria-label="打印裁决报告或导出 PDF">🖨 打印/PDF</button>
-            <button class="ghost" id="btnSpeak" onclick="speakVerdict()" aria-label="朗读裁决结果">🔊 朗读</button>
-            <button class="ghost" onclick="seedKnowledge()" title="把本场裁决要旨沉淀到知识库，后续案件可引用（HITL 知识闭环）" aria-label="把裁决要旨沉淀到知识库">📥 沉淀知识库</button>
-          </div>
-          <div id="reflexBox"></div>
-          <div id="nextSteps" class="next-steps hidden"></div>
-          <div id="traceBox" class="trace hidden"></div>
-          <div id="qaBox" class="qa hidden">
-            <div class="qa-title">⚖ 裁决质询 <span class="muted" style="font-weight:400">（就裁决继续追问，审判长答复）</span></div>
-            <div id="qaChips" class="iv-chips" style="padding:0 0 8px"></div>
-            <div id="qaList"></div>
-            <div class="qa-row">
-              <input id="qaInput" placeholder="如：为什么E-02被认定为关键疑点？" onkeydown="if(event.key==='Enter')askVerdict()" />
-              <button class="primary" onclick="askVerdict()" aria-label="提交质询问题">提问</button>
+          <!-- 二级：合议庭 -->
+          <div class="navsec">合 议 庭</div>
+          <div class="navgroup">
+            <button class="navhead" onclick="toggleNavGroup(this)" aria-expanded="false"><span class="nicon">👥</span><span class="nlabel">专家与策略</span><span class="caret">›</span></button>
+            <div class="navsub">
+              <button class="navleaf tab" data-tab="board" onclick="openPane('board')"><span class="nlabel">组成与顺序</span></button>
+              <button class="navleaf tab" data-tab="agents" onclick="openPane('agents')"><span class="nlabel">专家配置</span></button>
+              <button class="navleaf tab" data-tab="agent" onclick="openPane('agent','preset')"><span class="nlabel">策略模板</span></button>
             </div>
           </div>
-          <div id="hitl"></div>
-          <button id="dlReport" class="ghost hidden" style="width:100%;margin-top:10px" onclick="downloadReport()" aria-label="下载完整审判报告">⬇ 下载审判报告</button>
+
+          <!-- 二级：数据资产 -->
+          <div class="navsec">数 据</div>
+          <div class="navgroup">
+            <button class="navhead" onclick="toggleNavGroup(this)" aria-expanded="false"><span class="nicon">🗂</span><span class="nlabel">案例与知识</span><span class="caret">›</span></button>
+            <div class="navsub">
+              <button class="navleaf tab" data-tab="library" onclick="openPane('library')"><span class="nlabel">案例库</span></button>
+              <button class="navleaf tab" data-tab="kb" onclick="openPane('kb')"><span class="nlabel">知识库</span></button>
+              <button class="navleaf" onclick="openPane('library','debates')"><span class="nlabel">复盘记录</span></button>
+            </div>
+          </div>
+
+          <!-- 二级：系统配置 -->
+          <div class="navsec">系 统</div>
+          <div class="navgroup">
+            <button class="navhead" onclick="toggleNavGroup(this)" aria-expanded="false"><span class="nicon">⚙️</span><span class="nlabel">引擎配置</span><span class="caret">›</span></button>
+            <div class="navsub">
+              <button class="navleaf tab" data-tab="engine" onclick="openPane('engine')"><span class="nlabel">审理引擎</span></button>
+              <button class="navleaf tab" data-tab="env" onclick="openPane('env')"><span class="nlabel">运行环境</span></button>
+              <button class="navleaf tab" data-tab="agent" onclick="openPane('agent')"><span class="nlabel">Agent 工程</span></button>
+              <button class="navleaf" onclick="openPane('agent','usage')"><span class="nlabel">用量统计</span></button>
+            </div>
+          </div>
+
+          <div class="navsec">其 他</div>
+          <button class="navleaf" onclick="openHelp()" aria-label="打开使用指南"><span class="nicon">❓</span><span class="nlabel">使用指南</span></button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <span id="modelBadge" class="badge">模型: …</span>
+          <button class="ghost" id="btnTheme" onclick="toggleTheme()" title="切换明暗主题" aria-label="切换明暗主题">🌙</button>
         </div>
       </aside>
-    </main>
+
+      <!-- ======================= 右侧主区 ======================= -->
+      <div class="shell-main">
+        <!-- 顶栏（精简：仅保留状态与必要动作） -->
+        <header>
+          <button class="rail-btn sidebar-expand" onclick="toggleSidebar()" title="展开目录" aria-label="展开目录">☰</button>
+          <span id="userBadge" class="badge" style="display:none"></span>
+          <span id="connBadge" class="badge"><span id="connDot" class="dot"></span><span id="connText">未连接</span></span>
+          <div class="header-spacer"></div>
+          <button class="ghost" onclick="goHome()" aria-label="新建庭审">🏛 新庭审</button>
+          <button class="ghost" id="btnSettings" onclick="openSettings()" aria-label="打开设置">⚙ 设置</button>
+        </header>
+
+        <div id="connBanner" class="conn-banner"></div>
+
+        <!-- ======================= 落地页：三步卡片流 ======================= -->
+        <div id="landing" class="landing">
+          <div class="hero">
+            <div class="cover-kicker">V E R D I C T A I</div>
+            <h1>多方辩论 <em>·</em> 真相收敛</h1>
+            <p class="cover-desc">七位 AI 专家像真实合议庭一样举证、质证、互查矛盾，最终由审判长落槌——全程实时可见，人类法官始终握有最终裁决权。</p>
+            <div class="feat-row">
+              <div class="feat"><div class="fi">⚖️</div><b>七专家合议</b><span>现场 · 法医 · 物证 · 心理 · 证据法 · 控辩双方，多轮交叉辩论</span></div>
+              <div class="feat"><div class="fi">🔍</div><b>工具链核证</b><span>调证据、核时间线、查法条，沙箱跑代码生成图表</span></div>
+              <div class="feat"><div class="fi">🧑‍⚖️</div><b>人类落槌</b><span>AI 只做辅助分析，最终裁决始终由人类法官作出</span></div>
+            </div>
+          </div>
+
+          <!-- Step 1 · 提交卷宗（默认展开，核心入口） -->
+          <details class="fold step" id="foldStep1" open>
+            <summary><span class="step-no">01</span><span class="step-title">提交卷宗</span><span class="step-hint">拖入文件或粘贴案情</span></summary>
+            <div class="fold-body">
+              <div id="pdfDropMain" class="pdf-drop-main" onclick="document.getElementById('pdfInputMain').click()"
+                   ondragover="event.preventDefault();this.classList.add('over')"
+                   ondragleave="this.classList.remove('over')"
+                   ondrop="event.preventDefault();this.classList.remove('over');handlePdfDropMain(event)">
+                <div class="ico-main">📜</div>
+                <div class="txt-main">拖入卷宗文件，或点击选择</div>
+                <div class="sub-main">支持判决书、起诉书、侦查报告等 —— PDF / Word / TXT</div>
+              </div>
+              <input id="pdfInputMain" type="file" accept=".pdf,.docx,.doc,.txt,.md,application/pdf" style="display:none" onchange="uploadPdfMain(event)" />
+              <div id="pdfFileInfoMain" class="pdf-file hidden"></div>
+
+              <div class="or-divider"><span>或</span></div>
+
+              <div class="composer">
+                <textarea id="landQuery" rows="2" placeholder="直接粘贴案件描述文本，AI 同样会分析…" oninput="onIntentPreview()"></textarea>
+                <div class="voice-row"><button class="ghost" id="btnVoice" onclick="startVoiceInput()" title="语音输入案情描述（浏览器录音，识别文本后填入）" aria-label="语音输入案情描述">🎤 语音输入</button><span id="voiceHint" class="muted" style="font-size:11px"></span></div>
+                <div class="composer-bar">
+                  <button class="ghost" onclick="document.getElementById('fileInput').click()" aria-label="上传卷宗文件">📎 上传卷宗</button>
+                  <input id="fileInput" type="file" accept=".json,.pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,application/json" onchange="uploadCase(event)" />
+                  <select id="landCase" onchange="onPickCase(this)" aria-label="选择案件"></select>
+                  <button id="landStart" class="primary" onclick="landStart()" aria-label="开庭审理">开庭审理 →</button>
+                </div>
+                <div id="intentPreview" class="hidden"></div>
+              </div>
+            </div>
+          </details>
+
+          <!-- Step 2 · AI 预处理（有结果时自动展开） -->
+          <details class="fold step" id="foldStep2">
+            <summary><span class="step-no">02</span><span class="step-title">预处理与意图识别</span><span class="step-hint">提交卷宗后自动执行</span></summary>
+            <div class="fold-body">
+              <div id="ppStage" class="pp-stage hidden"></div>
+              <div id="intakeCard" class="card intake hidden">
+                <div class="sec-title">卷宗预处理 · 意图识别与分派</div>
+                <label class="mini">调查意图（系统识别，可修改）</label>
+                <input id="ivIntent" class="iv-in" placeholder="（上传卷宗后自动识别）" oninput="onIntake()" />
+                <div class="row2">
+                  <div><label class="mini">思考强度</label>
+                    <select id="ivIntensity" onchange="onIntake()">
+                      <option value="low">低 · 简明</option>
+                      <option value="medium" selected>中 · 条理</option>
+                      <option value="high">高 · 深度推理</option>
+                    </select></div>
+                  <div><label class="mini">审判长</label>
+                    <select id="ivJudge">
+                      <option value="ai">AI 自动落槌</option>
+                      <option value="human">人类法官落槌</option>
+                    </select></div>
+                  <div><label class="mini">参与模式</label>
+                    <select id="ivMode" onchange="applyMode()">
+                      <option value="observe">旁观（只看不打断）</option>
+                      <option value="intervene" selected>介入（可中途插话）</option>
+                      <option value="collaborate">人机配合（插话 + 人类落槌）</option>
+                    </select></div>
+                </div>
+                <label class="mini">总体分析提示词（系统生成，可修改）</label>
+                <textarea id="ivGuidance" rows="2" class="iv-in" placeholder="（上传卷宗后自动生成）" oninput="onIntake()"></textarea>
+                <details class="iv-det"><summary>查看分派到各角色的材料</summary><div id="ivDispatch" class="iv-dispatch"></div></details>
+                <div id="ivPlan"></div>
+              </div>
+            </div>
+          </details>
+
+          <!-- Step 3 · 合议庭阵容 -->
+          <details class="fold step" id="foldStep3">
+            <summary><span class="step-no">03</span><span class="step-title">合议庭阵容</span><span class="step-hint">点击调整出庭专家</span></summary>
+            <div class="fold-body">
+              <div class="grp-label">合议庭阵容（点击可调整出庭专家，顺序与策略在「设置」中编辑）</div>
+              <div id="landRoster" class="roster-grid"></div>
+              <span class="linkbtn" onclick="openPane('board')">在设置中调整出场顺序与每位专家的策略 →</span>
+              <div class="chips" id="caseChips"></div>
+              <div class="cover-foot">当前审理引擎：<span id="landModel">…</span>　·　<button class="linkbtn" style="border:0;background:none;padding:0;font-size:11.5px" onclick="openSettings()" aria-label="修改引擎设置">修改引擎设置</button></div>
+            </div>
+          </details>
+        </div>
+
+        <!-- ======================= 工作区 ======================= -->
+        <main id="workspace" class="hidden">
+          <div class="panel-overlay" onclick="closeMobilePanels()"></div>
+
+          <aside class="left">
+            <div id="casePanel"></div>
+            <div class="card">
+              <div class="sec-title">出庭专家名册</div>
+              <div id="roster" class="roster"></div>
+            </div>
+          </aside>
+
+          <section class="center">
+            <div class="center-head">
+              <button class="rail-btn" id="btnLeft" onclick="toggleRail('left')" aria-label="打开左侧案卷面板">案卷 ‹</button>
+              <span class="ch-title">庭审笔录</span>
+              <div id="stepper" class="stepper">
+                <span data-s="open">受理</span><i>›</i><span data-s="debate">辩论</span><i>›</i><span data-s="verdict">裁决</span><i>›</i><span data-s="done">归档</span>
+              </div>
+              <span id="phase" class="phase">待命</span>
+              <button class="rail-btn" id="btnFocus" onclick="focusMode()" title="隐藏两侧面板，专注笔录" aria-label="聚焦模式：隐藏两侧面板">⛶ 聚焦</button>
+              <button class="rail-btn" onclick="copyTranscript()" title="复制全部发言到剪贴板" aria-label="复制全文">📋 全文</button>
+              <button class="rail-btn" id="btnStop" onclick="stopDebate()" title="停止当前辩论" style="display:none;color:var(--bad)" aria-label="停止辩论">⏹ 停止</button>
+              <a href="/static/flow.html" target="_blank" class="linkbtn" style="font-size:11.5px" aria-label="查看流程图">流程图 ↗</a>
+              <button class="rail-btn" id="btnRight" onclick="toggleRail('right')" aria-label="打开右侧合议面板">› 合议</button>
+            </div>
+            <div class="progress"><div id="prog" style="width:0%"></div></div>
+            <div id="speak" class="speak"></div>
+            <div id="debate"><div class="empty">⚖️ 庭审尚未开始<br/>选择案件后点击「开庭审理」，专家们的每一句发言、每一次工具调用，都会实时落在这里。</div></div>
+            <div id="intervene" class="intervene hidden">
+              <input id="ivInput" placeholder="中途介入：向合议庭插话（将在下一轮生效）…" />
+              <button class="primary" onclick="sendIntervene()" aria-label="向合议庭插话">插话</button>
+            </div>
+            <button id="jumpBottom" class="jump-bottom hidden" onclick="$('debate').scrollTop=$('debate').scrollHeight; this.classList.add('hidden');" aria-label="滚动到最新发言">↓ 回到最新发言</button>
+            <div id="ivChips" class="iv-chips hidden">
+              <span class="chip-mini" onclick="fillIv('请补充核对关键证据的保管链与原始载体是否完整')">保管链</span>
+              <span class="chip-mini" onclick="fillIv('请评估替代解释与第三人介入的可能性')">替代解释</span>
+              <span class="chip-mini" onclick="fillIv('请明确当前证据是否达到排除合理怀疑的证明标准')">证明标准</span>
+            </div>
+          </section>
+
+          <aside class="right">
+            <div class="card">
+              <div class="sec-title">合议记录 <span class="muted" style="font-weight:400">（实时 · AI 书记员）</span></div>
+              <div id="recording"><div class="muted">辩论开始后，各专家主张将实时记录于此。</div></div>
+            </div>
+            <div class="card">
+              <div class="sec-title">矛盾 · 纠错清单</div>
+              <div id="contra"><div class="muted">尚未记录矛盾点。</div></div>
+            </div>
+            <div class="card">
+              <div class="sec-title">审判长裁决</div>
+              <div id="verdictBox"></div>
+              <div id="verdictTools" class="v-tools hidden">
+                <button class="ghost" onclick="copyVerdict()" aria-label="复制裁决结果到剪贴板">📋 复制裁决</button>
+                <button class="ghost" onclick="downloadMarkdown()" aria-label="导出裁决结果为 Markdown 文件">⬇ 导出 MD</button>
+                <button class="ghost" onclick="downloadVerdictDoc()" aria-label="导出正式裁决书文档">📜 裁决书</button>
+                <button class="ghost" onclick="printReport()" aria-label="打印裁决报告或导出 PDF">🖨 打印/PDF</button>
+                <button class="ghost" id="btnSpeak" onclick="speakVerdict()" aria-label="朗读裁决结果">🔊 朗读</button>
+                <button class="ghost" onclick="seedKnowledge()" title="把本场裁决要旨沉淀到知识库，后续案件可引用（HITL 知识闭环）" aria-label="把裁决要旨沉淀到知识库">📥 沉淀知识库</button>
+              </div>
+              <div id="reflexBox"></div>
+              <div id="nextSteps" class="next-steps hidden"></div>
+              <div id="traceBox" class="trace hidden"></div>
+              <div id="qaBox" class="qa hidden">
+                <div class="qa-title">⚖ 裁决质询 <span class="muted" style="font-weight:400">（就裁决继续追问，审判长答复）</span></div>
+                <div id="qaChips" class="iv-chips" style="padding:0 0 8px"></div>
+                <div id="qaList"></div>
+                <div class="qa-row">
+                  <input id="qaInput" placeholder="如：为什么E-02被认定为关键疑点？" onkeydown="if(event.key==='Enter')askVerdict()" />
+                  <button class="primary" onclick="askVerdict()" aria-label="提交质询问题">提问</button>
+                </div>
+              </div>
+              <div id="hitl"></div>
+              <button id="dlReport" class="ghost hidden" style="width:100%;margin-top:10px" onclick="downloadReport()" aria-label="下载完整审判报告">⬇ 下载审判报告</button>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </div>
 
     <!-- 移动端底部导航 -->
     <nav class="mobile-nav" id="mobileNav">
@@ -232,15 +274,7 @@
     <div id="settingsModal" class="modal hidden">
       <div class="modal-card">
         <div class="modal-head"><span>合议庭设置</span><button class="ghost" onclick="closeSettings()" aria-label="关闭设置面板">✕</button></div>
-        <div class="tabs">
-          <div class="tab on" data-tab="engine" onclick="switchTab('engine')">审理引擎</div>
-          <div class="tab" data-tab="env" onclick="switchTab('env')">运行环境</div>
-          <div class="tab" data-tab="board" onclick="switchTab('board')">合议庭组成</div>
-          <div class="tab" data-tab="agents" onclick="switchTab('agents')">专家配置</div>
-          <div class="tab" data-tab="library" onclick="switchTab('library'); refreshCaseLibrary(); refreshDebates()">案例库</div>
-          <div class="tab" data-tab="kb" onclick="switchTab('kb'); loadKnowledge()">知识库</div>
-          <div class="tab" data-tab="agent" onclick="switchTab('agent')">Agent 工程</div>
-        </div>
+        <!-- 标签条已移除：改由左侧多级目录驱动（openPane → switchTab） -->
         <div class="modal-body">
           <div class="tabpane on" id="tab-engine">
             <label>模型提供方</label>
@@ -293,7 +327,6 @@
             <div id="tryOut" class="md sandbox-result" style="margin-top:10px"></div>
             <div class="disc" style="margin-top:10px">说明：沙箱以 <code>-I</code> 隔离模式、60 秒超时执行 LLM 生成的代码；首次使用会尽力安装基础库（numpy/pandas/matplotlib）。图表保存到沙箱目录后将以图片形式渲染在笔录中。证据/法条等工具调用结果同样以「沙箱」块展示。</div>
           </div>
-          <div class="tabpane" id="tab-agents-io" style="display:none"></div>
           <div class="tabpane" id="tab-board">
             <div class="muted" style="margin-bottom:6px">勾选出庭专家并设定出场顺序（数值越小越靠前；审判长始终最后收敛）。</div>
             <div id="boardList"></div>
@@ -319,7 +352,7 @@
               <div><label>单次调用超时（秒，0=不限）</label><input id="s_lto" type="number" min="0" max="1800" /></div>
             </div>
             <label class="toggle-line"><input id="s_web" type="checkbox" /> 启用联网检索（Bing 国内源，法条/心理专家可用）</label>
-            <div class="sec-title" style="margin-top:16px">策略模板（本产品的技能包）</div>
+            <div class="sec-title" id="presetAnchor" style="margin-top:16px">策略模板（本产品的技能包）</div>
             <div class="muted" style="margin-bottom:8px">一键应用一组专家策略与总体指导语。应用后立即持久化，下一场审理生效。</div>
             <div class="row2" style="margin-bottom:8px">
               <select id="s_preset" style="flex:1"></select>
@@ -341,7 +374,7 @@
             <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:10px">
               <input type="checkbox" id="kbSemantic" onchange="loadKnowledge()" style="width:15px;height:15px;accent-color:var(--gold)" /> 语义检索（向量相似，需知识库建立索引；关闭则仅精确关键词）
             </label>
-            <div id="kbList" class="kb-list"><div class='muted'>加载中…</div></div>
+            <div id="kbList" class="kb-list card-grid"><div class='muted'>加载中…</div></div>
             <div class="sec-title" style="margin-top:16px">新增自定义条目</div>
             <input id="kbTitle" placeholder="标题，如：本院类案裁判要旨（盗窃既遂采失控说）" style="margin-bottom:8px" />
             <input id="kbKw" placeholder="触发关键词，逗号分隔：既遂,失控说,盗窃" style="margin-bottom:8px" />
@@ -361,12 +394,12 @@
             <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:10px">
               <input type="checkbox" id="libOnlyBrief" onchange="refreshCaseLibrary()" style="width:15px;height:15px;accent-color:var(--gold)" /> 仅显示已预处理案件
             </label>
-            <div id="libList" class="lib-list"></div>
-            <div class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
+            <div id="libList" class="lib-list card-grid"></div>
+            <div id="debateListAnchor" class="muted" style="margin:16px 0 8px">复盘记录：每场辩论自动留档，可重新查阅（刷新/断线不丢失）。</div>
             <div class="row2" style="margin-bottom:10px">
               <button class="ghost" onclick="refreshDebates()" aria-label="刷新案件复盘列表">刷新复盘</button>
             </div>
-            <div id="debateList" class="lib-list"></div>
+            <div id="debateList" class="lib-list card-grid"></div>
           </div>
         </div>
         <div class="modal-foot">
@@ -387,7 +420,7 @@
           <p style="margin-top:0"><b style="color:var(--navy)">① 提交卷宗</b>：拖入 PDF / Word / TXT 判决书、起诉书、侦查报告，或直接粘贴案件描述、选择案例库。AI 自动识别意图并把材料分派给 7 位专家。</p>
           <p><b style="color:var(--navy)">② 开庭辩论</b>：点击「开庭审理」。专家并行举证、调用工具核验证据，纠错官每轮梳理矛盾推动深入；你随时可在下方输入框「插话」介入，下一轮全体专家都会回应。</p>
           <p><b style="color:var(--navy)">③ 裁决与后续</b>：审判长落槌后可继续「裁决质询」追问理由，勾选「后续流程清单」跟踪执行，一键复制裁决、导出 Markdown / 打印报告，全程自动留档可复盘。</p>
-          <p class="muted" style="margin-bottom:0">提示：右上角 🌙 切换夜审模式；「⛶ 聚焦」隐藏两侧面板专注笔录；设置里可换引擎、调轮次、配置人类落槌与访问口令。AI 结论仅供辅助参考，最终裁判权始终在人类法官。</p>
+          <p class="muted" style="margin-bottom:0">提示：左侧目录可展开各级功能；右上角 🌙 切换夜审模式；「⛶ 聚焦」隐藏两侧面板专注笔录。AI 结论仅供辅助参考，最终裁判权始终在人类法官。</p>
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
             <b style="color:var(--navy)">⌨ 快捷键</b>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-top:8px;font-size:12px">
@@ -403,10 +436,13 @@
 
     <script src="/static/assets/app-core.js"></script>
     <script src="/static/assets/app-ui.js"></script>
+    <script src="/static/assets/app-shell.js"></script>
     <script>
       // PWA 离线缓存（失败静默：file:// 或不支持时不影响功能）
+      // 走根路径 /sw.js —— 注册 /static/assets/sw.js 会把 scope 限死在该目录，
+      // SW 无法控制 `/`，离线能力等于没有。
       if ("serviceWorker" in navigator) {
-        addEventListener("load", () => navigator.serviceWorker.register("/static/assets/sw.js").catch(() => {}));
+        addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {}));
       }
     </script>
   </body>

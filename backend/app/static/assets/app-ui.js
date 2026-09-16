@@ -650,8 +650,12 @@
 
       let _focused = false;
       function focusMode(){
-        _focused = !_focused;
+        // 焦点状态改为由 DOM 实际 class 推导，而不是只依赖私有 _focused：
+        // toggleRail（core）会改 no-left/no-right 却不更新 _focused，
+        // 旧实现下二次点击会基于过期状态错判（该隐藏时反而显示）。
         const m = $("workspace");
+        const bothHidden = m.classList.contains("no-left") && m.classList.contains("no-right");
+        _focused = !bothHidden;   // 两侧都已收起 → 本次是退出聚焦
         m.classList.toggle("no-left", _focused);
         m.classList.toggle("no-right", _focused);
         $("btnFocus").textContent = _focused ? "⤢ 退出聚焦" : "⛶ 聚焦";
@@ -698,19 +702,34 @@
       });
 
       // 轻量级 confirm modal
+      // 修复：原先 ✕ 走内联 onclick="...;resolve(false)"，而 resolve 在 Promise
+      // 执行器作用域内、内联 handler 的作用域链不可达 → 点 ✕ 抛 ReferenceError，
+      // 且 Promise 永不 settle，导致 deletePreset / stopDebate / deleteCase /
+      // 知识库删除永久挂起。现改为所有出口走幂等的 settle()，并把 resolver 暴露
+      // 到 _pendingConfirm，供 Esc 快捷键复用（Esc 原先只加 .hidden，同样挂起）。
+      let _pendingConfirm = null;
       function confirmDialog(msg){
         return new Promise(resolve=>{
           const overlay=document.createElement("div"); overlay.className="modal confirm-modal"; overlay.innerHTML=`
             <div class="modal-card" style="width:min(400px,90vw)">
-              <div class="modal-head"><span>确认操作</span><button class="ghost" onclick="this.closest('.modal').remove();resolve(false)" style="font-size:16px" aria-label="关闭确认弹窗">✕</button></div>
+              <div class="modal-head"><span>确认操作</span><button class="ghost" id="cd-x" style="font-size:16px" aria-label="关闭确认弹窗">✕</button></div>
               <div class="modal-body"><p style="margin:0;line-height:1.7">${escapeHtml(msg)}</p></div>
               <div class="modal-foot"><div style="margin-left:auto"><button class="ghost" id="cd-no" aria-label="取消操作">取消</button><button class="primary" id="cd-yes" aria-label="确认操作">确认</button></div></div>
             </div>`;
           document.body.appendChild(overlay);
-          const close=()=>{ overlay.remove(); };
-          overlay.querySelector("#cd-no").onclick=()=>{ close(); resolve(false); };
-          overlay.querySelector("#cd-yes").onclick=()=>{ close(); resolve(true); };
-          overlay.addEventListener("click",e=>{ if(e.target===overlay){ close(); resolve(false); }});
+          let settled=false;
+          const settle=(val)=>{
+            if(settled) return;          // 幂等：重复 close 不再二次 resolve
+            settled=true;
+            overlay.remove();
+            if(_pendingConfirm===settle) _pendingConfirm=null;
+            resolve(val);
+          };
+          overlay.querySelector("#cd-x").onclick=()=>settle(false);
+          overlay.querySelector("#cd-no").onclick=()=>settle(false);
+          overlay.querySelector("#cd-yes").onclick=()=>settle(true);
+          overlay.addEventListener("click",e=>{ if(e.target===overlay){ settle(false); }});
+          _pendingConfirm=settle;
         });
       }
 
@@ -720,6 +739,9 @@
         const tag = (e.target.tagName || "").toLowerCase();
         if (tag === "input" || tag === "textarea" || tag === "select") return;
         if (e.key === "Escape") {
+          // 确认弹窗优先：必须走 settle 而非仅隐藏，否则 Promise 永不 resolve，
+          // 调用方（删预设/停止辩论/删案件/删知识）会永久 await 卡死
+          if (_pendingConfirm) { _pendingConfirm(false); return; }
           // 关闭弹窗 / 关闭移动端面板
           const modals = document.querySelectorAll(".modal:not(.hidden)");
           if (modals.length) { modals.forEach(m => m.classList.add("hidden")); return; }

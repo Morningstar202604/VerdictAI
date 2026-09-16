@@ -2,15 +2,16 @@
  * ------------------------------------------------------------
  * 策略：仅对下方预定义的静态资源做 cache-first；/api、/ws 一律直连，
  *       index.html 不缓存（保证发版后用户立即拿到新页面）。
- * 升级：改动任何被缓存的静态文件后，把 CACHE 版本号 v1 -> v2，
+ * 升级：改动任何被缓存的静态文件后，把 CACHE 版本号递增，
  *       activate 阶段会自动清掉旧缓存。
  */
-const CACHE = "verdictai-v1";
+const CACHE = "verdictai-v2";
 
 const ASSETS = [
   "/static/assets/app.css",
   "/static/assets/app-core.js",
   "/static/assets/app-ui.js",
+  "/static/assets/app-shell.js",
   "/static/assets/logo.svg",
   "/static/assets/icon-192.png",
   "/static/assets/icon-512.png",

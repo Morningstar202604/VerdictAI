@@ -34,7 +34,9 @@ _LOGIN_MAX_FAILS = 5
 _LOGIN_LOCK_SECONDS = 900
 _login_fails: dict = {}
 
-_EXEMPT_PREFIXES = ("/login", "/static/assets/", "/api/health", "/favicon")
+# /sw.js 为 Service Worker 脚本根路径（见 main.py 的同名路由），必须免登录：
+# 否则开启访问口令后浏览器拿不到脚本，PWA 离线安装整体失效。
+_EXEMPT_PREFIXES = ("/login", "/static/assets/", "/api/health", "/favicon", "/sw.js")
 
 _SESSION_SECRET_BYTES = secrets.token_bytes(32)
 

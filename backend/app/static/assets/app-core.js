@@ -1,5 +1,15 @@
       const $ = (id) => document.getElementById(id);
-      function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+      // 转义 panic-safe：原实现（textContent→innerHTML / 手写部分替换）均不转义引号，
+      // 而本函数的结果会被拼进 title / data-q 等属性里（app-ui.js:44、core:64），
+      // 含引号文本会截断属性。统一补 " 与 ' 两种引号的转义。
+      function escapeHtml(s){
+        return String(s==null?"":s)
+          .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      }
+      // 后端异常时返回的是 {error:...} 而非 {cases:[...]}，直接取 .cases 得 undefined，
+      // 后续 forEach 抛 TypeError 会中断 init()，导致案件下拉/chips/名册全部不渲染。
+      function pickCases(json){ return Array.isArray(json && json.cases) ? json.cases : []; }
       let intakeOverrides = {}; let serverBrief = null; let lastVerdict = null; let contraList = []; let recNotes = []; let qaHistory = []; let nsDone = new Set(); let lastUsage = null; let lastTrace = null;
 
       /* ================= 法条引用核查（幻觉防火墙 / 引用信号灯） =================
@@ -97,7 +107,7 @@
         try { const ac = await (await fetch("/api/agent-config")).json(); ac.agents.forEach(a => agentsCfg[a.key]=a); } catch(e){ toast("加载专家配置失败"); }
         roleMap = {}; Object.values(agentsCfg).forEach(a => roleMap[a.key]=a);
         let cases = [];
-        try { cases = (await (await fetch("/api/cases")).json()).cases; } catch(e) { toast("加载案例列表失败: "+e.message); cases=[]; }
+        try { cases = pickCases(await (await fetch("/api/cases")).json()); } catch(e) { toast("加载案例列表失败: "+e.message); cases=[]; }
         // 标题去重：若存在同名案件，自动追加 ID 后辍以便区分
         const _titleCount={}; cases.forEach(c=>{_titleCount[c.title]=(_titleCount[c.title]||0)+1;});
         const _titleDup={}; cases.forEach(c=>{if(_titleCount[c.title]>1)_titleDup[c.id]=c.title;});
@@ -139,9 +149,12 @@
       }
       function applyViewerGating(){
         // viewer：隐藏管理入口（设置；案例库管理类按钮由各渲染处按角色隐藏）
-        document.querySelectorAll(".btn-admin").forEach(b=>b.style.display="none");
+        // （已移除 .btn-admin 批量隐藏：全项目无任何元素使用该类名，属死代码）
         const gs=$("btnSettings"); if(gs) gs.style.display="none";
         const gsc=$("btnSettingsChip"); if(gsc) gsc.style.display="none";
+        // 修复：原实现漏了移动端底部导航的「设置」入口，
+        // viewer 在窄屏下可从 #navSettings 绕过门禁直接打开设置。
+        const nav=$("navSettings"); if(nav) nav.style.display="none";
         if(window._applyViewerHooks) window._applyViewerHooks();
       }
 
@@ -178,7 +191,7 @@
       async function regen(btn) {
         btn.disabled=true; const old=btn.textContent; btn.textContent="生成中…";
         try { const d=await (await fetch("/api/cases/generate",{method:"POST"})).json();
-          const cases=(await (await fetch("/api/cases")).json()).cases; const land=$("landCase"); land.innerHTML="";
+          const cases=pickCases(await (await fetch("/api/cases")).json()); const land=$("landCase"); land.innerHTML="";
           cases.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.title;land.appendChild(o);});
           selectedCase=d.case.id; land.value=selectedCase; caseDetail=d.case; renderCase();
         } catch(e){ toast("生成失败: "+e.message); } finally { btn.disabled=false; btn.textContent=old; }
@@ -292,7 +305,7 @@
         setPpStep(4,"done",`已分发到 ${roleCount} 位专家`);
         showPreprocessingResult(d.case, fileName, elapsed);
         // 刷新案件列表
-        const cases=(await(await fetch("/api/cases")).json()).cases;
+        const cases=pickCases(await(await fetch("/api/cases")).json());
         const _tc={}; cases.forEach(c=>{_tc[c.title]=(_tc[c.title]||0)+1;});
         const _td={}; cases.forEach(c=>{if(_tc[c.title]>1)_td[c.id]=c.title;});
         const land=$("landCase"); land.innerHTML="";
@@ -697,7 +710,7 @@
           case "human_timeout": { toast("⏱ " + (ev.message||"落槌超时，已采纳 AI 草案")); const id="to-"+Date.now(); messages.push({id, role:"system", name:"超时归档", color:"#b45309", stance:"", text:(ev.message||"")+"\n\n如需人工重新裁决，可在复盘记录中重新开庭。", tools:[], done:true}); renderDebate(); break; }
           case "usage": lastUsage=ev.usage||null; break;
           case "trace": lastTrace=ev||null; renderTrace(); break;
-          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+Math.round(lastUsage.in_chars/1000)+"k 字、产出 "+Math.round(lastUsage.out_chars/1000)+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
+          case "done": setPhase("done"); running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb2=$("btnStop"); if(_sb2) _sb2.style.display="none"; if(lastUsage&&lastUsage.calls){ const _in=Math.round((lastUsage.in_chars||0)/1000), _out=Math.round((lastUsage.out_chars||0)/1000); setSpeak("本次审理共推理 "+lastUsage.calls+" 次，读取 "+_in+"k 字、产出 "+_out+"k 字"); } appendClosureCard(); toast("✅ 审理终结 · 裁决已归档，可导出结案报告"); break;
           case "stopped": running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); $("ivChips").classList.add("hidden"); const _sb3=$("btnStop"); if(_sb3) _sb3.style.display="none"; setSpeak(ev.message||"辩论已停止", false); break;
           case "error": { running=false; $("landStart").disabled=false; $("intervene").classList.add("hidden"); const _sb4=$("btnStop"); if(_sb4) _sb4.style.display="none"; setPhase("done"); const id="err-"+Date.now(); messages.push({id, role:"system", name:"系统错误", color:"#ef4444", stance:"", text:"辩论中断："+(ev.message||"未知错误")+"\n\n建议：检查模型是否可用 / API 是否限流，或改用更稳定的模型（设置→审理引擎）。", tools:[], done:true}); renderDebate(); break; }
         }
@@ -722,7 +735,11 @@
         }
         return out.join("\n").trim();
       }
-      function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+      function escapeHtml(s){
+        return String(s==null?"":s)
+          .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      }
       function inlineMd(s){
         // 先把图片/链接提取为占位符，避免 URL 中的下划线被斜体规则改写
         // （如 /sandbox/evidence_reliability_1.png 会变成 evidence<em>reliability</em>_1.png 导致图片 404）

@@ -387,7 +387,7 @@ async def stream_or_invoke(llm, messages, on_chunk=None, timeout=None, key: str 
         async for chunk in llm.astream(messages):
             emitted = True
             merged = chunk if merged is None else merged + chunk
-            text = chunk.text() if hasattr(chunk, "text") else str(chunk.content or "")
+            text = chunk.text if hasattr(chunk, "text") else str(chunk.content or "")
             if text and on_chunk:
                 r = on_chunk(text)
                 # 回调可为同步或异步函数（nodes.py 传的是 async _on）

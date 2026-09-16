@@ -158,6 +158,24 @@ def favicon():
     return JSONResponse({"error": "not found"}, status_code=404)
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    """Service Worker 必须从根路径提供。
+
+    原先注册的是 /static/assets/sw.js，浏览器按脚本路径把 scope 限成
+    /static/assets/，SW 永远无法控制根路径 `/`，PWA 离线形同虚设。
+    改由根路径提供，并带 Service-Worker-Allowed 放宽 scope（Blink/Firefox 要求）。
+    """
+    path = os.path.join(os.path.dirname(__file__), "static", "assets", "sw.js")
+    if not os.path.exists(path):
+        return JSONResponse({"error": "sw not found"}, status_code=404)
+    return FileResponse(
+        path,
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
+
+
 @app.get("/flow.html")
 @app.get("/static/flow.html")
 def flow():

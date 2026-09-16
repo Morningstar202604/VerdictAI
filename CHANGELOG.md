@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+### Changed
+- 外壳重构：落地页改为「提交卷宗 → 预处理与意图识别 → 合议庭阵容」三步折叠卡片（Step1 默认展开，Step2 有预处理结果时自动展开）；设置面板的旧标签条移除，改由**左侧多级折叠目录**驱动（`app-shell.js`：分组记忆 + 当前项高亮 + 锚点跳转）。
+- 侧栏：桌面可折叠为 56px 图标窄条（偏好持久化）；≤900px 转为覆盖式抽屉，默认收起、点叶子后自动收起、点抽屉外/按 ☰ 可开关。
+### Fixed
+- 确认弹窗在 ✕ 与 Esc 双路径下 Promise 挂起（等待永不 resolve）。
+- `escapeHtml` 不转义引号：结果拼进 `title` / `data-q` 属性时被含引号文本截断。
+- `/api/cases` 返回 `{error}` 时 `.cases` 为 undefined，随后的 forEach 抛错中断 `init()`，案件下拉/chips/名册全不渲染。
+- 用量统计里 `in_chars/out_chars` 缺失时拼出 `NaNk 字`。
+- viewer 越权：移动端底部导航「设置」入口未纳入门禁。
+- PWA 离线失效：`sw.js` 注册在 `/static/assets/` 下，scope 被限死导致无法控制根路径 —— 改由 `/sw.js` 提供并带 `Service-Worker-Allowed: /`，同时该文件加入登录豁免前缀。
+- Service Worker 预缓存清单漏列新增的 `app-shell.js`（离线时外壳交互失效）。
+- LangChain 弃用告警：`chunk.text()` 改为属性 `chunk.text`。
+
 ## [0.9.0] - 2026-09-10
 ### Added
 - M1.5 功能进阶：意图路由（无关输入门禁/案由置信度/实体槽位）、庭审核查报告导出（Markdown + DOCX，缺依赖降级纯 Markdown）、证据时间线抽取与视图、相似案例推荐（embedding 近邻，语义关退关键词）、搜索 TTL 缓存与 URL 去重、评估回归集。
