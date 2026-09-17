@@ -2,20 +2,17 @@
   <img src="backend/app/static/assets/logo.svg" alt="VerdictAI Logo" width="110" />
 </p>
 
-<h1 align="center">⚖️ VerdictAI · Intelligent Courtroom Deliberation</h1>
+<h1 align="center">⚖️ VerdictAI · Multi-Agent Courtroom Deliberation</h1>
 
 <p align="center">
-  <em>Multi-Agent Judicial Debate &amp; Verdict System</em>
+  <em>7 AI experts cross-examine real case files, cite real statutes &amp; precedents, and deliver structured verdicts with executable next steps</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI/stargazers"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=social" alt="GitHub Stars" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=social" alt="GitHub Stars" /></a>
   <a href="https://github.com/Morningstar202604/VerdictAI/network/members"><img src="https://img.shields.io/github/forks/Morningstar202604/VerdictAI?style=social" alt="GitHub Forks" /></a>
   <a href="https://github.com/Morningstar202604/VerdictAI/issues"><img src="https://img.shields.io/github/issues/Morningstar202604/VerdictAI" alt="GitHub Issues" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/actions/workflows/ci.yml"><img src="https://github.com/Morningstar202604/VerdictAI/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-</p>
-
-<p align="center">
+  <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-badhope%2FVerdictAI-blue?logo=git&logoColor=white" alt="GitCode" /></a>
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/LangGraph-StateGraph-FF6B35" alt="LangGraph" />
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
@@ -29,11 +26,13 @@
 
 ---
 
-> **7 AI experts walk into a courtroom.** They examine a real case file, cross-examine each other for multiple rounds, cite statutes, call tools, hunt down contradictions — and the presiding judge delivers a verdict. The entire trial streams live to your browser.
+## What is this
 
-**Bring your own document.** Upload a PDF investigation report, indictment or judgment — VerdictAI reads it, extracts people / evidence / timelines / applicable statutes, assigns tailored briefs to every expert, and runs a full adversarial deliberation that ends in a verdict plus an actionable checklist for judicial staff.
+Upload a case PDF (investigation report / indictment / judgment), and VerdictAI auto-extracts **persons · evidence · timeline · applicable statutes**, builds tailored briefs for every expert, and drives a **multi-round adversarial debate among 7 AI roles** — they cross-examine each other, retrieve statutes, call tools, and surface contradictions. The presiding judge then delivers a **structured verdict with an evidence chain and open questions**, plus an **actionable checklist** for judicial staff. The entire trial streams live to your browser over WebSocket.
 
-## ✨ What Makes VerdictAI Different?
+> Works out of the box: a **bundled local reasoning engine** (`ai_engine`, port 9100) produces real analysis of the actual case file with no API key required — not placeholder text.
+
+## Why it's different
 
 | | Traditional AI Q&A | **VerdictAI** |
 |---|---|---|
@@ -41,183 +40,134 @@
 | Output | One-shot text | **Multi-round deliberation** + contradiction detection |
 | Transparency | Black box | **Full event stream** — every token, tool call, agent status |
 | Citations | Hallucinated | **Real statutes & precedent digests** — retrieved from a built-in knowledge base, never fabricated |
-| Documents | Unstructured uploads | **AI document understanding** — people / evidence / timeline / statutes auto-extracted from plain PDFs |
-| Verdict | "AI says so" | **Structured verdict** with evidence chain, open questions and an executable next-steps checklist |
+| Documents | Unstructured uploads | **AI document understanding** — persons / evidence / timeline / statutes auto-extracted from plain PDFs |
+| Verdict | "AI says so" | **Structured verdict** — evidence chain, open questions, executable next-steps checklist |
 
-## 📸 Screenshots
+## Screenshots
 
 | | |
 |---|---|
-| ![Case intake & branding](docs/screenshots/landing.png) | ![Live trial with human intervention](docs/screenshots/trial-debate.png) |
+| ![Case intake](docs/screenshots/landing.png) | ![Live trial with human intervention](docs/screenshots/trial-debate.png) |
 | *Case intake — PDF upload, roster, AI extraction* | *Live trial — 7 experts, human intervention, usage stats* |
 | ![Verdict & post-verdict workflow](docs/screenshots/verdict-workflow.png) | ![Dark mode](docs/screenshots/dark-mode.png) |
 | *Verdict, Q&A, executable next-steps checklist* | *Dark theme, full transcript* |
 
-## 🎯 Features
+## Core capabilities
 
-<details>
-<summary><strong>🧠 7 Specialized AI Experts</strong></summary>
-
-Each agent has a unique role, stance and toolset — and they run **in parallel** every round:
+**7 specialized experts** (run in parallel every round, distinct stances)
 
 | Expert | Role | Stance |
 |--------|------|--------|
 | 🔍 Crime Scene Analyst | Spatial logic, entry/exit, trace distribution | Neutral |
 | 🔬 Forensic Specialist | Cause of death, TOD window, injuries | Science first |
 | 🧪 Evidence Analyst | DNA, fingerprints, custody chain, surveillance | Physical proof |
-| 🧠 Interrogation/Psych Expert | Statement credibility, motive, profiling | Neutral |
+| 🧠 Interrogation / Psych Expert | Statement credibility, motive, profiling | Neutral |
 | ⚖️ Evidence Law Expert | Admissibility, exclusion, proof standard | Procedure |
 | 👨‍⚖️ Prosecutor Agent | Charging chain, gaps, rebuttals | Prosecution |
 | 🛡️ Defense Agent | Reasonable doubt, alternative explanations | Defense |
 
-</details>
+**Tool-augmented reasoning** — experts don't just talk, they call tools (results render into the transcript):
 
-<details>
-<summary><strong>📄 Real Document Understanding</strong></summary>
+`read_evidence` (read evidence) · `timeline_check` (timeline validation) · `list_contradictions` (flagged issues) · `search_case_law` (three-tier statute search) · `web_search` (live web, toggleable) · `run_code` (sandboxed Python; matplotlib charts render straight into the transcript)
 
-Upload a narrative PDF report and the AI intake automatically:
+**Real document understanding** — PyMuPDF extracts text (50-page / 60K-char safety limits), parses persons / evidence / timeline / statutes from narrative prose, and normalizes Chinese time expressions into a standard TOD window for cross-validation; extractions carry an "AI auto-extracted" badge and are all editable.
 
-1. Extracts the full text (PyMuPDF, with 50-page / 60K-char safety limits)
-2. **Extracts structure from plain prose** — persons (with roles), evidence items, timeline events, applicable statutes, finance/insurance traces
-3. Builds tailored briefs for every expert and renders dossier charts
-4. Normalizes Chinese time expressions (“凌晨1时30分至2时30分” → a standard TOD window) for cross-validation
+**Statute & precedent knowledge base** — built-in stable provisions from the Criminal Procedure Law, Criminal Law and Civil Code, plus appeal-reasoning digests for indirect-evidence homicide and more; custom entries added via Settings; three-tier search cites them only when they actually match; if nothing matches, agents say so instead of inventing citations.
 
-The extracted structure is labeled with an **“AI auto-extracted”** badge in the case panel, and everything is editable.
+**Multi-round debate engine** — configurable rounds and memory window; rounds beyond the window are compressed into a rolling digest rather than dropped; an AI critic catches contradictions each round and feeds them back; the judge converges on consensus (or the round cap).
 
-</details>
+**Real-time streaming & trial UX** — token-by-token expert output with speaking indicators; tool calls and charts in the transcript; round stepper, progress bar, per-expert status; **human intervention** (interject mid-trial, every expert responds next round); **post-verdict Q&A**.
 
-<details>
-<summary><strong>🛠️ Tool-Augmented Reasoning</strong></summary>
+**Dual verdict mode** — AI judge auto-converges / Human judge (HITL) pauses for review (auto-archival on timeout); after the verdict: Q&A follow-ups, an executable **next-steps checklist** with progress tracking, one-click copy / Markdown export / print-to-PDF; a 🔨 "审理终结" closure card (case / rounds / usage) and a full closure report.
 
-Agents don't just talk — they **use tools** (results render inside the transcript):
+**Agent engineering** — memory window, context limit, concurrency cap, call timeout, per-agent model overrides, strategy presets, config import/export (Settings → Agent Engineering).
 
-- `read_evidence` — read a specific evidence item by ID
-- `timeline_check` — verify event timing against the case timeline
-- `list_contradictions` — review flagged issues
-- `search_case_law` — three-tier statute search: case file → custom knowledge base → built-in statute library
-- `web_search` — live public web search (Bing CN source, toggleable)
-- `run_code` — sandboxed Python (matplotlib charts render right into the transcript)
+**Deployment-ready** — `tools/start_all.py` one-command start/stop (windowless daemons, auto-restart); `ACCESS_PASSWORD` intranet gate (HMAC session tokens, login rate-limiting); `run_code` prefers a one-shot Docker sandbox (no network, capped memory/CPU) and degrades to a host subprocess; `tools/backup.py` data backup; runs fully offline with the bundled local engine or against any OpenAI-compatible API; light/dark theme; EN / 中文 / 日本語 UI.
 
-</details>
+## Architecture
 
-<details>
-<summary><strong>📚 Knowledge Base & Precedents</strong></summary>
+```mermaid
+flowchart TB
+    UI1["🌐 Built-in SPA frontend<br/>(index.html)"]
+    API["⚖️ FastAPI · app/main.py<br/>REST · WebSocket · auth · rate-limit"]
+    UI1 -->|WebSocket + REST| API
 
-- **Built-in statute library** — real, stable provisions from the Criminal Procedure Law, Criminal Law and Civil Code, plus evidence-review doctrine (three-factor test, chain-of-custody, electronic data)
-- **Precedent digests** — appellate reasoning patterns for indirect-evidence homicide, edited surveillance, force-majeure defenses
-- **Custom entries** — add your own precedent digests or internal rules via Settings → Knowledge Base; the three-tier search cites them only when they actually match
-- **Never fabricate** — if nothing matches, agents say so instead of inventing citations
+    subgraph GRAPH["LangGraph debate state machine (StateGraph)"]
+        direction LR
+        E1["7 experts<br/>parallel debate"] --> E2["Critic<br/>contradiction detection"]
+        E2 --> E3["Presiding judge<br/>convergence"]
+        E3 -->|not converged → next round| E1
+        E3 --> E4["Verdict gavel<br/>HITL confirm"]
+        E4 --> V["Verdict output<br/>structured verdict · review · Q&A"]
+    end
+    API --> GRAPH
 
-</details>
+    subgraph SUPPORT["Supporting capabilities"]
+        direction LR
+        S1["Case preprocessing<br/>PDF → structured extraction"]
+        S2["Tools + code sandbox<br/>6 tools · isolated exec"]
+        S3["Statute knowledge base<br/>3-tier search · precedents"]
+        S4["Data / charts<br/>cases · debates · KB"]
+    end
+    API -. depends .-> SUPPORT
 
-<details>
-<summary><strong>🔄 Multi-Round Debate Engine</strong></summary>
+    subgraph MODELS["Model supply (switchable)"]
+        direction LR
+        M1["Local engine<br/>ai_engine :9100 (default)"]
+        M2["OpenAI-compatible<br/>DeepSeek / GLM / Qwen …"]
+        M3["mock offline placeholder"]
+    end
+    GRAPH -. calls .-> MODELS
+```
 
-- Configurable rounds with a **configurable memory window**
-- Rounds beyond the window are **compressed into a rolling digest** instead of being dropped
-- AI critic catches contradictions each round and feeds them back
-- Judge converges on consensus (or round limit)
+**Key design decisions**
 
-</details>
+- **LangGraph StateGraph** — deterministic state machine, not ad-hoc loops
+- **asyncio.gather + concurrency cap** — experts run in parallel, rate-limit friendly
+- **Tool fault tolerance** — one bad tool call never stalls a trial
+- **Tiered memory** — recent rounds in full, older rounds rolling-compressed
+- **Citation discipline** — statutes / precedents come from retrieval, never model imagination
+- **Default engine** — ships connected to the bundled local engine (:9100); what you see is real analysis
 
-<details>
-<summary><strong>📹 Real-Time Streaming & Trial UX</strong></summary>
+## How a trial runs
 
-- Live token-by-token expert output with speaking indicators
-- Tool calls and sandbox charts rendered in the transcript
-- Round stepper, progress bar, per-expert status
-- **Human intervention** — interject mid-trial; every expert responds next round
-- **Post-verdict Q&A** — keep asking the presiding judge “why”, with suggested follow-up chips
+```mermaid
+flowchart LR
+    A[Upload / paste case] --> B[AI extracts structured dossier<br/>persons·evidence·timeline·statutes]
+    B --> C[7 experts debate in parallel<br/>multi-round · tools · contradiction checks]
+    C --> D{Judge converged?}
+    D -->|no| C
+    D -->|yes| E[Structured verdict<br/>evidence chain·open questions·recommendations]
+    E --> F[Actionable checklist<br/>+ closure report + Q&A]
+```
 
-</details>
-
-<details>
-<summary><strong>⚖️ Dual Verdict Mode & Post-Verdict Workflow</strong></summary>
-
-- **AI Judge** — automated convergence and verdict delivery
-- **Human Judge (HITL)** — pause the trial for human review; auto-archival on configurable timeout
-- **After the verdict**: Q&A follow-ups, an executable **next-steps checklist** with progress tracking, one-click copy / Markdown export / print-to-PDF
-- **Closure card** — when the trial ends, the transcript closes with a 🔨 "审理终结" card (case / rounds / usage) and one-click access to the full closure report, print-to-PDF and a new trial
-- Every trial is auto-archived with **usage analytics** (inference count, characters in/out) and full replay
-
-</details>
-
-<details>
-<summary><strong>🧩 Agent Engineering (Settings → Agent Engineering)</strong></summary>
-
-Platform-grade runtime controls, inspired by Dify/Coze:
-
-- **Memory window** — how many previous rounds feed each expert
-- **Context limit** — max characters per LLM call (protects real cloud models)
-- **Concurrency cap** — max parallel experts (rate-limit friendly)
-- **Call timeout** — a hung engine never stalls a trial
-- **Per-agent model overrides** — cheap model for the clerk, strongest model for the judge
-- **Strategy presets** — one-click packaged strategies (“Criminal · strict evidence”, “Civil · liability split”)
-- **Agent config import/export** — back up or migrate the whole roster as JSON
-
-</details>
-
-<details>
-<summary><strong>🧑‍⚖️ Deliberation Quality — Reflect · Self-Check · Investigation Plan</strong></summary>
-
-- **Reflection node (Reflexion-style)** — before the judge converges, each expert's core claims pass a falsifiability review; counter-arguments are recorded instead of being dropped
-- **Completeness self-check** — a deterministic pre-verdict audit surfaces unexplained evidence, unresolved contradictions and missing statute citations to the human reviewer
-- **Investigation plan** — complex dossiers first produce a "facts-to-prove checklist" that is handed to every expert
-- **Case sediment** — finished trials backfill the case file as a reference precedent, so later similar-case retrieval reuses them
-- **Similar-case suggestions** — embedding neighbors on the case detail page
-- **Evidence-chain strength** — the verdict carries an explicit strength score and uncertainty statement
-
-</details>
-
-<details>
-<summary><strong>🔎 Retrieval, Citations & Reporting</strong></summary>
-
-- **Grounding citations** — expert statements carry the actual statute / knowledge entry / source URL they relied on, rendered as "来源" chips (Perplexity-style); hybrid retrieval can be refined by an optional BGE reranker (via `requirements-ai.txt`, silently skipped when absent)
-- **Trial review report** — one-click Markdown / DOCX export covering verdict, contradictions, timeline, evidence chain and citations
-- **Evidence timeline view** — timestamps extracted across evidence into an interactive horizontal timeline
-- **Usage & audit panel** — `/api/admin/usage` aggregates inference calls / characters per session, with an SSE stream for live monitoring
-- **Voice input** — dictate the case description via the Web Speech API (zh-CN) in Chrome/Edge
-
-</details>
-
-<details>
-<summary><strong>🏛️ Deployment-Ready</strong></summary>
-
-- **One-command start/stop** (`tools/start_all.py`) — windowless daemons with auto-restart
-- **Access password gate** for intranet deployment (`ACCESS_PASSWORD` in `.env`) — HMAC-signed session tokens with login rate-limiting
-- **Sandbox isolation** — `run_code` prefers a one-shot Docker container (no network, capped memory/CPU) and degrades to a host subprocess automatically (`CODE_SANDBOX_BACKEND`)
-- **Data backup** — `tools/backup.py` packs cases / debates / knowledge base into a pruned zip
-- Works fully offline with the bundled local engine, or against any OpenAI-compatible API
-- Light/dark theme, English / 中文 / 日本語 UI
-
-</details>
-
-## 🚀 Quick Start (30 seconds)
+## Quick start (~30s)
 
 ```bash
-# Clone
+# Clone (GitCode primary)
+git clone https://gitcode.com/badhope/VerdictAI.git
+# or GitHub mirror
 git clone https://github.com/Morningstar202604/VerdictAI.git
 cd VerdictAI/backend
 
-# Setup
+# Environment
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate    # Linux/Mac
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 
 # One command: backend + local reasoning engine (windowless, auto-restart)
 python tools/start_all.py
-# stop everything: python tools/start_all.py stop
+# stop: python tools/start_all.py stop
 ```
 
-**Production (Docker)**: `docker compose up -d --build` at the repo root → built-in SPA served by the backend on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+**Production (Docker)**: `docker compose up -d --build` at repo root → backend serves the built-in SPA on `:8787`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**Open http://localhost:8787** → drop in a PDF case file (or paste a case description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
+Open **http://localhost:8787** → drop in a PDF case (or paste a description) → watch the AI parse it into a structured dossier → click **Open Trial** → watch 7 AI experts argue live.
 
-## 🔌 Model Providers
+## Model providers
 
-Out of the box the app connects to the **bundled local reasoning engine** (`backend/ai_engine/`, port 9100, started by `python tools/start_all.py`). What you see in the trial is the engine's real deterministic analysis of the actual case file — not placeholder text. No API key required.
+Out of the box the app connects to the **bundled local reasoning engine** (`backend/ai_engine/`, port 9100, started by `tools/start_all.py`). What you see in the trial is the engine's real deterministic analysis of the actual case file — no API key required.
 
 ```env
 # backend/.env — defaults already match the local engine
@@ -228,82 +178,25 @@ INTAKE_MODEL=verdict-local-intake
 MAX_ROUNDS=3
 ```
 
-Restart the server. Works with any OpenAI-compatible API: DeepSeek, GLM, Qwen, Step, Ollama and more — just point `LLM_BASE_URL` at your endpoint and set `LLM_API_KEY`. Set `LLM_PROVIDER=mock` only when you explicitly want an offline placeholder demo.
+Restart the server. Works with any OpenAI-compatible API (DeepSeek, GLM, Qwen, Step, Ollama …) — point `LLM_BASE_URL` at your endpoint and set `LLM_API_KEY`. Set `LLM_PROVIDER=mock` only when you explicitly want an offline placeholder demo.
 
-## 🏗️ Architecture
-
-```mermaid
-flowchart TB
-    UI1["🌐 内置 SPA UI<br/>(唯一前端, index.html)"]
-    API["⚖️ FastAPI 服务 · app/main.py<br/>REST · WebSocket · 访问认证 · 请求限流"]
-
-    UI1 -->|WebSocket + REST| API
-
-    subgraph GRAPH["LangGraph 辩论状态机 StateGraph"]
-        direction LR
-        E1["7 大专家<br/>并行辩论"] --> E2["纠错官<br/>矛盾检测"]
-        E2 --> E3["审判长<br/>收敛判定"]
-        E3 -->|未收敛 → 下一轮| E1
-        E3 --> E4["裁决落槌<br/>HITL 确认"]
-        E4 --> V["裁决输出<br/>结构化裁决 · 复盘 · 质询"]
-    end
-    API --> GRAPH
-
-    subgraph SUPPORT["支撑能力与模型供电"]
-        direction LR
-        S1["卷宗预处理<br/>PDF→结构化抽取"]
-        S2["工具 + 代码沙箱<br/>8 工具 · 隔离执行"]
-        S3["法条知识库<br/>三级检索 · 类案"]
-        S4["数据与图表<br/>案件·辩论·知识库"]
-        M1["mock 离线"]
-        M2["OpenAI 兼容<br/>DeepSeek 等云模型"]
-        M3["Ollama 本地"]
-        M4["本地推理引擎<br/>ai_engine :9100"]
-    end
-    API -. 依赖调用 .-> SUPPORT
-```
-
-**Key Design Decisions:**
-- **LangGraph StateGraph** — deterministic state machine, not ad-hoc loops
-- **asyncio.gather + concurrency cap** — experts run in parallel, rate-limit friendly
-- **Tool fault tolerance** — bad tool calls never crash the debate
-- **Tiered memory** — recent rounds in full, older rounds rolling-compressed
-- **Citation discipline** — statutes/precedents come from retrieval, never from model imagination
-- **Default engine** — ships connected to the bundled local reasoning engine (port 9100), so the trial you see is real analysis of the case file, not placeholder text
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full breakdown.
-
-## 📖 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design, state machine, event types |
 | [API Reference](docs/API.md) | REST endpoints & WebSocket protocol |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, systemd, Nginx, performance tuning |
-| [Contributing](CONTRIBUTING.md) | Development setup & guidelines |
+| [Contributing](CONTRIBUTING.md) | Dev setup & guidelines |
 
-## 🤝 Contributing
+## Disclaimer
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+This system is for **research and demonstration purposes only**. AI-generated conclusions are decision support, not legal advice; all final legal responsibility rests with human judges and legal professionals.
 
-- Development setup
-- Code style guidelines
-- PR process
-
-## ⚠️ Disclaimer
-
-This system is for **research and demonstration purposes only**. AI-generated conclusions are decision support, not legal advice. All final legal responsibility rests with human judges and legal professionals.
-
-## 📜 License
+## License
 
 [MIT License](LICENSE) — use it for anything.
 
 ---
 
-<p align="center">
-  <strong>We hope VerdictAI is useful to you.</strong>
-</p>
-
-<p align="center">
-  <sub>Built with LangGraph • FastAPI • WebSocket</sub>
-</p>
+<p align="center"><sub>Built with LangGraph · FastAPI · WebSocket</sub></p>

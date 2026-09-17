@@ -490,6 +490,13 @@
       function isMobile(){ return window.innerWidth <= 768; }
       function toggleMobilePanel(side){
         const m=$("workspace");
+        // 未开庭（landing 视图）时左/右抽屉藏在隐藏的 workspace 里，点击原为零反馈：
+        // 案卷→直达案例库选案件；合议→提示开庭后可用（保持"笔录"高亮不骗人）
+        if(!$("landing").classList.contains("hidden")){
+          if(side==="left"){ openSettings(); switchTab("library"); refreshCaseLibrary(); toast("选择案件后点「开庭审理」"); }
+          else if(side==="right"){ toast("开庭后可在此查看实时合议记录"); }
+          return;
+        }
         if(side==="center"){ closeMobilePanels(); return; }
         const cls = side==="left"?"show-left":"show-right";
         const other = side==="left"?"show-right":"show-left";

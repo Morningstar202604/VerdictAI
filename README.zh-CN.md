@@ -2,19 +2,17 @@
   <img src="backend/app/static/assets/logo.svg" alt="VerdictAI Logo" width="110" />
 </p>
 
-<h1 align="center">⚖️ VerdictAI · 智能探案合议庭</h1>
+<h1 align="center">⚖️ VerdictAI · 多智能体法庭辩论与裁决系统</h1>
 
 <p align="center">
-  <em>多智能体司法辩论与裁决系统</em>
+  <em>7 个 AI 专家交叉质证真实卷宗，引用真实法条与类案，输出结构化裁决与可执行业务清单</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI/stargazers"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=social" alt="GitHub Stars" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=social" alt="GitHub Stars" /></a>
   <a href="https://github.com/Morningstar202604/VerdictAI/network/members"><img src="https://img.shields.io/github/forks/Morningstar202604/VerdictAI?style=social" alt="GitHub Forks" /></a>
   <a href="https://github.com/Morningstar202604/VerdictAI/issues"><img src="https://img.shields.io/github/issues/Morningstar202604/VerdictAI" alt="GitHub Issues" /></a>
-</p>
-
-<p align="center">
+  <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-badhope%2FVerdictAI-blue?logo=git&logoColor=white" alt="GitCode" /></a>
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/LangGraph-StateGraph-FF6B35" alt="LangGraph" />
   <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
@@ -23,271 +21,184 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <strong>中文</strong> · <a href="README.ja-JP.md">日本語</a>
+  <strong>中文</strong> · <a href="README.md">English</a> · <a href="README.ja-JP.md">日本語</a>
 </p>
 
 ---
 
-> **7 位 AI 专家走进法庭。** 他们审查真实卷宗，多轮交叉辩论，引用法条，调用工具，互相纠错——最终由审判长落槌裁决。全程实时流式传输到你的浏览器。
+## 这是什么
 
-**拿你自己的文档来。** 上传一份 PDF 侦查报告、起诉书或判决书——VerdictAI 会读懂它，抽取人员 / 证据 / 时间线 / 适用法条，为每位专家定制分案材料，并展开一场完整的对抗式审议，最终产出裁决书与一份可供司法人员执行的后续流程清单。
+上传一份案件 PDF（侦查报告 / 起诉书 / 判决书），VerdictAI 自动抽取**人物 · 证据 · 时间线 · 适用法条**，
+为每个专家生成专属简报，驱动 **7 个 AI 角色多轮对抗式辩论**——他们互相质证、检索法条、调用工具、揪出矛盾，
+最后由审判长落槌给出**带证据链与存疑点的结构化裁决**，并附一份可直接派发的**后续动作清单**。整个过程通过 WebSocket 实时流式推送到浏览器。
 
-## ✨ VerdictAI 有什么不同？
+> 开箱即用：内置**本地确定性推理引擎**（`ai_engine`，端口 9100），无需任何 API Key 即可跑出对真实卷宗的真分析，绝非占位文本。
+
+## 为什么不同
 
 | | 传统 AI 问答 | **VerdictAI** |
 |---|---|---|
-| 模式 | 单模型、单次回答 | **7 个专业智能体**多轮辩论、相互质疑 |
-| 产出 | 一次性文本 | **多轮审议** + 矛盾检测 |
-| 透明度 | 黑盒 | **完整事件流**——每个 token、工具调用、Agent 状态 |
-| 引用 | 幻觉编造 | **真实法条与类案要旨**——从知识库检索命中才引用，检索不到绝不编造 |
-| 文档 | 无法处理非结构化 | **AI 文档理解**——从纯 PDF 自动抽取人员/证据/时间线/法条 |
-| 裁决 | "AI 说的" | **结构化裁决** + 证据链 + 存疑点 + 可执行后续清单 |
+| 方式 | 单模型、单次作答 | **7 个专职智能体**对抗辩论、互相挑战 |
+| 输出 | 一次性文本 | **多轮合议** + 矛盾检测 |
+| 透明 | 黑箱 | **全事件流**——每个 token、每次工具调用、每个智能体状态 |
+| 引用 | 易幻觉 | **真实法条与类案摘要**——来自内置知识库检索，绝不编造 |
+| 文档 | 非结构化上传 | **AI 卷宗理解**——从纯文本 PDF 自动抽取人物 / 证据 / 时间线 / 法条 |
+| 裁决 | “AI 说算” | **结构化裁决**——证据链、存疑点、可执行后续清单 |
 
-## 📸 界面预览
+## 界面一览
 
 | | |
 |---|---|
-| ![案件受理与品牌](docs/screenshots/landing.png) | ![实时庭审与人类介入](docs/screenshots/trial-debate.png) |
-| *案件受理——PDF 上传、专家阵容、AI 提取* | *实时庭审——7 专家辩论、人类介入、用量统计* |
+| ![案件受理](docs/screenshots/landing.png) | ![实时庭审与人类介入](docs/screenshots/trial-debate.png) |
+| *案件受理 — PDF 上传、人员名册、AI 结构化抽取* | *实时庭审 — 7 专家辩论、人工插话、使用统计* |
 | ![裁决与裁决后工作流](docs/screenshots/verdict-workflow.png) | ![深色模式](docs/screenshots/dark-mode.png) |
-| *裁决书、质询、可执行后续清单* | *深色主题，完整笔录* |
+| *裁决书、质询、可派发后续清单* | *深色主题与完整笔录* |
 
-## 🎯 功能
+## 核心能力
 
-<details>
-<summary><strong>🧠 7 位专业 AI 专家（同轮并行）</strong></summary>
+**7 个专职专家**（每轮并行，立场各异）
 
 | 专家 | 职责 | 立场 |
 |------|------|------|
-| 🔍 现场勘查专家 | 空间逻辑、出入动线、痕迹分布 | 中立 |
+| 🔍 现场勘查员 | 空间逻辑、进出路线、痕迹分布 | 中立 |
 | 🔬 法医专家 | 死因、死亡时间窗、伤情 | 科学优先 |
-| 🧪 物证/痕迹专家 | DNA、指纹、保管链、监控 | 物证为准 |
-| 🧠 讯问/心理专家 | 口供可信度、动机、画像 | 中立 |
-| ⚖️ 证据法专家 | 证据资格、排除、证明标准 | 程序正义 |
-| 👨‍⚖️ 检察官 Agent | 指控逻辑链、证明缺口 | 控方 |
-| 🛡️ 辩护 Agent | 合理怀疑、替代解释 | 辩方 |
+| 🧪 物证分析师 | DNA、指纹、保管链、监控 | 物理证据 |
+| 🧠 讯问 / 心理专家 | 供述可信度、动机、画像 | 中立 |
+| ⚖️ 证据法专家 | 采信、排除、证明标准 | 程序 |
+| 👨‍⚖️ 公诉智能体 | 指控链、漏洞、反驳 | 公诉 |
+| 🛡️ 辩护智能体 | 合理怀疑、替代解释 | 辩护 |
 
-</details>
+**工具增强推理** — 专家不只是说话，还会调用工具（结果直接渲染进笔录）：
 
-<details>
-<summary><strong>📄 真实文档理解</strong></summary>
+`read_evidence`（读证据）· `timeline_check`（时间线校验）· `list_contradictions`（矛盾清单）· `search_case_law`（三级法条检索）· `web_search`（联网检索，可关）· `run_code`（沙箱 Python，matplotlib 图表直接入笔录）
 
-上传叙述性 PDF 报告，AI 预处理自动完成：
+**真实卷宗理解** — PyMuPDF 抽取文本（50 页 / 6 万字符上限），从叙事文本中解析人物 / 证据 / 时间线 / 法条，并把中文时间表达归一化为标准死亡时间窗用于交叉校验；抽取结果带「AI 自动抽取」标记，全部可编辑。
 
-1. 全文提取（PyMuPDF，50 页 / 6 万字符安全上限）
-2. **从纯文本抽取结构**——人员（含角色）、证据、时间线、适用法条、资金/保险线索
-3. 为每位专家生成分案材料，渲染案卷图表
-4. 中文时间归一化（“凌晨1时30分至2时30分” → 标准死亡时间窗），供交叉验证
+**法条与类案知识库** — 内置《刑诉法》《刑法》《民法典》真实稳定条文 + 间接证据命案等类案摘要；自定义条目经设置页录入，三级检索仅在真正匹配时才引用；检索不到就如实说明，绝不编造。
 
-提取的结构在案卷面板带 **“✨ AI 自动提取”** 徽标，全部可编辑。
+**多轮辩论引擎** — 可配轮次与记忆窗口，超出窗口的轮次压缩为滚动摘要而非丢弃；AI 纠错官每轮抓矛盾回灌；审判长收敛至共识或轮次上限。
 
-</details>
+**实时流式与庭审体验** — 逐字输出 + 发言指示；工具调用与图表入笔录；轮次步进、进度条、专家状态；**人工插话**（庭中打断，下轮全员响应）；**裁决后质询**。
 
-<details>
-<summary><strong>🛠️ 工具增强推理</strong></summary>
+**双裁决模式** — AI 审判长自动收敛 / 人工审判长（HITL）暂停复核（超时自动归档）；裁决后输出质询、可勾选**后续清单**（一键复制 / Markdown 导出 / 打印 PDF）；审理终结生成 🔨「审理终结」结案卡（案件 / 轮次 / 用量）与完整复盘报告。
 
-专家不只说话——他们**调用工具**（结果直接渲染进笔录）：
+**平台级工程化** — 记忆窗口、上下文上限、并发上限、调用超时、按智能体模型覆盖、策略预设、配置导入导出（设置页 → 智能体工程）。
 
-- `read_evidence` — 按编号读取证据详情
-- `timeline_check` — 与案件时间线核对事件时序
-- `list_contradictions` — 查看已标记矛盾
-- `search_case_law` — 三级法条检索：本案卷宗 → 自定义知识库 → 内置法条库
-- `web_search` — 联网检索公开信息（Bing 国内源，可开关）
-- `run_code` — 沙箱 Python（matplotlib 图表直接渲染进笔录）
+**部署就绪** — `tools/start_all.py` 一键启停（无窗口守护 + 自动重启）；`ACCESS_PASSWORD` 内网访问口令门（HMAC 会话 + 登录限流）；`run_code` 优先 Docker 沙箱（无网、限内存/CPU）自动降级主机子进程；`tools/backup.py` 数据备份；内置本地引擎可全离线，亦兼容任意 OpenAI 兼容 API；亮 / 暗主题，中 / 英 / 日界面。
 
-</details>
+## 架构
 
-<details>
-<summary><strong>📚 知识库与类案</strong></summary>
+```mermaid
+flowchart TB
+    UI1["🌐 内置 SPA 前端<br/>(index.html)"]
+    API["⚖️ FastAPI · app/main.py<br/>REST · WebSocket · 访问认证 · 限流"]
+    UI1 -->|WebSocket + REST| API
 
-- **内置法条库**：《刑事诉讼法》《刑法》《民法典》中编号稳定的真实条文 + 证据审查要旨（三性、保管链、电子数据）
-- **类案要旨**：间接证据定案、监控剪辑影响、不可抗力抗辩等裁判规则
-- **自定义条目**：在「设置 → 知识库」添加你自己的类案要旨或院内规范，三级检索命中才引用
-- **绝不编造**：检索不到时专家会明说，而不是虚构法号
+    subgraph GRAPH["LangGraph 辩论状态机 StateGraph"]
+        direction LR
+        E1["7 大专家<br/>并行辩论"] --> E2["纠错官<br/>矛盾检测"]
+        E2 --> E3["审判长<br/>收敛判定"]
+        E3 -->|未收敛 → 下一轮| E1
+        E3 --> E4["裁决落槌<br/>HITL 确认"]
+        E4 --> V["裁决输出<br/>结构化裁决 · 复盘 · 质询"]
+    end
+    API --> GRAPH
 
-</details>
+    subgraph SUPPORT["支撑能力"]
+        direction LR
+        S1["卷宗预处理<br/>PDF→结构化抽取"]
+        S2["工具 + 代码沙箱<br/>6 工具 · 隔离执行"]
+        S3["法条知识库<br/>三级检索 · 类案"]
+        S4["数据 / 图表<br/>案件 · 辩论 · 知识库"]
+    end
+    API -. 依赖 .-> SUPPORT
 
-<details>
-<summary><strong>🔄 多轮辩论引擎</strong></summary>
+    subgraph MODELS["模型供电（可切换）"]
+        direction LR
+        M1["本地推理引擎<br/>ai_engine :9100（默认）"]
+        M2["OpenAI 兼容<br/>DeepSeek / GLM / Qwen 等"]
+        M3["mock 离线占位"]
+    end
+    GRAPH -. 调用 .-> MODELS
+```
 
-- 辩论轮数可配置，**记忆窗口**可配置
-- 超出窗口的早期轮次**滚动压缩为摘要**，不直接丢弃
-- AI 纠错官每轮扫描矛盾并推动下一轮深入
-- 审判长在共识达成（或达到轮次上限）时收敛
+**关键设计决策**
 
-</details>
+- **LangGraph StateGraph** — 确定性状态机，而非临时循环
+- **asyncio.gather + 并发上限** — 专家并行，友好限流
+- **工具容错** — 一次坏调用绝不拖垮整场辩论
+- **分层记忆** — 近期轮次全量，久远轮次滚动压缩
+- **引用纪律** — 法条 / 类案来自检索，绝不来自模型想象
+- **默认引擎** — 出厂即接本地推理引擎（:9100），所见即真实分析
 
-<details>
-<summary><strong>📹 实时流式与庭审体验</strong></summary>
+## 一次庭审怎么跑
 
-- 逐 token 专家输出 + 发言呼吸灯
-- 工具调用与沙箱图表直接渲染进笔录
-- 轮次步进器、进度条、专家状态
-- **中途介入**——随时插话，下一轮全体专家回应
-- **裁决质询**——落槌后继续追问理由，带推荐追问
+```mermaid
+flowchart LR
+    A[上传 / 粘贴案情] --> B[AI 抽取结构化卷宗<br/>人物·证据·时间线·法条]
+    B --> C[7 专家并行辩论<br/>多轮·工具调用·矛盾检测]
+    C --> D{审判长收敛?}
+    D -->|否| C
+    D -->|是| E[结构化裁决<br/>证据链·存疑点·处置建议]
+    E --> F[可执行业务清单<br/>+ 复盘报告 + 质询]
+```
 
-</details>
-
-<details>
-<summary><strong>⚖️ 双模式裁决与裁决后工作流</strong></summary>
-
-- **AI 审判长**——自动收敛并落槌
-- **人类法官（HITL）**——暂停庭审等待人工复核；超时自动采纳草案归档（可配置）
-- **裁决之后**：质询追问、**后续流程清单**勾选跟踪、一键复制 / Markdown 导出 / 打印 PDF
-- **结案卡片**：审理终结时笔录末尾呈现收束时刻——案名 / 轮数 / 推理次数，一键导出完整结案报告、打印 PDF 或开始新庭审
-- 每场审理自动留档，带**用量统计**（推理次数、读写字符）与完整回放
-
-</details>
-
-<details>
-<summary><strong>🧩 Agent 工程（设置 → Agent 工程）</strong></summary>
-
-对标 Dify/Coze 的运行时工程参数：
-
-- **记忆窗口**——注入每位专家上下文的前几轮摘要数
-- **上下文上限**——单次 LLM 调用最大字符数（保护真实云端模型）
-- **并行上限**——同轮专家并行数（限流友好）
-- **调用超时**——引擎挂死不拖垮庭审
-- **每专家模型覆盖**——书记员用便宜模型，审判长用最强模型
-- **策略模板**——一键应用打包策略（“刑事·严格证据攻防”、“民事·责任划分”）
-- **配置导入导出**——整套专家阵容 JSON 备份与迁移
-
-</details>
-
-<details>
-<summary><strong>🧑‍⚖️ 审议质量——反思 · 自检 · 侦查计划</strong></summary>
-
-- **反思节点（Reflexion 式）**——审判长收敛前，对每位专家的核心主张做可证伪性审查，反对理由必须被记录
-- **完整性自检**——裁决前确定性体检：未解释证据 / 未解决矛盾 / 缺法条引用，交人类复核而非静默通过
-- **侦查计划**——复杂卷宗先产出"待证问题清单"再分发给全体专家
-- **案例沉淀**——每场结案裁决回填案件文件作为类案/判例，后续相似检索可复用
-- **相似案例推荐**——案例详情页展示 embedding 近邻
-- **证据链强度**——裁决附带强度评分与明确的不确定性声明
-
-</details>
-
-<details>
-<summary><strong>🔎 检索 · 引用溯源与报告导出</strong></summary>
-
-- **引用溯源 grounding**——专家发言携带其真实依据（法条/知识条目/来源 URL），前端渲染「来源」徽标（对标 Perplexity）；混合检索可叠加可选 BGE reranker 精排（`requirements-ai.txt` 安装，缺失自动跳过）
-- **庭审核查报告**——一键导出 Markdown / DOCX，涵盖裁决、矛盾、时间线、证据链与引用
-- **证据时间线视图**——跨证据抽取时间戳 → 交互式横向时间线
-- **用量与审计面板**——`/api/admin/usage` 聚合每场会话的推理次数/字符量 + SSE 事件流实时监控
-- **语音输入**——Chrome/Edge 支持 Web Speech API（zh-CN）时可直接口述案情
-
-</details>
-
-<details>
-<summary><strong>🏛️ 部署就绪</strong></summary>
-
-- 一键启动/停止（`tools/start_all.py`）——无窗口守护进程，崩溃自动重启
-- 内网部署访问口令（`.env` 中 `ACCESS_PASSWORD`）——HMAC 签名会话令牌 + 登录限速防爆破
-- 沙箱隔离——`run_code` 优先一次性 Docker 容器（断网、内存/CPU 上限），不可用自动降级本机子进程（`CODE_SANDBOX_BACKEND`）
-- 数据备份——`tools/backup.py` 把案件/辩论/知识库打包为 zip 并自动修剪旧份
-- 内置本地引擎完全离线可用，也可对接任意 OpenAI 兼容 API
-- 明暗双主题，English / 中文 / 日本語 界面
-
-</details>
-
-## 🚀 快速开始（30 秒）
+## 快速开始（约 30 秒）
 
 ```bash
-# 克隆
+# 克隆（GitCode 主仓库）
+git clone https://gitcode.com/badhope/VerdictAI.git
+# 或 GitHub 镜像
 git clone https://github.com/Morningstar202604/VerdictAI.git
 cd VerdictAI/backend
 
 # 环境
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate    # Linux/Mac
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 
-# 一键启动：后端 + 本地推理引擎（无窗口，崩溃自动重启）
+# 一键启动：后端 + 本地推理引擎（无窗口守护，自动重启）
 python tools/start_all.py
 # 停止：python tools/start_all.py stop
 ```
 
-**生产部署（Docker）**：根目录 `docker compose up -d --build` → 内置 SPA（后端自带 UI）`:8787`，详见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+**生产部署（Docker）**：仓库根目录 `docker compose up -d --build` → 后端在 `:8787` 托管内置 SPA。见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
-**打开 http://localhost:8787** → 拖入 PDF 卷宗（或粘贴案情/选示例）→ 看 AI 解析出结构化案卷 → 点击「开庭审理」→ 实时观看 7 位 AI 专家辩论。
+打开 **http://localhost:8787** → 拖入一份 PDF 案件（或粘贴案情描述）→ 看 AI 把它解析成结构化卷宗 → 点 **开庭审理** → 看 7 个 AI 专家实时辩论。
 
-## 🔌 接入真实大模型
+## 模型提供方
+
+开箱即连**内置本地推理引擎**（`backend/ai_engine/`，端口 9100，由 `tools/start_all.py` 拉起）。庭中呈现的是引擎对真实卷宗的确定性分析，无需 API Key。
 
 ```env
-# backend/.env
+# backend/.env — 默认值已匹配本地引擎
 LLM_PROVIDER=openai_compatible
-LLM_API_KEY=sk-your-key
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LLM_BASE_URL=http://127.0.0.1:9100/v1
+LLM_MODEL=verdict-local
+INTAKE_MODEL=verdict-local-intake
 MAX_ROUNDS=3
 ```
 
-重启服务即可。支持任意 OpenAI 兼容 API：DeepSeek、GLM、Qwen、Step、Ollama 等。没有 Key？内置**本地引擎**（`backend/ai_engine/`）可完全离线跑通全流程。
+重启服务即可生效。兼容任意 OpenAI 兼容 API（DeepSeek、GLM、Qwen、Step、Ollama 等）——把 `LLM_BASE_URL` 指向你的端点并设置 `LLM_API_KEY`。仅当你明确想要离线占位演示时才设 `LLM_PROVIDER=mock`。
 
-## 🧪 测试与质量
-
-```bash
-# 后端单元/集成测试（pytest，无需起服务）
-cd backend && python -m pytest tests/ -q
-
-# UI 全界面回归（29 项用例 + 自动截图，需先起服务）
-LLM_PROVIDER=mock uvicorn app.main:app --port 8787
-python tools/ui_regression.py           # 产物: backend/ui_test_artifacts/
-# VAI_BASE_URL=http://127.0.0.1:9000 python tools/ui_regression.py  # 指定地址
-```
-
-前端采用「朱批」设计系统（宣纸 × 藏青 × 鎏金 × 朱砂）：Noto Serif/Sans SC 字体**本地自托管**（GB2312 子集化，无外部 CDN 依赖，离线可用）；支持 **PWA 安装**与静态资源离线缓存（`static/assets/sw.js`，改动被缓存的静态文件后把 CACHE 版本号 +1 即可自动刷新）。
-
-## 🏗️ 架构
-
-```
-浏览器 ──WebSocket──▶ FastAPI ──▶ LangGraph StateGraph
-                                     │
-                        ┌────────────┼────────────┐
-                        ▼            ▼             ▼
-                   7 位专家      纠错官        审判长
-                  （并行）     （每轮）      （裁决）
-                        │            │             │
-                        └────────────┘  循环 N     ▼ 完成
-```
-
-**关键设计决策：**
-- **LangGraph StateGraph**——确定性状态机，而非临时拼凑的循环
-- **asyncio.gather + 并发上限**——专家同轮并行，限流友好
-- **工具容错**——错误的工具调用绝不会让辩论崩溃
-- **分层记忆**——窗口内全文，窗口外滚动压缩
-- **引用纪律**——法条/类案来自检索命中，绝不来自模型想象
-
-详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
-
-## 📖 文档
+## 文档
 
 | 文档 | 说明 |
 |------|------|
 | [架构](docs/ARCHITECTURE.md) | 系统设计、状态机、事件类型 |
 | [API 参考](docs/API.md) | REST 端点与 WebSocket 协议 |
-| [部署指南](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、性能调优 |
-| [贡献指南](CONTRIBUTING.md) | 开发环境搭建与规范 |
+| [部署](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、性能调优 |
+| [贡献指南](CONTRIBUTING.md) | 开发环境与规范 |
 
-## 🤝 贡献
+## 免责声明
 
-欢迎贡献！详见 [CONTRIBUTING.md](CONTRIBUTING.md)：开发环境搭建、代码规范、PR 流程。
+本系统仅用于**研究与演示**。AI 生成的结论属于决策辅助，不构成法律意见；一切最终法律责任由人类法官与法律专业人士承担。
 
-## ⚠️ 免责声明
+## 许可证
 
-本系统仅供**研究与演示**。AI 生成的结论是决策支持，不构成法律意见或判决。最终法律责任始终由人类法官与法律专业人员承担。
-
-## 📜 许可证
-
-[MIT License](LICENSE) — 自由使用。
+[MIT License](LICENSE) — 可自由用于任何场景。
 
 ---
 
-<p align="center">
-  <strong>如果 VerdictAI 对你有用，欢迎点一个 ⭐</strong>
-</p>
-
-<p align="center">
-  <sub>Built with LangGraph • FastAPI • WebSocket</sub>
-</p>
+<p align="center"><sub>Built with LangGraph · FastAPI · WebSocket</sub></p>
