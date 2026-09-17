@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <strong>中文</strong> · <a href="README.ja-JP.md">日本語</a>
+  <strong>中文</strong> · <a href="README.md">English</a> · <a href="README.ja-JP.md">日本語</a>
 </p>
 
 ---
