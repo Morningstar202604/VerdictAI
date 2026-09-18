@@ -80,7 +80,7 @@ jobs:
       - name: Evaluation regression (mock, offline)
         env:
           LLM_PROVIDER: mock
-        run: python tools/evaluate.py --check --case case_001
+        run: python tools/evaluate.py --check --text "张明于2025年3月1日凌晨1点潜入李华的别墅窃取现金5000元与黄金饰品。现场勘查发现鞋印指纹与张明吻合，监控拍到背影相符。张明供述当晚饮酒后步行回家未进别墅，需判断其是否入室盗窃。"
 
   frontend:
     name: Frontend (inline app syntax)
