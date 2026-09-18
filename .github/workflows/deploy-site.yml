@@ -12,8 +12,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  # configure-pages 的 enablement: true 需要管理员级权限才能首次创建 Pages 站点
-  administration: write
+  # 注意：不要在此声明 administration:write —— 用户账号仓库的 GITHUB_TOKEN
+  # 不支持该权限键，会导致 workflow 启动失败（Invalid workflow file）。
+  # Pages 站点的首次开启需在仓库 Settings → Pages 中将 Source 设为 GitHub Actions。
 
 concurrency:
   group: "pages"
@@ -30,8 +31,6 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
