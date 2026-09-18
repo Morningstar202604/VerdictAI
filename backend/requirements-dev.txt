@@ -2,4 +2,7 @@
 # CONTRIBUTING 规定推送前跑 pytest 与 ruff check app/，本文件使该规定可安装、可执行；
 # CI 的 backend job 同时安装 requirements.txt 与本文件。
 pytest>=8.0
-ruff>=0.6
+# 钉死版本而不是沿用 >=0.6：CI 每次都用 pip 重新装，ruff 一旦发新的大版本就会把
+# 以前不报的规则一次性抛出来，让 PR 在毫无关系的情况下挂红灯（FinHub 仓库已经踩过
+# 一次，0.16.x 直接爆 5518 条 I001）。lint 工具要的就是可复现，升级应当是显式动作。
+ruff==0.16.8
