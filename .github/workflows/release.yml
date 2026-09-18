@@ -1,0 +1,33 @@
+name: Release
+
+# 推送 v* tag 自动打源码包并发布 GitHub Release，
+# README / 官网里的 releases/latest/download/VerdictAI.zip 直链由此生效。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Package source bundle (VerdictAI.zip)
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix="VerdictAI/" -o "dist/VerdictAI.zip" HEAD
+          ls -lh dist/
+
+      - name: Create release and upload asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "VerdictAI $GITHUB_REF_NAME" \
+            --generate-notes \
+            --latest
+          gh release upload "$GITHUB_REF_NAME" dist/VerdictAI.zip --clobber
+          echo "Released $GITHUB_REF_NAME with VerdictAI.zip"

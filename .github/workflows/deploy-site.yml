@@ -5,12 +5,15 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - ".github/workflows/deploy-site.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  # configure-pages 的 enablement: true 需要管理员级权限才能首次创建 Pages 站点
+  administration: write
 
 concurrency:
   group: "pages"
