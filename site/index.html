@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VerdictAI — 多智能体法庭辩论系统</title>
+<meta name="description" content="7 个 AI 专家交叉质证真实卷宗，引用真实法条与类案，输出结构化裁决。免费开源，无需 API Key。" />
+<meta property="og:title" content="VerdictAI — 多智能体法庭辩论系统" />
+<meta property="og:description" content="7 个 AI 专家交叉质证真实卷宗，引用真实法条与类案，输出带证据链的结构化裁决。无需 API Key。" />
+<meta property="og:type" content="website" />
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg2: #101b30;
+    --card: #15223c;
+    --card2: #1b2c4d;
+    --line: #24395f;
+    --text: #e8eef7;
+    --muted: #93a6c4;
+    --gold: #d4af6a;
+    --gold2: #b8914a;
+    --accent: #4f8cff;
+    --ok: #38d39f;
+    --warning: #ffb454;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1a2d52 0%, var(--bg) 55%);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- Nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(11, 18, 32, .72);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 24px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--text); }
+  .brand img { height: 30px; width: 30px; }
+  .nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+  .nav-links a { color: var(--muted); }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+  .btn-download-nav {
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color: #14100a !important; padding: 7px 16px; border-radius: 999px;
+    font-weight: 700; font-size: 13.5px;
+  }
+
+  /* ---------- Hero ---------- */
+  header.hero { padding: 84px 0 56px; text-align: center; }
+  .hero .logo { height: 96px; width: 96px; margin-bottom: 22px; filter: drop-shadow(0 8px 30px rgba(79,140,255,.35)); }
+  .hero h1 { font-size: clamp(34px, 6vw, 58px); font-weight: 800; letter-spacing: .5px; }
+  .hero h1 .balance { color: var(--gold); }
+  .hero .sub {
+    margin: 20px auto 30px; max-width: 720px; color: var(--muted); font-size: clamp(15px, 2.4vw, 18px);
+  }
+  .hero .sub b { color: var(--text); }
+  .hero-badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 34px; font-size: 13px; }
+  .hero-badges span {
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--muted);
+  }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 13px 28px; border-radius: 12px;
+    font-weight: 700; font-size: 15px; transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-2px); text-decoration: none; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color: #14100a !important; box-shadow: 0 8px 24px rgba(212,175,106,.25);
+  }
+  .btn-ghost { border: 1px solid var(--line); color: var(--text); background: rgba(21,34,60,.6); }
+  .btn-ghost:hover { border-color: var(--accent); }
+  .btn-ghost svg { width: 16px; height: 16px; }
+
+  /* ---------- Section base ---------- */
+  section { padding: 56px 0; }
+  section h2 {
+    font-size: clamp(22px, 3.4vw, 30px); margin-bottom: 12px; text-align: center; font-weight: 800;
+  }
+  .sec-desc { text-align: center; color: var(--muted); max-width: 680px; margin: 0 auto 40px; font-size: 15px; }
+
+  /* ---------- Highlights ---------- */
+  .hl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 16px; }
+  .hl {
+    background: linear-gradient(180deg, var(--card), var(--bg2)); border: 1px solid var(--line);
+    border-radius: 16px; padding: 24px 22px; transition: border-color .2s, transform .2s;
+  }
+  .hl:hover { border-color: var(--gold); transform: translateY(-3px); }
+  .hl .ico { font-size: 30px; margin-bottom: 12px; }
+  .hl h3 { font-size: 16.5px; margin-bottom: 8px; }
+  .hl p { color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- Comparison ---------- */
+  .cmp { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .cmp table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .cmp th, .cmp td { padding: 13px 18px; text-align: left; border-bottom: 1px solid var(--line); }
+  .cmp thead th { background: var(--card2); font-size: 13.5px; letter-spacing: .3px; }
+  .cmp tbody tr:last-child td { border-bottom: none; }
+  .cmp td.ok { color: var(--ok); font-weight: 600; }
+  .cmp td.weak { color: var(--muted); }
+
+  /* ---------- Screenshots ---------- */
+  .shots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+  .shot { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--card); }
+  .shot img { width: 100%; display: block; aspect-ratio: 16/10; object-fit: cover; }
+  .shot figcaption { padding: 11px 16px; color: var(--muted); font-size: 13px; }
+
+  /* ---------- Experts ---------- */
+  .exp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .exp {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 14px; text-align: center; font-size: 13.5px; color: var(--muted);
+  }
+  .exp .e { font-size: 30px; display: block; margin-bottom: 8px; }
+  .exp b { color: var(--text); display: block; font-size: 14px; margin-bottom: 3px; }
+
+  /* ---------- Download ---------- */
+  .dl {
+    background: linear-gradient(160deg, #1a2d52 0%, #13203a 60%, #0f1a2e 100%);
+    border: 1px solid var(--line); border-radius: 20px; padding: 40px 32px; text-align: center;
+  }
+  .dl h2 { margin-bottom: 10px; }
+  .dl .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 28px 0; text-align: left; }
+  .step { background: rgba(11,18,32,.55); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .step .n { color: var(--gold); font-weight: 800; font-size: 13px; letter-spacing: 1px; }
+  .step h4 { margin: 6px 0 6px; font-size: 15px; }
+  .step code {
+    display: block; background: #0a1424; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; color: #bfe0ff; margin-top: 8px; overflow-x: auto; white-space: pre;
+  }
+
+  /* ---------- Footer ---------- */
+  footer { border-top: 1px solid var(--line); padding: 34px 0 48px; color: var(--muted); font-size: 13px; text-align: center; }
+  footer .mirrors { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 640px) {
+    .nav-links { display: none; }
+    header.hero { padding-top: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <img src="logo.svg" alt="VerdictAI" /> VerdictAI
+    </a>
+    <div class="nav-links">
+      <a href="#highlights">亮点</a>
+      <a href="#compare">对比</a>
+      <a href="#screenshots">截图</a>
+      <a href="#experts">七大专家</a>
+      <a href="#install">安装</a>
+      <a href="https://github.com/Morningstar202604/VerdictAI">GitHub</a>
+      <a class="btn-download-nav" href="#install">⬇ 一键下载</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <img class="logo" src="logo.svg" alt="VerdictAI" />
+    <h1>⚖️ <span class="balance">VerdictAI</span></h1>
+    <p class="sub">
+      7 个 AI 专家交叉质证<b>真实卷宗</b>，引用<b>真实法条与类案</b>，
+      给你一份带<b>证据链</b>的<b>结构化裁决</b>。<br />
+      开源 · 免费 · 无需 API Key · 支持全离线运行。
+    </p>
+    <div class="hero-badges">
+      <span>🏛 7 专家对抗辩论</span>
+      <span>📑 AI 卷宗理解</span>
+      <span>⚖️ 真实法条检索</span>
+      <span>💬 多轮合议引擎</span>
+      <span>🖥 实时流式直播</span>
+      <span>🤝 人在回路 HITL</span>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip">
+        ⬇ 立即下载 · 一键启动
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/Morningstar202604/VerdictAI">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub 仓库
+      </a>
+    </div>
+  </div>
+</header>
+
+<section id="highlights">
+  <div class="wrap">
+    <h2>不是“AI 说算”，而是“看他们怎么辩”</h2>
+    <p class="sec-desc">传统 AI 问答给你一句话；VerdictAI 把一场完整合议搬到你面前，每个人都看得懂每一步。</p>
+    <div class="hl-grid">
+      <div class="hl">
+        <div class="ico">🗣️</div>
+        <h3>7 专家对抗质证</h3>
+        <p>公诉、辩护、法医、物证、心理、证据法专家立场各异，多轮互相挑战，认知从碰撞中收敛。</p>
+      </div>
+      <div class="hl">
+        <div class="ico">📄</div>
+        <h3>真实卷宗理解</h3>
+        <p>上传 PDF，自动抽取人物 / 证据 / 时间线 / 适用法条，中文时间表达自动归一化交叉校验。</p>
+      </div>
+      <div class="hl">
+        <div class="ico">⚖️</div>
+        <h3>引用绝不编造</h3>
+        <p>法条和类案来自内置知识库三级检索，只有真正匹配才会引用；检索不到就如实说“没有”。</p>
+      </div>
+      <div class="hl">
+        <div class="ico">🔧</div>
+        <h3>专家会调用工具</h3>
+        <p>读证据、校验时间线、查矛盾、三级法条检索、联网搜索、沙箱跑 Python 画图——结果进笔录。</p>
+      </div>
+      <div class="hl">
+        <div class="ico">🖥️</div>
+        <h3>全程实时直播</h3>
+        <p>逐字流式输出，轮次步进、进度条、发言指示，整个推理过程透明可见，可随时人工插话。</p>
+      </div>
+      <div class="hl">
+        <div class="ico">🗄️</div>
+        <h3>开箱即用</h3>
+        <p>内置本地推理引擎，无需 API Key、无需注册；全离线可用，也兼容任意 OpenAI 兼容 API。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare" style="padding-top:0">
+  <div class="wrap">
+    <h2>与传统 AI 问答的区别</h2>
+    <p class="sec-desc">关键不在“答得对不对”，而在过程是否可信。</p>
+    <div class="cmp">
+      <table>
+        <thead><tr><th>维度</th><th>传统 AI 问答</th><th>VerdictAI</th></tr></thead>
+        <tbody>
+          <tr><td>方式</td><td class="weak">单模型、单次作答</td><td class="ok">7 个专职智能体对抗辩论</td></tr>
+          <tr><td>产出</td><td class="weak">一次性文本</td><td class="ok">多轮合议 + 矛盾检测</td></tr>
+          <tr><td>透明</td><td class="weak">黑箱，只管结果</td><td class="ok">全事件流：每个 token / 工具调用 / 状态</td></tr>
+          <tr><td>引用</td><td class="weak">容易幻觉</td><td class="ok">真实法条与类案检索，绝不编造</td></tr>
+          <tr><td>文档</td><td class="weak">非结构化上传</td><td class="ok">AI 卷宗理解：人物 / 证据 / 时间线 / 法条</td></tr>
+          <tr><td>裁决</td><td class="weak">“AI 说算”</td><td class="ok">结构化裁决：证据链 + 存疑点 + 后续清单</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="screenshots" style="padding-top:0">
+  <div class="wrap">
+    <h2>界面一览</h2>
+    <p class="sec-desc">四步走完一整场合议：受理 → 开庭 → 裁决 → 复盘。</p>
+    <div class="shots-grid">
+      <figure class="shot">
+        <img src="https://raw.githubusercontent.com/Morningstar202604/VerdictAI/main/docs/screenshots/landing.png" alt="案件受理" loading="lazy" />
+        <figcaption>📥 案件受理 —— PDF 上传、人员名册、AI 结构化抽取</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="https://raw.githubusercontent.com/Morningstar202604/VerdictAI/main/docs/screenshots/trial-debate.png" alt="实时庭审" loading="lazy" />
+        <figcaption>⚡ 实时庭审 —— 7 专家辩论、人工插话、使用统计</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="https://raw.githubusercontent.com/Morningstar202604/VerdictAI/main/docs/screenshots/verdict-workflow.png" alt="裁决工作流" loading="lazy" />
+        <figcaption>📜 裁决与复盘 —— 裁决书、质询、可派发后续清单</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="https://raw.githubusercontent.com/Morningstar202604/VerdictAI/main/docs/screenshots/dark-mode.png" alt="深色模式" loading="lazy" />
+        <figcaption>🌙 深色模式 —— 完整笔录与深色主题</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="experts" style="padding-top:0">
+  <div class="wrap">
+    <h2>七大专家 · 一案同审</h2>
+    <p class="sec-desc">每轮并行出场，立场各异——互相挑战，而不是互相附和。</p>
+    <div class="exp-grid">
+      <div class="exp"><span class="e">🔍</span><b>现场勘查员</b>空间逻辑 / 痕迹分布</div>
+      <div class="exp"><span class="e">🔬</span><b>法医专家</b>死因 / 死亡时间窗</div>
+      <div class="exp"><span class="e">🧪</span><b>物证分析师</b>DNA / 保管链 / 监控</div>
+      <div class="exp"><span class="e">🧠</span><b>行为心理专家</b>供述可信度 / 动机</div>
+      <div class="exp"><span class="e">⚖️</span><b>证据法专家</b>采信 / 排除 / 证明标准</div>
+      <div class="exp"><span class="e">👨‍⚖️</span><b>公诉智能体</b>指控链 / 反驳</div>
+      <div class="exp"><span class="e">🛡️</span><b>辩护智能体</b>合理怀疑 / 替代解释</div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="dl">
+      <h2>⬇ 一分钟上手</h2>
+      <p style="color:var(--muted)">三种方式任选，Windows / macOS / Linux 均可</p>
+      <div class="steps">
+        <div class="step">
+          <span class="n">方式 A · 免 git</span>
+          <h4>Release 一键下载</h4>
+          <p>下载最新的 <code>VerdictAI.zip</code>，解压后在 <code>backend/</code> 目录执行两行命令。</p>
+          <code>$ pip install -r requirements.txt
+$ python tools/start_all.py</code>
+        </div>
+        <div class="step">
+          <span class="n">方式 B · 源码</span>
+          <h4>Git 克隆</h4>
+          <p>国内推荐 GitCode，或 GitHub 镜像。</p>
+          <code>$ git clone https://gitcode.com/badhope/VerdictAI.git
+$ cd VerdictAI/backend
+$ pip install -r requirements.txt
+$ python tools/start_all.py</code>
+        </div>
+        <div class="step">
+          <span class="n">方式 C · Docker</span>
+          <h4>容器一键部署</h4>
+          <p>生产环境首选，根目录一条命令。</p>
+          <code>$ docker compose up -d --build</code>
+        </div>
+      </div>
+      <p style="color:var(--muted); font-size:14px">
+        🚀 启动后打开 <span style="color:var(--text); font-weight:700">http://localhost:8787</span>
+        → 拖入 PDF → 点「开庭审理」→ 看 7 个专家实时辩论
+      </p>
+      <div style="margin-top:26px">
+        <a class="btn btn-primary" href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip">⬇ 下载 VerdictAI.zip</a>
+        <a class="btn btn-ghost" style="margin-left:10px" href="https://github.com/Morningstar202604/VerdictAI/releases">查看所有版本</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="mirrors">
+      <a href="https://github.com/Morningstar202604/VerdictAI">GitHub</a>
+      <a href="https://gitcode.com/badhope/VerdictAI">GitCode</a>
+      <a href="https://gitcode.com/badhope/VerdictAI">Gitee 镜像</a>
+      <a href="https://github.com/Morningstar202604/VerdictAI/issues">Issues</a>
+      <a href="https://raw.githubusercontent.com/Morningstar202604/VerdictAI/main/LICENSE">LICENSE (MIT)</a>
+    </div>
+    <p>VerdictAI 是开源研究演示项目 · AI 结论为决策辅助，不构成法律意见</p>
+    <p style="margin-top:6px">Built with LangGraph · FastAPI · WebSocket · MIT License</p>
+  </div>
+</footer>
+
+</body>
+</html>

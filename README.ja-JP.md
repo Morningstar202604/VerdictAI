@@ -1,26 +1,25 @@
 <p align="center">
-  <img src="backend/app/static/assets/logo.svg" alt="VerdictAI Logo" width="110" />
+  <img src="backend/app/static/assets/logo.svg" alt="VerdictAI Logo" width="120" />
 </p>
 
-<h1 align="center">⚖️ VerdictAI · インテリジェント法廷合議</h1>
+<h1 align="center">⚖️ VerdictAI</h1>
 
 <p align="center">
-  <em>マルチエージェント司法ディベート＆判決システム</em>
-</p>
-
-<p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=social" alt="GitHub Stars" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/network/members"><img src="https://img.shields.io/github/forks/Morningstar202604/VerdictAI?style=social" alt="GitHub Forks" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/issues"><img src="https://img.shields.io/github/issues/Morningstar202604/VerdictAI" alt="GitHub Issues" /></a>
-  <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-badhope%2FVerdictAI-blue?logo=git&logoColor=white" alt="GitCode" /></a>
+  <b>7人のAI専門家が実際の事件記録を反対尋問し、実際の法条と類案を引用。証拠チェーン付きの構造化判決をそのまま手渡します—APIキーは不要です。</b>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/LangGraph-StateGraph-FF6B35" alt="LangGraph" />
-  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/WebSocket-Real--time-7C3AED" alt="WebSocket" />
-  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License" />
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/Morningstar202604/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Morningstar202604/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
+  <a href="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" /></a>
+  <a href="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT" /></a>
+</p>
+
+<p align="center">
+  <a href="https://Morningstar202604.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_公式サイト-訪問-brightgreen?style=flat-square" alt="公式サイト" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_ワンクリックDL-latest-blue?style=flat-square" alt="ダウンロード" /></a>
+  <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-ミラー-3A72BE?style=flat-square&logo=git" alt="GitCode" /></a>
 </p>
 
 <p align="center">
@@ -29,251 +28,191 @@
 
 ---
 
-> **7人のAI専門家が法廷に入ります。** 実際の事件記録を検討し、複数ラウンドにわたって反対尋問を行い、法条を引用し、ツールを呼び出し、相互に矛盾を指摘し合い——最後に裁判長が判決を下します。全工程がブラウザにリアルタイム配信されます。
+## 5分だけ時間をください
 
-**ご自身の文書をどうぞ。** PDF形式の捜査報告書や起訴状をアップロードすると——VerdictAIが内容を読み取り、人物・証拠・タイムライン・適用法条を抽出し、各専門家に個別の資料を配布し、完全な対抗式審議を実行して、判決書と司法担当者向けの実行可能なフォローアップリストを生成します。
+多くの法律AIデモは「1段落の回答」で終わります。VerdictAIは**本物の合議**を実行します:
+事件PDFをドラッグ＆ドロップするだけで、組み込みの**ローカル推論エンジン**が読み取り、
+人物・証拠・タイムライン・適用法条を抽出。**7人の専門エージェントが複数ラウンドにわたって
+互いに反対尋問**し、批判者が矛盾を指摘、裁判長が判決へ収束。証拠チェーンと実行可能な
+チェックリストが手に入ります。全工程がブラウザにリアルタイム配信されます。
 
-## ✨ VerdictAI の違い
+> クラウドAPI不要・サインアップ不要・プレースホルダーなし: 組み込みのローカルエンジン
+> （`ai_engine`、ポート9100）が手元の事件記録を実際に分析します。
 
 | | 従来の AI Q&A | **VerdictAI** |
 |---|---|---|
-| 方式 | 単一モデル、単一回答 | **7人の専門エージェント**による多ラウンド討論 |
-| 産出 | 一回限りのテキスト | **多ラウンド審議** + 矛盾検出 |
-| 透明性 | ブラックボックス | **完全なイベントストリーム** — トークン・ツール呼び出し・エージェント状態の全て |
-| 引用 | 幻覚・捏造 | **実際の法条と類案要旨** — ナレッジベース検索で一致したもののみ引用、一致しなければ決して捏造しない |
-| 文書 | 非構造化データは処理不可 | **AI文書理解** — プレーンなPDFから人物・証拠・タイムライン・法条を自動抽出 |
-| 判決 | "AIが言った" | **構造化判決** + 証拠チェーン + 疑問点 + 実行可能なフォローアップリスト |
+| 立場 | 単一モデル、一つの意見 | **7人の専門家が反対尋問し合い挑戦** |
+| 産出 | 一回限りのテキスト | **多ラウンド合議 + 矛盾検出** |
+| 信頼性 | ブラックボックス | **全イベントライブ配信** — トークン・ツール呼び出し・状態 |
+| 引用 | 幻覚の恐れ | **実際の法条・類案**を検索（決して捏造しない） |
+| 文書 | 非構造化アップロード | **AI記録理解** — 人物 / 証拠 / タイムライン / 法条を自動抽出 |
+| 成果物 | 「AIが言った」 | **構造化判決** — 証拠チェーン・疑問点・次のアクション |
 
-## 📸 スクリーンショット
+## こんな人に向いています
 
-| | |
+- **法律実務家** — 主張を確定する前に、証拠チェーンと適用法条の「セカンドオピニオン」を。
+- **法学生・研究者** — 反対尋問と立証責任の推論がどう展開するか、見ながら学べます。
+- **好奇心旺盛なエンジニア** — 並行エージェント・ツール呼び出し・階層メモリ・HITLを備えた完全なエージェント工学キット。ゼロから約30秒で起動。
+
+## 画面プレビュー
+
+<a href="docs/screenshots/landing.png"><img src="docs/screenshots/landing.png" alt="事件受付" width="49%" /></a>
+<a href="docs/screenshots/trial-debate.png"><img src="docs/screenshots/trial-debate.png" alt="リアルタイム法廷" width="49%" /></a>
+
+<a href="docs/screenshots/verdict-workflow.png"><img src="docs/screenshots/verdict-workflow.png" alt="判決ワークフロー" width="49%" /></a>
+<a href="docs/screenshots/dark-mode.png"><img src="docs/screenshots/dark-mode.png" alt="ダークモード" width="49%" /></a>
+
+## コア機能
+
+### 🧑‍⚖️ 7人の専門家、一つの事件を共同審理
+各ラウンド並行で登場、立場はそれぞれ異なります:
+
+| 専門家 | 担当 |
 |---|---|
-| ![事件受付とブランディング](docs/screenshots/landing.png) | ![リアルタイム法廷と人間の介入](docs/screenshots/trial-debate.png) |
-| *事件受付 — PDFアップロード、専門家阵容、AI抽出* | *リアルタイム法廷 — 7専門家、人間の介入、使用統計* |
-| ![判決と判決後ワークフロー](docs/screenshots/verdict-workflow.png) | ![ダークモード](docs/screenshots/dark-mode.png) |
-| *判決書、質疑、実行可能なフォローアップリスト* | *ダークテーマ、完全な記録* |
+| 🔍 現場検証官 | 空間ロジック、出入り経路、痕跡分布 |
+| 🔬 法医学専門家 | 死因、死亡時間帯、傷情 |
+| 🧪 物証分析官 | DNA、指紋、保管チェーン、監視カメラ |
+| 🧠 行動心理専門家 | 供述の信頼性、動機、プロファイリング |
+| ⚖️ 証拠法専門家 | 証拠能力、排除、証明基準 |
+| 👨‍⚖️ 検察エージェント | 起訴チェーン、穴、反論 |
+| 🛡️ 弁護エージェント | 合理的疑い、代替説明 |
 
-## 🎯 機能
+### 🔧 実際に働く専門家
+専門家は話すだけでなく、ツールを呼び出します（結果は記録に直接レンダリング）:
+`read_evidence` · `timeline_check` · `list_contradictions` · `search_case_law`（3段階検索）
+· `web_search`（切替可）· `run_code`（サンドボックスPython、matplotlib図表が記録に直行）。
 
-<details>
-<summary><strong>🧠 7人の専門AI専門家（同ラウンド並行実行）</strong></summary>
+### 📄 実際の記録理解
+PyMuPDFが最大50ページ / 6万文字を読み取り、人物 / 証拠 / タイムライン / 法条を平文から抽出。
+中国語の時間表現を標準の死亡時間帯に正規化して相互検証。抽出結果はすべて「AI自動抽出」バッジ付きで編集可能。
 
-| 専門家 | 職責 | 立場 |
-|------|------|------|
-| 🔍 現場検証専門家 | 空間論理、出入動線、痕跡分布 | 中立 |
-| 🔬 法医学専門家 | 死因、死亡時間帯、傷害状況 | 科学優先 |
-| 🧪 物証・痕跡専門家 | DNA、指紋、保管チェーン、監視カメラ | 物証主義 |
-| 🧠 取調・心理専門家 | 供述の信憑性、動機、プロファイリング | 中立 |
-| ⚖️ 証拠法専門家 | 証拠資格、排除、証明基準 | 手続的正義 |
-| 👨‍⚖️ 検察官エージェント | 起訴論理チェーン、立証の欠落 | 側検察 |
-| 🛡️ 弁護エージェント | 合理的疑い、代替説明 | 側弁護 |
+### ⚖️ 法条・類案ナレッジベース
+刑事訴訟法・刑法・民法典の安定条文 + 類案判決要旨を内蔵。3段階検索は**実際に一致したものだけを引用**——一致しなければ「該当なし」と正直に伝えます。
 
-</details>
+### 💬 多ラウンド合議エンジン
+ラウンド数とメモリウィンドウは設定可能。古いラウンドは切り捨てずローリング要約へ圧縮。
+批判エージェントが毎ラウンド矛盾をフィードバックし、裁判長が合意（またはラウンド上限）まで収束。
 
-<details>
-<summary><strong>📄 実文書理解</strong></summary>
+### 🖥️ リアルタイム法廷体験
+トークン単位のストリーミング出力 + 発言インジケーター、ラウンドステッパー、専門家の状態表示。
+**人間の介入**（審理中に割り込み、次のラウンドで全員が応答）、判決後の質疑、ダークモード、日 / 英 / 中UI。
 
-叙述形式のPDF報告書をアップロードすると、AI前処理が自動的に：
+### ⚖️ 二重判決モード
+AI裁判長が自動収束、または**人間裁判長（HITL）**が一時停止してレビュー。判決後に質疑・
+チェック可能な**フォローアップリスト**（コピー / Markdownエクスポート / PDF印刷）、🔨送検カード、完全なレビューレポート。
 
-1. 全文抽出（PyMuPDF、50ページ／6万文字の安全上限付き）
-2. **プレーンテキストから構造を抽出**——人物（役割付き）、証拠、タイムライン、適用法条、資金・保険の手掛かり
-3. 各専門家への個別資料を生成し、事件記録チャートを描画
-4. 中国語時間表現の正規化（「午前1時30分から2時30分」→ 標準死亡時間帯）、相互検証に供する
+### 🛠️ エージェント工学
+メモリウィンドウ、コンテキスト上限、並行上限、呼び出しタイムアウト、エージェント別モデル上書き、戦略プリセット、設定のインポート/エクスポート。
 
-抽出された構造は事件パネルに **「✨ AI自動抽出」** バッジ付きで表示され、全て編集可能です。
+### 🚀 導入準備完了
+`python tools/start_all.py` でワンコマンド起動/停止（ウィンドウレスデーモン + 自動再起動）。
+`ACCESS_PASSWORD` 内網アクセスゲート（HMACセッション）。`run_code` はワンショットDockerサンドボックスを優先。
+`tools/backup.py` でデータバックアップ。完全オフライン動作可能。
 
-</details>
-
-<details>
-<summary><strong>🛠️ ツール拡張推論</strong></summary>
-
-専門家は話すだけでなく——**ツールを呼び出します**（結果は記録に直接描画）：
-
-- `read_evidence` — 証拠番号で詳細を読み取る
-- `timeline_check` — 事件タイムラインと時系列を照合
-- `list_contradictions` — マーク済みの矛盾を確認
-- `search_case_law` — 3層法条検索：事件記録 → カスタムナレッジベース → 内蔵法条ライブラリ
-- `web_search` — 公開情報のライブ検索（Bing中国ソース、切替可能）
-- `run_code` — サンドボックスPython（matplotlibチャートを記録に直接描画）
-
-</details>
-
-<details>
-<summary><strong>📚 ナレッジベースと類案</strong></summary>
-
-- **内蔵法条ライブラリ**：刑事訴訟法・刑法・民法典の番号が安定した実際の条文 + 証拠審査要旨（三性、保管チェーン、電子データ）
-- **類案要旨**：間接証拠による認定、監視カメラ編集の影響、不可抗力弁護などの裁判ルール
-- **カスタム項目**：「設定 → ナレッジベース」で自身の類案要旨や内部規範を追加可能、3層検索は一致した場合のみ引用
-- **決して捏造しない**：検索で見つからない場合、専門家は明確にその旨を述べ、法条番号を捏造しません
-
-</details>
-
-<details>
-<summary><strong>🔄 マルチラウンドディベートエンジン</strong></summary>
-
-- ディベートラウンド数は設定可能、**メモリウィンドウ**も設定可能
-- ウィンドウを超えた過去ラウンドは**ローリング圧縮で要約**され、単純に破棄されません
-- AI批評官が毎ラウンド矛盾をスキャンし、次ラウンドの深化を促します
-- 裁判長は合意形成（またはラウンド上限）で収束します
-
-</details>
-
-<details>
-<summary><strong>📹 リアルタイムストリーミングと法廷 UX</strong></summary>
-
-- トークン単位の専門家出力 + 発言インジケータ
-- ツール呼び出しとサンドボックスチャートを記録に直接描画
-- ラウンドステッパー、プログレスバー、専門家ステータス
-- **途中介入**——いつでも発言でき、次ラウンドで全専門家が応答
-- **判決質疑**——判決後も理由を問い詰める、推奨質問付き
-
-</details>
-
-<details>
-<summary><strong>⚖️ デュアル判決モードと判決後ワークフロー</strong></summary>
-
-- **AI裁判長**——自動収束して判決を下す
-- **人間裁判官（HITL）**——法廷を一時停止して人間によるレビューを待機；タイムアウト時は下書きを自動採用してアーカイブ（設定可能）
-- **判決後**：質疑応答、**フォローアップチェックリスト**の進捗追跡、ワンクリックコピー / Markdown出力 / PDF印刷
-- 各法廷は自動アーカイブされ、**使用統計**（推論回数、入出力文字数）と完全なリプレイ付き
-
-</details>
-
-<details>
-<summary><strong>🧩 エージェントエンジニアリング（設定 → Agent 工程化）</strong></summary>
-
-Dify/Coze に匹敵するランタイム制御：
-
-- **メモリウィンドウ**——各専門家のコンテキストに注入する過去ラウンド要約数
-- **コンテキスト上限**——LLM呼び出しあたりの最大文字数（クラウドモデル保護）
-- **並行上限**——同ラウンドの専門家並行数（レート制限対策）
-- **呼び出しタイムアウト**——エンジン停止でも法廷が停止しない
-- **専門家別モデル上書き**——書記は低コストモデル、裁判長は最強モデル
-- **戦略テンプレート**——ワンクリックでパッケージ化された戦略を適用
-- **設定インポート/エクスポート**——専門家陣容全体をJSONでバックアップ・移行
-
-</details>
-
-<details>
-<summary><strong>🧑‍⚖️ 審議品質——反省 · 自己点検 · 捜査計画</strong></summary>
-
-- **反省ノード（Reflexion 式）**——裁判長が収束する前に各専門家の主張を反証可能性の観点で審査し、反対理由を必ず記録
-- **完全性自己点検**——裁定前の決定的監査：説明されていない証拠 / 未解決の矛盾 / 法条引用の欠落を人間に差し戻し、黙殺しない
-- **捜査計画**——複雑な巻宗は先に「立証すべき課題リスト」を生成し、全専門家へ配布
-- **事例蓄積**——終了した審理の裁定を参照判例として事例ファイルに回帰し、後の類似検索で再利用
-- **類似事例推薦**——事例詳細ページで embedding 近傍を表示
-- **証拠連鎖の強度**——裁定に強度スコアと不確実性の明示を付与
-
-</details>
-
-<details>
-<summary><strong>🔎 検索 · 引用トレースとレポート出力</strong></summary>
-
-- **引用トレース（grounding）**——専門家の発言に実際の根拠（法条/知識項目/ソースURL）を表示し「来源」チップとして描画（Perplexity 流）；ハイブリッド検索はオプションの BGE reranker 精選に対応（`requirements-ai.txt` で導入、無ければ自動スキップ）
-- **審査レポート**——裁定・矛盾・タイムライン・証拠連鎖・引用を含む Markdown / DOCX をワンクリック出力
-- **証拠タイムライン表示**——証拠横断でタイムスタンプ抽出 → インタラクティブな横型タイムライン
-- **利用量・監査パネル**——`/api/admin/usage` がセッションごとの推論回数/文字数を集計 + SSE イベントストリームでリアルタイム監視
-- **音声入力**——Chrome/Edge の Web Speech API（zh-CN）対応ブラウザで口述入力が可能
-
-</details>
-
-<details>
-<summary><strong>🏛️ デプロイ準備完了</strong></summary>
-
-- ワンコマンド起動/停止（`tools/start_all.py`）——ウィンドウなしデーモン、クラッシュ時自動再起動
-- イントラネットデプロイ用アクセスパスワード（`.env` の `ACCESS_PASSWORD`）
-- 内蔵ローカルエンジンで完全オフライン動作、OpenAI互換APIにも対応
-- ライト/ダーク両テーマ、English / 中文 / 日本語 UI
-
-</details>
-
-## 🚀 クイックスタート（30秒）
+## クイックスタート — 約30秒で起動
 
 ```bash
-# クローン
-git clone https://gitcode.com/badhope/VerdictAI.git
-# または GitHub ミラー
-git clone https://github.com/Morningstar202604/VerdictAI.git
+# 方法A · リリースパッケージ
+#   Windows / macOS / Linux — ダウンロードして解凍するだけ、あとは:
 cd VerdictAI/backend
-
-# 環境構築
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate    # Linux/Mac
-
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+python tools/start_all.py                           # 一発起動: バックエンド + ローカルエンジン
 
-# ワンコマンド起動：バックエンド + ローカル推論エンジン（ウィンドウなし、自動再起動）
-python tools/start_all.py
-# 停止：python tools/start_all.py stop
+# 方法B · ソースから
+git clone https://gitcode.com/badhope/VerdictAI.git
+# またはミラー: git clone https://github.com/Morningstar202604/VerdictAI.git
+cd VerdictAI/backend && pip install -r requirements.txt && python tools/start_all.py
+
+# 方法C · Docker
+docker compose up -d --build
 ```
 
-**本番デプロイ（Docker）**：リポジトリルートで `docker compose up -d --build` → 内蔵SPA（バックエンド付属UI）`:8787`。詳細は [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) を参照。
+**http://localhost:8787** を開く → PDFをドラッグ（または事件内容を貼り付け）→ 構造化記録に解析されるのを見て →
+**審理開始**をクリック → 7人の専門家のライブ討議を見る。
 
-**http://localhost:8787 を開く** → PDF事件記録をドラッグ（または案情を貼り付け/サンプル選択）→ AIが構造化記録を解析する様子を確認 → 「開庭審理」をクリック → 7人のAI専門家によるディベートをリアルタイムで視聴。
+> 📦 すぐ使えるパッケージ: 最新の **VerdictAI.zip** は [Releaseページ](https://github.com/Morningstar202604/VerdictAI/releases/latest) から。git不要。
 
-## 🔌 実際の大モデル接続
+## 審理の流れ
+
+```mermaid
+flowchart LR
+    A[事件をアップロード/貼り付け] --> B[AIが構造化記録を抽出<br/>人物・証拠・タイムライン・法条]
+    B --> C[7人の専門家が並行討議<br/>多ラウンド・ツール呼び出し・矛盾検出]
+    C --> D{裁判長が収束?}
+    D -->|いいえ| C
+    D -->|はい| E[構造化判決<br/>証拠チェーン・疑問点・処遇提案]
+    E --> F[実行可能チェックリスト<br/>+ レビューレポート + 質疑]
+```
+
+## モデルプロバイダー
+
+初期状態で**組み込みローカル推論エンジン**（`backend/ai_engine`、ポート9100）に接続——実際の分析、APIキー不要。
+OpenAI互換API（DeepSeek、GLM、Qwen、Ollamaなど）にも対応: `backend/.env` で `LLM_BASE_URL` + `LLM_API_KEY` を設定。
 
 ```env
-# backend/.env
 LLM_PROVIDER=openai_compatible
-LLM_API_KEY=sk-your-key
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
+LLM_BASE_URL=http://127.0.0.1:9100/v1
+LLM_MODEL=verdict-local
 MAX_ROUNDS=3
 ```
 
-サーバー再起動で反映。DeepSeek、GLM、Qwen、Step、Ollama など任意の OpenAI 互換 API に対応。キーがない場合は内蔵**ローカルエンジン**（`backend/ai_engine/`）で完全オフライン実行可能です。
+## アーキテクチャ
 
-## 🏗️ アーキテクチャ
+```mermaid
+flowchart TB
+    UI1["🌐 内蔵SPAフロントエンド<br/>(index.html)"]
+    API["⚖️ FastAPI · app/main.py<br/>REST · WebSocket · 認証 · レート制限"]
+    UI1 -->|WebSocket + REST| API
 
+    subgraph GRAPH["LangGraph 合議ステートマシン StateGraph"]
+        direction LR
+        E1["7人の専門家<br/>並行討議"] --> E2["批判者<br/>矛盾検出"]
+        E2 --> E3["裁判長<br/>収束判定"]
+        E3 -->|未収束 → 次ラウンド| E1
+        E3 --> E4["判決宣言<br/>HITL確認"]
+        E4 --> V["判決出力<br/>構造化判決 · レビュー · 質疑"]
+    end
+    API --> GRAPH
+
+    subgraph SUPPORT["サポート機能"]
+        direction LR
+        S1["記録前処理<br/>PDF→構造化抽出"]
+        S2["ツール + コードサンドボックス<br/>6ツール · 隔離実行"]
+        S3["法条ナレッジベース<br/>3段階検索 · 類案"]
+        S4["データ / 図表<br/>事件 · 討議 · KB"]
+    end
+    API -. 依存 .-> SUPPORT
+
+    subgraph MODELS["モデル供給（切替可）"]
+        direction LR
+        M1["ローカル推論エンジン<br/>ai_engine :9100（デフォルト）"]
+        M2["OpenAI互換<br/>DeepSeek / GLM / Qwen など"]
+        M3["mock オフライン用"]
+    end
+    GRAPH -. 呼び出し .-> MODELS
 ```
-ブラウザ ──WebSocket──▶ FastAPI ──▶ LangGraph StateGraph
-                                     │
-                        ┌────────────┼────────────┐
-                        ▼            ▼             ▼
-                   7人の専門家    批評官        裁判長
-                  （並行）     （毎ラウンド）  （判決）
-                        │            │             │
-                        └────────────┘  N回ループ   ▼ 完了
-```
 
-**主要な設計判断：**
-- **LangGraph StateGraph**——場当たり的なループではなく決定論的ステートマシン
-- **asyncio.gather + 並行上限**——専門家は同ラウンドで並行実行、レート制限に配慮
-- **ツール耐障害性**——ツール呼び出しの失敗でディベートが崩れることはない
-- **階層メモリ**——ウィンドウ内は全文、ウィンドウ外はローリング圧縮
-- **引用規律**——法条・類案は検索ヒットから取得、モデルの想像からは決して生成しない
+**この設計の理由** — LangGraph StateGraph（決定論的ステートマシン、アドホックループではない）·
+`asyncio.gather` + 並行上限（並列実行、レート制限に優しい）· ツール耐障害（1回の失敗が審理を止めない）·
+階層メモリ（直近は全量、古い分は圧縮）· 引用規律（法条は検索由来、モデルの想像ではない）。
 
-詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照。
-
-## 📖 ドキュメント
+## ドキュメント
 
 | ドキュメント | 説明 |
-|------|------|
-| [アーキテクチャ](docs/ARCHITECTURE.md) | システム設計、ステートマシン、イベントタイプ |
-| [API リファレンス](docs/API.md) | RESTエンドポイントとWebSocketプロトコル |
-| [デプロイガイド](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、パフォーマンスチューニング |
-| [コントリビューション](CONTRIBUTING.md) | 開発環境構築と規約 |
+|---|---|
+| [公式サイト](https://Morningstar202604.github.io/VerdictAI/) | 機能紹介・スクリーンショット・ダウンロード |
+| [アーキテクチャ](docs/ARCHITECTURE.md) | システム設計、ステートマシン、イベント型 |
+| [APIリファレンス](docs/API.md) | RESTエンドポイントとWebSocketプロトコル |
+| [デプロイ](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、性能チューニング |
+| [コントリビューション](CONTRIBUTING.md) | 開発環境とガイドライン |
 
-## 🤝 コントリビューション
+## 正直なことば
 
-コントリビューションを歓迎します！開発環境構築、コード規約、PRプロセスの詳細は [CONTRIBUTING.md](CONTRIBUTING.md) をご覧ください。
+本システムは**研究・デモンストレーション用ソフトウェア**です。AIが生成する結論は意思決定の補助であり、
+法的助言ではありません——最終的な責任は常に人間の裁判官と法律専門家にあります。
+ナレッジベースに一致する法条がない場合、エージェントは推測せず「該当なし」と正直に伝えます。
 
-## ⚠️ 免責事項
+## ライセンス
 
-本システムは**研究とデモ目的**でのみご利用ください。AIが生成する結論は意思決定支援であり、法的助言や判決を構成するものではありません。最終的な法的責任は常に人間の裁判官と法律専門家にあります。
-
-## 📜 ライセンス
-
-[MIT License](LICENSE) — 自由にご利用ください。
-
----
-
-<p align="center">
-  <strong>VerdictAI が役に立ったら、ぜひ ⭐ をお願いします</strong>
-</p>
-
-<p align="center">
-  <sub>Built with LangGraph • FastAPI • WebSocket</sub>
-</p>
+[MIT License](LICENSE) — 自由にご利用いただけます。
