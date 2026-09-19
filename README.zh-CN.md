@@ -9,17 +9,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/Morningstar202604/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Morningstar202604/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
+  <a href="https://github.com/x33834/VerdictAI"><img src="https://img.shields.io/github/stars/x33834/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/x33834/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
+  <a href="https://github.com/x33834/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/x33834/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
   <a href="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT" /></a>
 </p>
 
 <p align="center">
-  <a href="https://Morningstar202604.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_官网-访问-brightgreen?style=flat-square" alt="官网" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_一键下载-latest-blue?style=flat-square" alt="下载" /></a>
+  <a href="https://x33834.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_官网-访问-brightgreen?style=flat-square" alt="官网" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_一键下载-latest-blue?style=flat-square" alt="下载" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/badge/GitHub-镜像-24292F?style=flat-square&logo=github" alt="GitHub-镜像" /></a>
   <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-镜像仓库-3A72BE?style=flat-square&logo=git" alt="GitCode" /></a>
+  <a href="https://gitee.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/Gitee-镜像仓库-C71D23?style=flat-square&logo=git" alt="Gitee-镜像仓库" /></a>
+</p>
+
+<p align="center"><b>官方网站</b>（GitHub Pages 双号部署，内容一致）：
+  <a href="https://x33834.github.io/VerdictAI/">x33834.github.io/VerdictAI</a> ·
+  <a href="https://morningstar202604.github.io/VerdictAI/">morningstar202604.github.io/VerdictAI</a>
 </p>
 
 <p align="center">
@@ -119,7 +126,7 @@ python tools/start_all.py                           # 一条命令：后端 + �
 
 # 方式 B · 源码
 git clone https://gitcode.com/badhope/VerdictAI.git
-# 或镜像：git clone https://github.com/Morningstar202604/VerdictAI.git
+# 或镜像：git clone https://github.com/x33834/VerdictAI.git（另有：github.com/Morningstar202604/VerdictAI · gitcode.com/badhope/VerdictAI · gitee.com/badhope/VerdictAI）
 cd VerdictAI/backend && pip install -r requirements.txt && python tools/start_all.py
 
 # 方式 C · Docker
@@ -129,7 +136,7 @@ docker compose up -d --build
 打开 **http://localhost:8787** → 拖入一份 PDF（或粘贴案情描述）→ 看它解析为结构化卷宗 →
 点 **开庭审理** → 看 7 个专家实时辩论。
 
-> 📦 现成包：最新 **VerdictAI.zip** 在 [Release 页](https://github.com/Morningstar202604/VerdictAI/releases/latest)，
+> 📦 现成包：最新 **VerdictAI.zip** 在 [Release 页](https://github.com/x33834/VerdictAI/releases/latest)，
 > 无需安装 git。
 
 ## 一次庭审怎么跑
@@ -200,7 +207,7 @@ flowchart TB
 
 | 文档 | 说明 |
 |------|------|
-| [官网](https://Morningstar202604.github.io/VerdictAI/) | 功能展示、截图与下载 |
+| [官网](https://x33834.github.io/VerdictAI/) | 功能展示、截图与下载 |
 | [架构](docs/ARCHITECTURE.md) | 系统设计、状态机、事件类型 |
 | [API 参考](docs/API.md) | REST 端点与 WebSocket 协议 |
 | [部署](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、性能调优 |
