@@ -9,17 +9,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/Morningstar202604/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Morningstar202604/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
+  <a href="https://github.com/x33834/VerdictAI"><img src="https://img.shields.io/github/stars/x33834/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/x33834/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
+  <a href="https://github.com/x33834/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/x33834/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
   <a href="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT" /></a>
 </p>
 
 <p align="center">
-  <a href="https://Morningstar202604.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_公式サイト-訪問-brightgreen?style=flat-square" alt="公式サイト" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_ワンクリックDL-latest-blue?style=flat-square" alt="ダウンロード" /></a>
+  <a href="https://x33834.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_公式サイト-訪問-brightgreen?style=flat-square" alt="公式サイト" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_ワンクリックDL-latest-blue?style=flat-square" alt="ダウンロード" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/badge/GitHub-ミラー-24292F?style=flat-square&logo=github" alt="GitHub-ミラー" /></a>
   <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-ミラー-3A72BE?style=flat-square&logo=git" alt="GitCode" /></a>
+  <a href="https://gitee.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/Gitee-ミラー-C71D23?style=flat-square&logo=git" alt="Gitee-ミラー" /></a>
+</p>
+
+<p align="center"><b>公式サイト</b>（GitHub Pages 両アカウント、内容同一）：
+  <a href="https://x33834.github.io/VerdictAI/">x33834.github.io/VerdictAI</a> ·
+  <a href="https://morningstar202604.github.io/VerdictAI/">morningstar202604.github.io/VerdictAI</a>
 </p>
 
 <p align="center">
@@ -121,7 +128,7 @@ python tools/start_all.py                           # 一発起動: バックエ
 
 # 方法B · ソースから
 git clone https://gitcode.com/badhope/VerdictAI.git
-# またはミラー: git clone https://github.com/Morningstar202604/VerdictAI.git
+# またはミラー: git clone https://github.com/x33834/VerdictAI.git（他: github.com/Morningstar202604/VerdictAI · gitcode.com/badhope/VerdictAI · gitee.com/badhope/VerdictAI）
 cd VerdictAI/backend && pip install -r requirements.txt && python tools/start_all.py
 
 # 方法C · Docker
@@ -131,7 +138,7 @@ docker compose up -d --build
 **http://localhost:8787** を開く → PDFをドラッグ（または事件内容を貼り付け）→ 構造化記録に解析されるのを見て →
 **審理開始**をクリック → 7人の専門家のライブ討議を見る。
 
-> 📦 すぐ使えるパッケージ: 最新の **VerdictAI.zip** は [Releaseページ](https://github.com/Morningstar202604/VerdictAI/releases/latest) から。git不要。
+> 📦 すぐ使えるパッケージ: 最新の **VerdictAI.zip** は [Releaseページ](https://github.com/x33834/VerdictAI/releases/latest) から。git不要。
 
 ## 審理の流れ
 
@@ -201,7 +208,7 @@ flowchart TB
 
 | ドキュメント | 説明 |
 |---|---|
-| [公式サイト](https://Morningstar202604.github.io/VerdictAI/) | 機能紹介・スクリーンショット・ダウンロード |
+| [公式サイト](https://x33834.github.io/VerdictAI/) | 機能紹介・スクリーンショット・ダウンロード |
 | [アーキテクチャ](docs/ARCHITECTURE.md) | システム設計、ステートマシン、イベント型 |
 | [APIリファレンス](docs/API.md) | RESTエンドポイントとWebSocketプロトコル |
 | [デプロイ](docs/DEPLOYMENT.md) | Docker、systemd、Nginx、性能チューニング |
