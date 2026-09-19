@@ -10,17 +10,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/github/stars/Morningstar202604/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/Morningstar202604/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/Morningstar202604/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
+  <a href="https://github.com/x33834/VerdictAI"><img src="https://img.shields.io/github/stars/x33834/VerdictAI?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest"><img src="https://img.shields.io/github/v/release/x33834/VerdictAI?style=for-the-badge&logo=semver" alt="Latest Release" /></a>
+  <a href="https://github.com/x33834/VerdictAI/actions"><img src="https://img.shields.io/github/actions/workflow/status/x33834/VerdictAI/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI" /></a>
   <a href="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT" /></a>
 </p>
 
 <p align="center">
-  <a href="https://Morningstar202604.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_Official_Website-Visit-brightgreen?style=flat-square" alt="Official Website" /></a>
-  <a href="https://github.com/Morningstar202604/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_One--Click_Download-latest-blue?style=flat-square" alt="Download" /></a>
+  <a href="https://x33834.github.io/VerdictAI/"><img src="https://img.shields.io/badge/🌐_Official_Website-Visit-brightgreen?style=flat-square" alt="Official Website" /></a>
+  <a href="https://github.com/x33834/VerdictAI/releases/latest/download/VerdictAI.zip"><img src="https://img.shields.io/badge/⬇️_One--Click_Download-latest-blue?style=flat-square" alt="Download" /></a>
+  <a href="https://github.com/Morningstar202604/VerdictAI"><img src="https://img.shields.io/badge/GitHub-Mirror-24292F?style=flat-square&logo=github" alt="GitHub Mirror" /></a>
   <a href="https://gitcode.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/GitCode-Mirror-3A72BE?style=flat-square&logo=git" alt="GitCode" /></a>
+  <a href="https://gitee.com/badhope/VerdictAI"><img src="https://img.shields.io/badge/Gitee-Mirror-C71D23?style=flat-square&logo=git" alt="Gitee-Mirror" /></a>
+</p>
+
+<p align="center"><b>Official sites</b> (GitHub Pages, both accounts, identical):
+  <a href="https://x33834.github.io/VerdictAI/">x33834.github.io/VerdictAI</a> ·
+  <a href="https://morningstar202604.github.io/VerdictAI/">morningstar202604.github.io/VerdictAI</a>
 </p>
 
 <p align="center">
@@ -130,7 +137,7 @@ python tools/start_all.py                           # one command: backend + loc
 
 # Option B · from source
 git clone https://gitcode.com/badhope/VerdictAI.git
-# or mirror: git clone https://github.com/Morningstar202604/VerdictAI.git
+# or mirror: git clone https://github.com/x33834/VerdictAI.git  # also: github.com/Morningstar202604/VerdictAI · gitcode.com/badhope/VerdictAI · gitee.com/badhope/VerdictAI
 cd VerdictAI/backend && pip install -r requirements.txt && python tools/start_all.py
 
 # Option C · Docker
@@ -141,7 +148,7 @@ Open **http://localhost:8787** → drop in a PDF (or paste a description) → wa
 into a structured dossier → click **Open Trial** → watch 7 experts argue live.
 
 > 📦 Ready-made bundle: grab the latest **VerdictAI.zip** from the
-> [Release page](https://github.com/Morningstar202604/VerdictAI/releases/latest) — no git needed.
+> [Release page](https://github.com/x33834/VerdictAI/releases/latest) — no git needed.
 
 ## How a trial runs
 
@@ -213,7 +220,7 @@ tolerance (one bad call never stalls a trial) · tiered memory (recent full, old
 
 | Document | Description |
 |----------|-------------|
-| [Official website](https://Morningstar202604.github.io/VerdictAI/) | Features, screenshots &amp; download |
+| [Official website](https://x33834.github.io/VerdictAI/) | Features, screenshots &amp; download |
 | [Architecture](docs/ARCHITECTURE.md) | System design, state machine, event types |
 | [API Reference](docs/API.md) | REST endpoints &amp; WebSocket protocol |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, systemd, Nginx, performance tuning |
